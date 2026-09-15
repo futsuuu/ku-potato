@@ -1,0 +1,11 @@
+{
+    "$schema": "https://raw.github.com/denoland/deno/main/cli/schemas/config-file.v1.json",
+    "tasks": {
+        "main": "deno run --allow-all --unsafe-proto main.ts"
+    },
+    "imports": {
+        "@gunshi/docs": "npm:@gunshi/docs@^0.37.3",
+        "gunshi": "npm:gunshi@^0.37.3",
+        "playwright-core": "npm:playwright-core@^1.63.0"
+    }
+}

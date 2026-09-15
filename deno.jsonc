@@ -1,0 +1,20 @@
+{
+    "$schema": "https://raw.github.com/denoland/deno/main/cli/schemas/config-file.v1.json",
+    "workspace": ["./*"],
+    "tasks": {
+        "cli": "deno task --filter=cli main"
+    },
+    "nodeModulesDir": "auto",
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1",
+        "effect": "npm:effect@4.0.0-rc.116"
+    },
+    "fmt": {
+        "lineWidth": 120
+    },
+    "lint": {
+        "rules": {
+            "exclude": ["no-slow-types"]
+        }
+    }
+}
