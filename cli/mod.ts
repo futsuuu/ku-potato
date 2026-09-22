@@ -2,8 +2,8 @@
  * Inbound adapter for the command-line interface.
  */
 
-import type { CourseMaterials } from "ku-potato-domain";
-import type { ListCourseMaterials } from "ku-potato-core/in_port";
+import type { Course, CourseMaterials } from "ku-potato-domain";
+import type { ListCourseMaterials, ListCourses } from "ku-potato-core/in_port";
 import { Effect } from "effect";
 import * as gunshi from "gunshi";
 
@@ -15,28 +15,56 @@ import * as gunshi from "gunshi";
  */
 export const main = Effect.fn("CliInboundAdapter.run")(function* (
     commandArgs: readonly string[],
-    listCourses: ListCourseMaterials,
+    listCourseMaterials: ListCourseMaterials,
+    listCourses: ListCourses,
 ) {
     const context = yield* Effect.context<never>();
     return yield* Effect.promise(() =>
         gunshi.cli(
             [...commandArgs],
-            () =>
-                Effect.runPromiseWith(context)(
-                    listCourses.execute.pipe(
-                        Effect.flatMap((courses) => Effect.forEach(courses, printCourseMaterials)),
+            gunshi.define({
+                name: "ku-potato",
+                description: "Command-Line Interface for KU-PORT and KU-LMS",
+                run: () =>
+                    Effect.runPromiseWith(context)(
+                        listCourseMaterials.execute.pipe(
+                            Effect.flatMap((courses) => Effect.forEach(courses, printCourseMaterials)),
+                            Effect.asVoid,
+                        ),
                     ),
-                ),
+            }),
             {
                 name: "ku-potato",
                 version: "0.0.0",
                 description: "Command-Line Interface for KU-PORT and KU-LMS",
+                subCommands: {
+                    "list-courses": gunshi.define({
+                        name: "list-courses",
+                        description: "講義一覧を取得する",
+                        run: () =>
+                            Effect.runPromiseWith(context)(
+                                listCourses.execute.pipe(
+                                    Effect.flatMap((courses) => Effect.forEach(courses, printCourse)),
+                                    Effect.asVoid,
+                                ),
+                            ),
+                    }),
+                },
             },
         )
     );
 });
 
 export const CliInboundAdapter = { run: main };
+
+export const printCourse = Effect.fn("CliInboundAdapter.printCourse")(function* (course: Course) {
+    yield* Effect.log(`講義名: ${course.name}`);
+    if (course.availability === "unavailable") {
+        yield* Effect.log("  利用不可");
+        return;
+    }
+    yield* Effect.log(`  講義ID: ${course.id}`);
+});
 
 export const printCourseMaterials = Effect.fn("CliInboundAdapter.printCourseMaterials")(
     function* (course: CourseMaterials) {
