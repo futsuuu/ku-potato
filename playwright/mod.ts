@@ -296,7 +296,7 @@ export function parsePublicationDeadline(
 
 /** Parses an LMS date as Japan Standard Time. A date-only value means midnight JST. */
 export function parseLmsDate(text: string | undefined): Effect.Effect<Date | undefined, CourseMaterialsGatewayError> {
-    if (text === undefined) return Effect.succeed(undefined);
+    if (text === undefined) return Effect.succeed(undefined satisfies Date | undefined);
     const iso = text.replaceAll("/", "-").replace(" ", "T");
     return Effect.try({
         try: () => DateTime.toDate(DateTime.makeUnsafe(`${iso.includes("T") ? iso : `${iso}T00:00:00`}+09:00`)),

@@ -5,11 +5,12 @@
     "workspaces": ["./*"],
     "scripts": {
         "cli": "deno task --filter=ku-potato-entrypoint cli",
-        "lint": "mkdir -p types && deno types > types/deno.d.ts && oxlint"
+        "lint": "effect-tsgo patch --oxlint --no-typescript && mkdir -p types && deno types > types/deno.d.ts && oxlint"
     },
     "devDependencies": {
-        "oxlint": "1.83.0",
-        "oxlint-tsgolint": "7.0.2002"
+        "@effect/tsgo": "0.45.0",
+        "oxlint": "1.82.0",
+        "oxlint-tsgolint": "7.0.2001"
     },
     "catalog": {
         "effect": "4.0.0-rc.116"
