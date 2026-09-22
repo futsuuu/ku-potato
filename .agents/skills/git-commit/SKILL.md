@@ -43,8 +43,8 @@ git commit --file <temp-file>
 ```
 
 - Keep the subject line under 72 characters.
-- `<scope>` - the relative path or package/module name that the commit touches. Use a hierarchical path when applicable (e.g.
-  `core/in_port`, `playwright/lms/parser`).
+- `<scope>` - the relative path or package/module name that the commit touches. Use a hierarchical path when applicable
+  (e.g. `core/in_port`, `playwright/lms/parser`).
 - `<description>` - a short description of the changes made, in imperative mood, lowercased, with no trailing period.
 - `[optional body]` - WHAT the changes are and WHY they were made. Include problem context, solution rationale, and any
   implementation decisions. Wrap at 72 characters.
