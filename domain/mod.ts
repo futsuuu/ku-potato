@@ -1,3 +1,18 @@
+/** An LMS-specific identifier for a course that can be opened. */
+export type CourseId = string;
+
+/** A course shown on the LMS home page. */
+export type Course =
+    | {
+        readonly id: CourseId;
+        readonly name: string;
+        readonly availability: "available";
+    }
+    | {
+        readonly name: string;
+        readonly availability: "unavailable";
+    };
+
 /** A teaching material published for a course. */
 export type Material =
     & {

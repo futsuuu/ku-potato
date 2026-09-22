@@ -1,53 +1,91 @@
 /** Outbound adapter for KU-LMS, implemented with Playwright. */
-import { type CourseMaterialsGateway, CourseMaterialsGatewayError } from "ku-potato-core/out_port";
-import type { AvailableCourseMaterials, CourseMaterials, Material, MaterialFolder } from "ku-potato-domain";
+import { type CourseGateway, type CourseMaterialsGateway, CourseMaterialsGatewayError } from "ku-potato-core/out_port";
+import type { AvailableCourseMaterials, Course, CourseMaterials, Material, MaterialFolder } from "ku-potato-domain";
 import { DateTime, Effect } from "effect";
 import * as playwright from "playwright-core";
 
-const listCourseMaterialsFromLms = Effect.scoped(Effect.gen(function* () {
-    const browser = yield* Effect.acquireRelease(
-        tryPromise("launch browser", () => launchBrowser({ headless: false })),
-        (browser) => tryPromise("close browser", () => browser.close()).pipe(Effect.catch(Effect.logError)),
-    );
-    const context = yield* Effect.acquireRelease(
-        tryPromise("create browser context", () => browser.newContext()),
-        (context) => tryPromise("close browser context", () => context.close()).pipe(Effect.catch(Effect.logError)),
-    );
-    yield* Effect.acquireRelease(
-        tryPromise(
-            "restore browser storage state",
-            () => context.setStorageState(".storage-state.json").catch(() => undefined),
-        ),
-        () =>
+function withLoggedInLms<A>(
+    operation: (page: playwright.Page) => Effect.Effect<A, CourseMaterialsGatewayError>,
+): Effect.Effect<A, CourseMaterialsGatewayError> {
+    return Effect.scoped(Effect.gen(function* () {
+        const browser = yield* Effect.acquireRelease(
+            tryPromise("launch browser", () => launchBrowser({ headless: false })),
+            (browser) => tryPromise("close browser", () => browser.close()).pipe(Effect.catch(Effect.logError)),
+        );
+        const context = yield* Effect.acquireRelease(
+            tryPromise("create browser context", () => browser.newContext()),
+            (context) => tryPromise("close browser context", () => context.close()).pipe(Effect.catch(Effect.logError)),
+        );
+        yield* Effect.acquireRelease(
             tryPromise(
-                "save browser storage state",
-                () =>
-                    context.storageState().then(JSON.stringify).then((state) =>
-                        Deno.writeTextFile(".storage-state.json", state)
-                    ),
-            ).pipe(Effect.catch(Effect.logError)),
-    );
-    const page = yield* tryPromise("create browser page", () => context.newPage());
-    yield* loginToLms(page);
-
-    const courseNames = (yield* tryPromise("read course names", () => page.locator(".lms-cardname").allTextContents()))
-        .map(normalizeText);
-    return yield* Effect.forEach(
-        courseNames,
-        (courseName) =>
-            getCourseMaterials(page, courseName).pipe(
-                Effect.map((course): CourseMaterials =>
-                    course === null
-                        ? { name: courseName, availability: "unavailable" }
-                        : { name: courseName, availability: "available", ...course }
-                ),
+                "restore browser storage state",
+                () => context.setStorageState(".storage-state.json").catch(() => undefined),
             ),
-        { concurrency: 1 },
-    );
-}));
+            () =>
+                tryPromise(
+                    "save browser storage state",
+                    () =>
+                        context.storageState().then(JSON.stringify).then((state) =>
+                            Deno.writeTextFile(".storage-state.json", state)
+                        ),
+                ).pipe(Effect.catch(Effect.logError)),
+        );
+        const page = yield* tryPromise("create browser page", () => context.newPage());
+        yield* loginToLms(page);
+        return yield* operation(page);
+    }));
+}
+
+const listCourseMaterialsFromLms = withLoggedInLms((page) =>
+    Effect.gen(function* () {
+        const courseNames = (yield* tryPromise("read course names", () =>
+            page.locator(".lms-cardname").allTextContents()))
+            .map(normalizeText);
+        return yield* Effect.forEach(
+            courseNames,
+            (courseName) =>
+                getCourseMaterials(page, courseName).pipe(
+                    Effect.map((course): CourseMaterials =>
+                        course === null
+                            ? { name: courseName, availability: "unavailable" }
+                            : { name: courseName, availability: "available", ...course }
+                    ),
+                ),
+            { concurrency: 1 },
+        );
+    })
+);
+
+const listCoursesFromLms = withLoggedInLms((page) =>
+    Effect.gen(function* () {
+        const courseCards = page.locator(".lms-cardname");
+        yield* tryPromise("wait for course index", () => page.locator(".lms-weekly-area").waitFor());
+        yield* captureCourseIndexDebugArtifacts(page, courseCards);
+
+        const courses: Course[] = [];
+        for (const courseCard of yield* tryPromise("find course cards", () => courseCards.all())) {
+            const name = normalizeText((yield* tryPromise("read course name", () => courseCard.textContent())) ?? "");
+            const courseLink = courseCard.locator("a");
+            if ((yield* tryPromise("find course link", () => courseLink.count())) === 0) {
+                courses.push({ name, availability: "unavailable" });
+                continue;
+            }
+            const id = yield* parseLmsCourseId(
+                yield* tryPromise("read course click handler", () => courseLink.getAttribute("onclick")),
+            );
+            courses.push({ id, name, availability: "available" });
+        }
+        return courses;
+    })
+);
 
 export const CourseMaterialsGatewayLive: CourseMaterialsGateway = {
     list: listCourseMaterialsFromLms,
+};
+
+/** Prototype adapter for the primitive course-index operation. */
+export const CourseGatewayLive: CourseGateway = {
+    listCourses: listCoursesFromLms,
 };
 
 function tryPromise<A>(operation: string, evaluate: () => PromiseLike<A>) {
@@ -60,6 +98,88 @@ function tryPromise<A>(operation: string, evaluate: () => PromiseLike<A>) {
 function errorMessage(cause: unknown): string {
     return cause instanceof Error ? cause.message : String(cause);
 }
+
+const captureCourseIndexDebugArtifacts = Effect.fn("PlaywrightBrowser.captureCourseIndexDebugArtifacts")(
+    function* (
+        page: playwright.Page,
+        courseCards: playwright.Locator,
+    ): Effect.fn.Return<void, CourseMaterialsGatewayError> {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const directory = `.debug/list-courses/${timestamp}`;
+        yield* tryPromise("create course-index debug directory", () => Deno.mkdir(directory, { recursive: true }));
+
+        const cardHtml = yield* tryPromise(
+            "capture course-card HTML",
+            () => courseCards.evaluateAll((cards) => cards.map((card) => card.outerHTML).join("\n\n")),
+        );
+        const css = yield* tryPromise("capture course-card CSS", () =>
+            page.evaluate(() => {
+                const styleProperties = [
+                    "display",
+                    "position",
+                    "width",
+                    "height",
+                    "margin",
+                    "padding",
+                    "color",
+                    "backgroundColor",
+                    "fontSize",
+                    "fontWeight",
+                    "visibility",
+                ] as const;
+                const describe = (element: Element) => {
+                    const computed = getComputedStyle(element);
+                    return {
+                        tagName: element.tagName,
+                        className: element.getAttribute("class"),
+                        attributes: Object.fromEntries([...element.attributes].map(({ name, value }) => [name, value])),
+                        computed: Object.fromEntries(styleProperties.map((property) => [property, computed[property]])),
+                        link: {
+                            href: element.querySelector("a")?.getAttribute("href") ?? null,
+                            onclick: element.querySelector("a")?.getAttribute("onclick") ?? null,
+                        },
+                    };
+                };
+                return {
+                    cards: [...document.querySelectorAll(".lms-cardname")].map(describe),
+                    stylesheets: [...document.styleSheets].map((stylesheet) => {
+                        try {
+                            return {
+                                href: stylesheet.href,
+                                media: stylesheet.media.mediaText,
+                                relevantRules: [...stylesheet.cssRules]
+                                    .map((rule) => rule.cssText)
+                                    .filter((rule) => rule.includes(".lms-cardname")),
+                            };
+                        } catch (cause) {
+                            return { href: stylesheet.href, unavailable: String(cause) };
+                        }
+                    }),
+                };
+            }));
+        const [html, aria] = yield* Effect.all([
+            tryPromise("capture course-index HTML", () => page.content()),
+            tryPromise("capture course-index accessibility tree", () => page.ariaSnapshot({ boxes: true, mode: "ai" })),
+        ]);
+        yield* Effect.all([
+            tryPromise("write course-index HTML", () => Deno.writeTextFile(`${directory}/home.html`, html)),
+            tryPromise("write course-card HTML", () => Deno.writeTextFile(`${directory}/course-cards.html`, cardHtml)),
+            tryPromise(
+                "write course-card CSS",
+                () => Deno.writeTextFile(`${directory}/course-cards.css.json`, JSON.stringify(css, null, 2)),
+            ),
+            tryPromise(
+                "write course-index accessibility tree",
+                () => Deno.writeTextFile(`${directory}/home.aria.yml`, aria),
+            ),
+            tryPromise(
+                "take course-index screenshot",
+                () => page.screenshot({ path: `${directory}/home.png`, fullPage: true }),
+            ),
+        ]);
+        yield* Effect.logInfo(`講義一覧のデバッグ情報を保存しました: ${directory}`);
+    },
+);
 
 const loginToLms = Effect.fn("PlaywrightBrowser.loginToLms")(function* (
     page: playwright.Page,
@@ -285,6 +405,18 @@ export function parseMaterialType(title: string | null): Effect.Effect<Material[
                 }),
             );
     }
+}
+
+/** Extracts the LMS course key passed to the home-page form submission. */
+export function parseLmsCourseId(onclick: string | null): Effect.Effect<string, CourseMaterialsGatewayError> {
+    const match = onclick?.match(/\bformSubmit\(\s*["']([^"']+)["']/);
+    if (match?.[1] !== undefined) return Effect.succeed(match[1]);
+    return Effect.fail(
+        new CourseMaterialsGatewayError({
+            operation: "parse LMS course ID",
+            message: `講義のクリックハンドラーからIDを取得できません: ${onclick}`,
+        }),
+    );
 }
 
 export function parsePublicationDeadline(
