@@ -1,0 +1,32 @@
+import { assertEquals } from "@std/assert";
+import { Effect, Exit } from "effect";
+import { parseLmsDate, parseMaterialType, parsePublicationDeadline } from "./mod.ts";
+
+Deno.test("教材の表示名を種類ごとに変換する", () => {
+    assertEquals(Effect.runSync(parseMaterialType("資料")), "material");
+    assertEquals(Effect.runSync(parseMaterialType("e-learning")), "e-learning");
+    assertEquals(Effect.runSync(parseMaterialType("レポート")), "report");
+    assertEquals(Effect.runSync(parseMaterialType("テスト")), "test");
+    assertEquals(Effect.runSync(parseMaterialType("アンケート")), "questionnaire");
+    assertEquals(Exit.isFailure(Effect.runSyncExit(parseMaterialType("その他"))), true);
+    assertEquals(Exit.isFailure(Effect.runSyncExit(parseMaterialType(null))), true);
+});
+
+Deno.test("公開期限を日付・期限なし・公開終了に分類する", () => {
+    assertEquals(Effect.runSync(parsePublicationDeadline(undefined)), "no-deadline");
+    assertEquals(Effect.runSync(parsePublicationDeadline("公開終了")), "unavailable");
+    assertEquals(
+        (Effect.runSync(parsePublicationDeadline("2026/09/27 24:00")) as Date).toISOString(),
+        "2026-09-27T15:00:00.000Z",
+    );
+});
+
+Deno.test("LMSの日付・日時を日本時間としてパースする", () => {
+    assertEquals(Effect.runSync(parseLmsDate(undefined)), undefined);
+    assertEquals(Effect.runSync(parseLmsDate("2026/09/15"))?.toISOString(), "2026-09-14T15:00:00.000Z");
+    assertEquals(Effect.runSync(parseLmsDate("2026/09/15 23:59"))?.toISOString(), "2026-09-15T14:59:00.000Z");
+    assertEquals(Effect.runSync(parseLmsDate("2024/02/29 12:34:56"))?.toISOString(), "2024-02-29T03:34:56.000Z");
+    assertEquals(Effect.runSync(parseLmsDate("2026/09/27 24:00"))?.toISOString(), "2026-09-27T15:00:00.000Z");
+    assertEquals(Effect.runSync(parseLmsDate("2026/12/31 24:00"))?.toISOString(), "2026-12-31T15:00:00.000Z");
+    assertEquals(Exit.isFailure(Effect.runSyncExit(parseLmsDate("not-a-date"))), true);
+});

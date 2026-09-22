@@ -61,7 +61,11 @@
       "cli": {
         "dependencies": [
           "npm:@gunshi/docs@~0.37.3",
-          "npm:gunshi@~0.37.3",
+          "npm:gunshi@~0.37.3"
+        ]
+      },
+      "playwright": {
+        "dependencies": [
           "npm:playwright-core@^1.63.0"
         ]
       }

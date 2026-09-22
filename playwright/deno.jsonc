@@ -1,0 +1,8 @@
+{
+    "$schema": "https://raw.github.com/denoland/deno/main/cli/schemas/config-file.v1.json",
+    "name": "@futsuuu/ku-potato-playwright",
+    "exports": "./mod.ts",
+    "imports": {
+        "playwright-core": "npm:playwright-core@^1.63.0"
+    }
+}

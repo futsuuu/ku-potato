@@ -1,0 +1,5 @@
+{
+    "$schema": "https://raw.github.com/denoland/deno/main/cli/schemas/config-file.v1.json",
+    "name": "@futsuuu/ku-potato-domain",
+    "exports": "./mod.ts"
+}

@@ -1,0 +1,9 @@
+{
+    "$schema": "https://raw.github.com/denoland/deno/main/cli/schemas/config-file.v1.json",
+    "name": "@futsuuu/ku-potato-core",
+    "exports": {
+        ".": "./mod.ts",
+        "./in_port": "./in_port.ts",
+        "./out_port": "./out_port.ts"
+    }
+}
