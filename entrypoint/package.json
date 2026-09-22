@@ -1,11 +1,14 @@
 {
-  "name": "@futsuuu/ku-potato-entrypoint",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@futsuuu/ku-potato-cli": "workspace:*",
-    "@futsuuu/ku-potato-core": "workspace:*",
-    "@futsuuu/ku-potato-playwright": "workspace:*",
-    "effect": "4.0.0-rc.116"
-  }
+    "name": "ku-potato-entrypoint",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "cli": "deno run --allow-all --unsafe-proto cli.ts"
+    },
+    "dependencies": {
+        "ku-potato-cli": "workspace:*",
+        "ku-potato-core": "workspace:*",
+        "ku-potato-playwright": "workspace:*",
+        "effect": "catalog:"
+    }
 }

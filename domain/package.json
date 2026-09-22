@@ -1,11 +1,11 @@
 {
-  "name": "@futsuuu/ku-potato-domain",
-  "private": true,
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./mod.ts",
-      "default": "./mod.ts"
+    "name": "ku-potato-domain",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": {
+            "types": "./mod.ts",
+            "default": "./mod.ts"
+        }
     }
-  }
 }

@@ -1,21 +1,17 @@
 {
-  "name": "ku-potato",
-  "private": true,
-  "type": "module",
-  "workspaces": [
-    "cli",
-    "core",
-    "domain",
-    "entrypoint",
-    "playwright"
-  ],
-  "scripts": {
-    "lint": "deno task lint"
-  },
-  "devDependencies": {
-    "@std/assert": "npm:@jsr/std__assert@^1.0.19",
-    "@types/deno": "2.7.0",
-    "oxlint": "1.83.0",
-    "oxlint-tsgolint": "7.0.2002"
-  }
+    "name": "ku-potato",
+    "private": true,
+    "type": "module",
+    "workspaces": ["./*"],
+    "scripts": {
+        "cli": "deno task --filter=ku-potato-entrypoint cli",
+        "lint": "mkdir -p types && deno types > types/deno.d.ts && oxlint"
+    },
+    "devDependencies": {
+        "oxlint": "1.83.0",
+        "oxlint-tsgolint": "7.0.2002"
+    },
+    "catalog": {
+        "effect": "4.0.0-rc.116"
+    }
 }

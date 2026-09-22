@@ -1,6 +1,6 @@
 /** Outbound adapter for KU-LMS, implemented with Playwright. */
-import { type CourseMaterialsGateway, CourseMaterialsGatewayError } from "@futsuuu/ku-potato-core/out_port";
-import type { AvailableCourseMaterials, CourseMaterials, Material, MaterialFolder } from "@futsuuu/ku-potato-domain";
+import { type CourseMaterialsGateway, CourseMaterialsGatewayError } from "ku-potato-core/out_port";
+import type { AvailableCourseMaterials, CourseMaterials, Material, MaterialFolder } from "ku-potato-domain";
 import { DateTime, Effect } from "effect";
 import * as playwright from "playwright-core";
 

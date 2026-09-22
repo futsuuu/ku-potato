@@ -1,12 +1,10 @@
 {
-  "compilerOptions": {
-    "allowImportingTsExtensions": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "noEmit": true,
-    "strict": true,
-    "target": "ESNext",
-    "types": ["deno"]
-  },
-  "include": ["cli/**/*.ts", "core/**/*.ts", "domain/**/*.ts", "entrypoint/**/*.ts", "playwright/**/*.ts", "types/**/*.d.ts"]
+    "compilerOptions": {
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "strict": true,
+        "target": "esnext"
+    },
+    "include": ["."],
+    "exclude": ["node_modules"]
 }

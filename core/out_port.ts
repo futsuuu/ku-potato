@@ -1,6 +1,6 @@
 /** Application outbound port, implemented by an infrastructure adapter. */
 
-import type { CourseMaterials } from "@futsuuu/ku-potato-domain";
+import type { CourseMaterials } from "ku-potato-domain";
 import { type Effect, Schema } from "effect";
 
 export interface CourseMaterialsGateway {

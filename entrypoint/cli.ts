@@ -1,6 +1,6 @@
-import { CliInboundAdapter } from "@futsuuu/ku-potato-cli";
-import { makeListCourseMaterials } from "@futsuuu/ku-potato-core";
-import { CourseMaterialsGatewayLive } from "@futsuuu/ku-potato-playwright";
+import { CliInboundAdapter } from "ku-potato-cli";
+import { makeListCourseMaterials } from "ku-potato-core";
+import { CourseMaterialsGatewayLive } from "ku-potato-playwright";
 import { Effect } from "effect";
 
 const listCourseMaterials = makeListCourseMaterials(CourseMaterialsGatewayLive);

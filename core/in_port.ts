@@ -1,6 +1,6 @@
 /** Application inbound ports, implemented by the application layer. */
 
-import type { CourseMaterials } from "@futsuuu/ku-potato-domain";
+import type { CourseMaterials } from "ku-potato-domain";
 import type { Effect } from "effect";
 import type { CourseMaterialsGatewayError } from "./out_port.ts";
 

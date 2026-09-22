@@ -2,8 +2,8 @@
  * Inbound adapter for the command-line interface.
  */
 
-import type { CourseMaterials } from "@futsuuu/ku-potato-domain";
-import type { ListCourseMaterials } from "@futsuuu/ku-potato-core/in_port";
+import type { CourseMaterials } from "ku-potato-domain";
+import type { ListCourseMaterials } from "ku-potato-core/in_port";
 import { Effect } from "effect";
 import * as gunshi from "gunshi";
 
