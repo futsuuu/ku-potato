@@ -1,0 +1,21 @@
+{
+  "name": "ku-potato",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "cli",
+    "core",
+    "domain",
+    "entrypoint",
+    "playwright"
+  ],
+  "scripts": {
+    "lint": "deno task lint"
+  },
+  "devDependencies": {
+    "@std/assert": "npm:@jsr/std__assert@^1.0.19",
+    "@types/deno": "2.7.0",
+    "oxlint": "1.83.0",
+    "oxlint-tsgolint": "7.0.2002"
+  }
+}

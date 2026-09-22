@@ -1,0 +1,11 @@
+{
+  "name": "@futsuuu/ku-potato-entrypoint",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@futsuuu/ku-potato-cli": "workspace:*",
+    "@futsuuu/ku-potato-core": "workspace:*",
+    "@futsuuu/ku-potato-playwright": "workspace:*",
+    "effect": "4.0.0-rc.116"
+  }
+}

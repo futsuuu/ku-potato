@@ -1,0 +1,23 @@
+{
+  "name": "@futsuuu/ku-potato-core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./mod.ts",
+      "default": "./mod.ts"
+    },
+    "./in_port": {
+      "types": "./in_port.ts",
+      "default": "./in_port.ts"
+    },
+    "./out_port": {
+      "types": "./out_port.ts",
+      "default": "./out_port.ts"
+    }
+  },
+  "dependencies": {
+    "@futsuuu/ku-potato-domain": "workspace:*",
+    "effect": "4.0.0-rc.116"
+  }
+}
