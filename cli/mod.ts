@@ -63,7 +63,7 @@ export const printCourse = Effect.fn("CliInboundAdapter.printCourse")(function* 
         yield* Effect.log("  利用不可");
         return;
     }
-    yield* Effect.log(`  講義ID: ${course.id}`);
+    yield* Effect.log(`  LMS講義ID: ${course.lmsCourseId}`);
 });
 
 export const printCourseMaterials = Effect.fn("CliInboundAdapter.printCourseMaterials")(
