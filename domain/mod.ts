@@ -6,6 +6,12 @@ export type LmsCourseId = string & Brand.Brand<"LmsCourseId">;
 /** Constructs an LMS course ID after an adapter has extracted it from the LMS. */
 export const LmsCourseId = Brand.nominal<LmsCourseId>();
 
+/** The LMS value used to open a teaching material. */
+export type LmsMaterialId = string & Brand.Brand<"LmsMaterialId">;
+
+/** Constructs an LMS material ID after an adapter has extracted it from the LMS. */
+export const LmsMaterialId = Brand.nominal<LmsMaterialId>();
+
 /** A course shown on the LMS home page. */
 export type Course =
     | {
@@ -17,6 +23,38 @@ export type Course =
         readonly name: string;
         readonly availability: "unavailable";
     };
+
+/** A folder displayed with a teaching material on a course page. */
+export type MaterialFolderInfo = {
+    readonly name: string;
+    readonly classDate?: Date;
+};
+
+/**
+ * A teaching material obtained from one course page.
+ *
+ * The LMS does not expose an identifier for a folder, so its display
+ * information accompanies each material instead.
+ */
+export type CourseMaterial =
+    & {
+        readonly lmsMaterialId: LmsMaterialId;
+        readonly folder: MaterialFolderInfo;
+        readonly name: string;
+        readonly publicationDeadline: Date | "no-deadline" | "unavailable";
+    }
+    & ({
+        readonly type: "material";
+        /** Whether the LMS currently exposes a link to the material's resources. */
+        readonly resourceAvailability: "available" | "unavailable";
+    } | {
+        readonly type: "report" | "test" | "questionnaire" | "e-learning";
+    });
+
+/** A resource listed in the detail page for one teaching material. */
+export type MaterialResource = {
+    readonly name: string;
+};
 
 /** A teaching material published for a course. */
 export type Material =
