@@ -1,6 +1,13 @@
 /** Outbound adapter for KU-LMS, implemented with Playwright. */
 import { type CourseGateway, type CourseMaterialsGateway, CourseMaterialsGatewayError } from "ku-potato-core/out_port";
-import type { AvailableCourseMaterials, Course, CourseMaterials, Material, MaterialFolder } from "ku-potato-domain";
+import {
+    type AvailableCourseMaterials,
+    type Course,
+    type CourseMaterials,
+    LmsCourseId,
+    type Material,
+    type MaterialFolder,
+} from "ku-potato-domain";
 import { DateTime, Effect } from "effect";
 import * as playwright from "playwright-core";
 
@@ -70,10 +77,10 @@ const listCoursesFromLms = withLoggedInLms((page) =>
                 courses.push({ name, availability: "unavailable" });
                 continue;
             }
-            const id = yield* parseLmsCourseId(
+            const lmsCourseId = yield* parseLmsCourseId(
                 yield* tryPromise("read course click handler", () => courseLink.getAttribute("onclick")),
             );
-            courses.push({ id, name, availability: "available" });
+            courses.push({ lmsCourseId, name, availability: "available" });
         }
         return courses;
     })
@@ -407,14 +414,14 @@ export function parseMaterialType(title: string | null): Effect.Effect<Material[
     }
 }
 
-/** Extracts the LMS course key passed to the home-page form submission. */
-export function parseLmsCourseId(onclick: string | null): Effect.Effect<string, CourseMaterialsGatewayError> {
+/** Extracts the LMS course ID passed to the HOME page's course-opening form. */
+export function parseLmsCourseId(onclick: string | null): Effect.Effect<LmsCourseId, CourseMaterialsGatewayError> {
     const match = onclick?.match(/\bformSubmit\(\s*["']([^"']+)["']/);
-    if (match?.[1] !== undefined) return Effect.succeed(match[1]);
+    if (match?.[1] !== undefined) return Effect.succeed(LmsCourseId(match[1]));
     return Effect.fail(
         new CourseMaterialsGatewayError({
             operation: "parse LMS course ID",
-            message: `講義のクリックハンドラーからIDを取得できません: ${onclick}`,
+            message: `講義のクリックハンドラーからLMS講義IDを取得できません: ${onclick}`,
         }),
     );
 }
