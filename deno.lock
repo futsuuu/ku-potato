@@ -3,6 +3,7 @@
   "specifiers": {
     "npm:@effect/tsgo@0.45.0": "0.45.0",
     "npm:@jsr/std__assert@1": "1.0.19",
+    "npm:@types/node@24.0.0": "24.0.0",
     "npm:effect@4.0.0-rc.116": "4.0.0-rc.116",
     "npm:gunshi@0.37.3": "0.37.3",
     "npm:oxlint-tsgolint@7.0.2001": "7.0.2001",
@@ -194,6 +195,12 @@
       "os": ["win32"],
       "cpu": ["x64"]
     },
+    "@types/node@24.0.0": {
+      "integrity": "sha512-yZQa2zm87aRVcqDyH5+4Hv9KYgSdgwX1rFnGvpbzMaC7YAljmhBET93TPiTd3ObwTL+gSpIzPKg5BqVxdCvxKg==",
+      "dependencies": [
+        "undici-types"
+      ]
+    },
     "effect@4.0.0-rc.116": {
       "integrity": "sha512-nawqJHSjHV8XIBRZNZ+D7cLZpN3kkSjzy6aiT9ofKENsl7xAMFKEoDa0itN5JFl3GUQ1PIN1T1HNlva5+xyO/A=="
     },
@@ -246,12 +253,16 @@
     "playwright-core@1.63.0": {
       "integrity": "sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==",
       "bin": true
+    },
+    "undici-types@7.8.0": {
+      "integrity": "sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw=="
     }
   },
   "workspace": {
     "packageJson": {
       "dependencies": [
         "npm:@effect/tsgo@0.45.0",
+        "npm:@types/node@24.0.0",
         "npm:oxlint-tsgolint@7.0.2001",
         "npm:oxlint@1.82.0"
       ]
@@ -292,6 +303,14 @@
             "npm:@jsr/std__assert@1",
             "npm:effect@4.0.0-rc.116",
             "npm:playwright-core@1.63.0"
+          ]
+        }
+      },
+      "sqlite": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@jsr/std__assert@1",
+            "npm:effect@4.0.0-rc.116"
           ]
         }
       }

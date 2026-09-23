@@ -8,6 +8,7 @@
         "lint": "effect-tsgo patch --oxlint --no-typescript && mkdir -p types && deno types > types/deno.d.ts && oxlint"
     },
     "devDependencies": {
+        "@types/node": "24.0.0",
         "@effect/tsgo": "0.45.0",
         "oxlint": "1.82.0",
         "oxlint-tsgolint": "7.0.2001"
