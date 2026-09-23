@@ -1,10 +1,22 @@
 import { assertEquals } from "@std/assert";
 import { Effect, Exit } from "effect";
-import { parseLmsCourseId, parseLmsDate, parseMaterialType, parsePublicationDeadline } from "./mod.ts";
+import {
+    parseLmsCourseId,
+    parseLmsDate,
+    parseLmsMaterialId,
+    parseMaterialType,
+    parsePublicationDeadline,
+} from "./mod.ts";
 
 Deno.test("講義クリックハンドラーからLMS講義IDを抽出する", () => {
     assertEquals(Effect.runSync(parseLmsCourseId("formSubmit('KOG0000000066101')")), "KOG0000000066101");
     assertEquals(Exit.isFailure(Effect.runSyncExit(parseLmsCourseId("openCourse('KOG1')"))), true);
+});
+
+Deno.test("教材セルからLMS教材IDを抽出する", () => {
+    assertEquals(Effect.runSync(parseLmsMaterialId("SRY0000002556959")), "SRY0000002556959");
+    assertEquals(Effect.runSync(parseLmsMaterialId("REP0000001438895")), "REP0000001438895");
+    assertEquals(Exit.isFailure(Effect.runSyncExit(parseLmsMaterialId("material-1"))), true);
 });
 
 Deno.test("教材の表示名を種類ごとに変換する", () => {

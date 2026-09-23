@@ -1,12 +1,21 @@
 /** Outbound adapter for KU-LMS, implemented with Playwright. */
-import { type CourseGateway, type CourseMaterialsGateway, CourseMaterialsGatewayError } from "ku-potato-core/out_port";
+import {
+    type CourseGateway,
+    type CourseMaterialGateway,
+    type CourseMaterialsGateway,
+    CourseMaterialsGatewayError,
+} from "ku-potato-core/out_port";
 import {
     type AvailableCourseMaterials,
     type Course,
+    type CourseMaterial,
     type CourseMaterials,
     LmsCourseId,
+    LmsMaterialId,
     type Material,
     type MaterialFolder,
+    type MaterialFolderInfo,
+    type MaterialResource,
 } from "ku-potato-domain";
 import { DateTime, Effect } from "effect";
 import * as playwright from "playwright-core";
@@ -93,6 +102,13 @@ export const CourseMaterialsGatewayLive: CourseMaterialsGateway = {
 /** Prototype adapter for the primitive course-index operation. */
 export const CourseGatewayLive: CourseGateway = {
     listCourses: listCoursesFromLms,
+};
+
+/** Playwright implementation of the primitive material and resource operations. */
+export const CourseMaterialGatewayLive: CourseMaterialGateway = {
+    listMaterials: (lmsCourseId) => withLoggedInLms((page) => listCourseMaterials(page, lmsCourseId)),
+    listMaterialResources: (lmsCourseId, lmsMaterialId) =>
+        withLoggedInLms((page) => listMaterialResources(page, lmsCourseId, lmsMaterialId)),
 };
 
 function tryPromise<A>(operation: string, evaluate: () => PromiseLike<A>) {
@@ -210,6 +226,129 @@ const loginToLms = Effect.fn("PlaywrightBrowser.loginToLms")(function* (
             (url) => url.hostname === "study.ns.kogakuin.ac.jp" && url.pathname.startsWith("/lms/"),
             { timeout: 10 * 60 * 1000 },
         ));
+});
+
+const listCourseMaterials = Effect.fn("PlaywrightBrowser.listCourseMaterials")(function* (
+    page: playwright.Page,
+    lmsCourseId: LmsCourseId,
+): Effect.fn.Return<CourseMaterial[], CourseMaterialsGatewayError> {
+    yield* openCourseMaterials(page, lmsCourseId);
+    const noFoldersMessage = page.getByText("授業が登録されていません。", { exact: true });
+    if (yield* tryPromise("check course-material availability", () => noFoldersMessage.isVisible())) return [];
+
+    const materials: CourseMaterial[] = [];
+    for (
+        const folderRow of yield* tryPromise("find material folders", () => page.locator("tr.accordionHeader").all())
+    ) {
+        const folder = yield* readMaterialFolderInfo(folderRow);
+        const contentRow = folderRow.locator("xpath=following-sibling::tr[1]");
+        for (
+            const materialCell of yield* tryPromise(
+                "find materials",
+                () => contentRow.locator("td.kyozaititleCell").all(),
+            )
+        ) {
+            materials.push(yield* readCourseMaterial(materialCell, folder));
+        }
+    }
+    return materials;
+});
+
+const listMaterialResources = Effect.fn("PlaywrightBrowser.listMaterialResources")(function* (
+    page: playwright.Page,
+    lmsCourseId: LmsCourseId,
+    lmsMaterialId: LmsMaterialId,
+): Effect.fn.Return<MaterialResource[], CourseMaterialsGatewayError> {
+    yield* openCourseMaterials(page, lmsCourseId);
+    const materialCell = page.locator(`td.kyozaititleCell#${lmsMaterialId}`);
+    if ((yield* tryPromise("find material", () => materialCell.count())) === 0) {
+        return yield* new CourseMaterialsGatewayError({
+            operation: "find material",
+            message: `教材を講義内で取得できません: ${lmsMaterialId}`,
+        });
+    }
+    const materialLink = materialCell.locator("a");
+    if ((yield* tryPromise("find material resource link", () => materialLink.count())) === 0) {
+        return yield* new CourseMaterialsGatewayError({
+            operation: "find material resource link",
+            message: `教材の資料は未公開です: ${lmsMaterialId}`,
+        });
+    }
+    yield* tryPromise(
+        "open material resources",
+        () => materialLink.evaluate((element) => (element as { click(): void }).click()),
+    );
+    yield* tryPromise(
+        "wait for material resources",
+        () => page.getByRole("columnheader", { name: "資料名", exact: true }).waitFor(),
+    );
+    return (yield* tryPromise("read resource names", () => page.locator('td[data-label="資料名"]').allTextContents()))
+        .map(normalizeText)
+        .map((name): MaterialResource => ({ name }));
+});
+
+const openCourseMaterials = Effect.fn("PlaywrightBrowser.openCourseMaterials")(function* (
+    page: playwright.Page,
+    lmsCourseId: LmsCourseId,
+): Effect.fn.Return<void, CourseMaterialsGatewayError> {
+    yield* tryPromise("wait for course index", () => page.locator(".lms-weekly-area").waitFor());
+    let courseLink: playwright.Locator | undefined;
+    for (const candidate of yield* tryPromise("find course links", () => page.locator(".lms-cardname a").all())) {
+        const candidateId = yield* parseLmsCourseId(
+            yield* tryPromise("read course click handler", () => candidate.getAttribute("onclick")),
+        );
+        if (candidateId === lmsCourseId) {
+            courseLink = candidate;
+            break;
+        }
+    }
+    if (courseLink === undefined) {
+        return yield* new CourseMaterialsGatewayError({
+            operation: "find course",
+            message: `講義をHOMEで取得できません: ${lmsCourseId}`,
+        });
+    }
+    yield* tryPromise("open course", () => courseLink.click());
+    const noFoldersMessage = page.getByText("授業が登録されていません。", { exact: true });
+    yield* tryPromise(
+        "wait for course materials",
+        () => page.locator(".courseFolderName").or(noFoldersMessage).first().waitFor(),
+    );
+});
+
+const readMaterialFolderInfo = Effect.fn("PlaywrightBrowser.readMaterialFolderInfo")(function* (
+    folderRow: playwright.Locator,
+): Effect.fn.Return<MaterialFolderInfo, CourseMaterialsGatewayError> {
+    const name = normalizeText(
+        (yield* tryPromise("read material folder name", () => folderRow.locator(".courseFolderName").textContent())) ??
+            "",
+    );
+    const classDate = yield* parseLmsDate(yield* readOptionalText(folderRow.locator("td.checkStBoldJyugyoDy")));
+    return { name, ...(classDate === undefined ? {} : { classDate }) };
+});
+
+const readCourseMaterial = Effect.fn("PlaywrightBrowser.readCourseMaterial")(function* (
+    materialCell: playwright.Locator,
+    folder: MaterialFolderInfo,
+): Effect.fn.Return<CourseMaterial, CourseMaterialsGatewayError> {
+    const lmsMaterialId = yield* parseLmsMaterialId(
+        yield* tryPromise("read LMS material ID", () => materialCell.getAttribute("id")),
+    );
+    const name = normalizeText(
+        (yield* tryPromise("read material name", () => materialCell.textContent())) ?? "",
+    );
+    const type = yield* parseMaterialType(
+        yield* tryPromise("read material type", () => materialCell.locator("i[title]").first().getAttribute("title")),
+    );
+    const publicationDeadline = yield* parsePublicationDeadline(
+        yield* readOptionalText(materialCell.locator("xpath=following-sibling::td[1]")),
+    );
+    if (type !== "material") return { lmsMaterialId, folder, name, type, publicationDeadline };
+    const resourceAvailability = (yield* tryPromise("find material resource link", () =>
+            materialCell.locator("a").count())) > 0
+        ? "available"
+        : "unavailable";
+    return { lmsMaterialId, folder, name, type, publicationDeadline, resourceAvailability };
 });
 
 /** Gets one course then returns the page to HOME. `null` means it is unavailable. */
@@ -422,6 +561,17 @@ export function parseLmsCourseId(onclick: string | null): Effect.Effect<LmsCours
         new CourseMaterialsGatewayError({
             operation: "parse LMS course ID",
             message: `講義のクリックハンドラーからLMS講義IDを取得できません: ${onclick}`,
+        }),
+    );
+}
+
+/** Extracts the LMS material ID assigned to a material cell. */
+export function parseLmsMaterialId(value: string | null): Effect.Effect<LmsMaterialId, CourseMaterialsGatewayError> {
+    if (value !== null && /^[A-Z]+\d+$/.test(value)) return Effect.succeed(LmsMaterialId(value));
+    return Effect.fail(
+        new CourseMaterialsGatewayError({
+            operation: "parse LMS material ID",
+            message: `教材セルからLMS教材IDを取得できません: ${value}`,
         }),
     );
 }
