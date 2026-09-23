@@ -272,6 +272,13 @@
           ]
         }
       },
+      "domain": {
+        "packageJson": {
+          "dependencies": [
+            "npm:effect@4.0.0-rc.116"
+          ]
+        }
+      },
       "entrypoint": {
         "packageJson": {
           "dependencies": [

@@ -1,10 +1,15 @@
-/** An LMS-specific identifier for a course that can be opened. */
-export type CourseId = string;
+import { Brand } from "effect";
+
+/** The LMS value used by the HOME page to open a course. */
+export type LmsCourseId = string & Brand.Brand<"LmsCourseId">;
+
+/** Constructs an LMS course ID after an adapter has extracted it from the LMS. */
+export const LmsCourseId = Brand.nominal<LmsCourseId>();
 
 /** A course shown on the LMS home page. */
 export type Course =
     | {
-        readonly id: CourseId;
+        readonly lmsCourseId: LmsCourseId;
         readonly name: string;
         readonly availability: "available";
     }

@@ -2,6 +2,9 @@
     "name": "ku-potato-domain",
     "private": true,
     "type": "module",
+    "dependencies": {
+        "effect": "catalog:"
+    },
     "exports": {
         ".": {
             "types": "./mod.ts",
