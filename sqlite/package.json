@@ -9,11 +9,16 @@
         }
     },
     "dependencies": {
+        "drizzle-orm": "1.0.0-rc.4",
         "ku-potato-core": "workspace:*",
         "ku-potato-domain": "workspace:*",
         "effect": "catalog:"
     },
     "devDependencies": {
-        "@std/assert": "jsr:1"
+        "@std/assert": "jsr:1",
+        "drizzle-kit": "1.0.0-rc.4"
+    },
+    "scripts": {
+        "db:generate": "drizzle-kit generate --config=drizzle.config.ts"
     }
 }

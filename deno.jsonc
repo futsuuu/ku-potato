@@ -2,13 +2,14 @@
     "$schema": "https://raw.github.com/denoland/deno/main/cli/schemas/config-file.v1.json",
     "nodeModulesDir": "auto",
     "unstable": ["tsgo"],
-    "fmt": {
-        "lineWidth": 120
-    },
     "exclude": ["types"],
     "lint": {
         "rules": {
             "exclude": ["no-slow-types"]
         }
+    },
+    "fmt": {
+        "exclude": ["sqlite/drizzle"],
+        "lineWidth": 120
     }
 }
