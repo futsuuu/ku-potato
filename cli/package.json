@@ -13,5 +13,8 @@
         "ku-potato-domain": "workspace:*",
         "effect": "catalog:",
         "gunshi": "0.37.3"
+    },
+    "devDependencies": {
+        "@std/assert": "jsr:1"
     }
 }

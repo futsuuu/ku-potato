@@ -1,5 +1,12 @@
 import { CliInboundAdapter } from "ku-potato-cli";
-import { makeListCourses, makeSyncCourses } from "ku-potato-core";
+import {
+    makeListCourseMaterials,
+    makeListCourses,
+    makeListMaterialResources,
+    makeSyncCourseMaterials,
+    makeSyncCourses,
+    makeSyncMaterialResources,
+} from "ku-potato-core";
 import { LmsCacheGateway, LmsSourceGateway } from "ku-potato-core/out_port";
 import { LmsSourceGatewayLive } from "ku-potato-playwright";
 import { makeLmsCacheGateway } from "ku-potato-sqlite";
@@ -11,6 +18,10 @@ const program = Effect.scoped(Effect.gen(function* () {
         Deno.args,
         makeListCourses(),
         makeSyncCourses(),
+        makeListCourseMaterials(),
+        makeSyncCourseMaterials(),
+        makeListMaterialResources(),
+        makeSyncMaterialResources(),
     ).pipe(
         Effect.provideService(LmsCacheGateway, cache),
         Effect.provideService(LmsSourceGateway, LmsSourceGatewayLive),

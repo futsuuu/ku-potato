@@ -481,6 +481,7 @@
       "cli": {
         "packageJson": {
           "dependencies": [
+            "npm:@jsr/std__assert@1",
             "npm:effect@4.0.0-rc.116",
             "npm:gunshi@0.37.3"
           ]
