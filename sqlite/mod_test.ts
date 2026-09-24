@@ -6,13 +6,12 @@ import {
     LmsMaterialId,
     type MaterialResourcesRefresh,
 } from "ku-potato-domain";
-import { Effect } from "effect";
-import { join } from "node:path";
+import { DateTime, Effect } from "effect";
 import { makeLmsCacheGateway } from "./mod.ts";
 
 Deno.test("SQLite cache keeps material resources after a later course material snapshot", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
-    const databasePath = join(directory, "cache.sqlite3");
+    const databasePath = temporaryDatabasePath(directory);
     const courseId = LmsCourseId("course-1");
     const materialId = LmsMaterialId("material-1");
     const course = { lmsCourseId: courseId, name: "Programming", availability: "available" } as const;
@@ -22,7 +21,7 @@ Deno.test("SQLite cache keeps material resources after a later course material s
             lmsCourseId: courseId,
             folders: [{
                 name: "Week 1",
-                classDate: new Date("2026-04-01T00:00:00.000Z"),
+                classDate: DateTime.toDate(DateTime.makeUnsafe("2026-04-01T00:00:00.000Z")),
                 materials: [{
                     lmsMaterialId: materialId,
                     name: "Handout",
@@ -71,11 +70,14 @@ Deno.test("SQLite cache keeps material resources after a later course material s
     }
 });
 
+const temporaryDatabasePath = (directory: string): string =>
+    `${directory}${directory.includes("\\") ? "\\" : "/"}cache.sqlite3`;
+
 Deno.test("SQLite cache describes an unseeded value as a cache miss", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     try {
         const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-            const cache = yield* makeLmsCacheGateway(join(directory, "cache.sqlite3"));
+            const cache = yield* makeLmsCacheGateway(temporaryDatabasePath(directory));
             return yield* Effect.result(cache.listCourses);
         })));
         assertEquals(result._tag, "Failure");

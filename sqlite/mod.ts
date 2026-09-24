@@ -16,45 +16,35 @@ import {
     type MaterialResources,
     type MaterialResourcesRefresh,
 } from "ku-potato-domain";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { DateTime, Effect, Schema, Scope } from "effect";
-import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+    courseMaterialFolders,
+    courseMaterialRetrievals,
+    courseMaterials,
+    courseRetrievals,
+    courses,
+    materialResourceRetrievals,
+    materialResources,
+} from "./schema.ts";
 
 export * from "./schema.ts";
 
 type Database = ReturnType<typeof drizzle>;
-
-type CourseRow = {
-    readonly retrieval_id: number;
-    readonly position: number;
-    readonly lms_course_id: string | null;
-    readonly name: string;
-    readonly availability: Course["availability"];
-};
-
-type FolderRow = {
-    readonly position: number;
-    readonly name: string;
-    readonly class_date: number | null;
-};
-
-type MaterialRow = {
-    readonly position: number;
-    readonly folder_position: number;
-    readonly lms_material_id: string;
-    readonly name: string;
-    readonly type: CourseMaterial["type"];
-    readonly publication_deadline_status: "scheduled" | "no-deadline" | "unavailable";
-    readonly publication_deadline_at: number | null;
-    readonly resource_availability: "available" | "unavailable" | null;
-};
-
-type ResourceRow = {
-    readonly position: number;
-    readonly name: string;
-};
+type CourseReadRow = Pick<typeof courses.$inferSelect, "lmsCourseId" | "name" | "availability">;
+type CourseMaterialReadRow = Pick<
+    typeof courseMaterials.$inferSelect,
+    | "folderPosition"
+    | "lmsMaterialId"
+    | "name"
+    | "type"
+    | "publicationDeadlineStatus"
+    | "publicationDeadlineAt"
+    | "resourceAvailability"
+>;
 
 /** The default user-local database location. */
 export const defaultCacheDatabasePath = (): string => {
@@ -73,7 +63,7 @@ export const makeLmsCacheGateway = (
 ): Effect.Effect<LmsCacheGatewayService, LmsCacheGatewayError, Scope.Scope> =>
     Effect.acquireRelease(
         cacheWriteTry("open", () => {
-            Deno.mkdirSync(dirname(databasePath), { recursive: true });
+            Deno.mkdirSync(databaseDirectory(databasePath), { recursive: true });
             const database = drizzle(databasePath);
             database.$client.exec("pragma foreign_keys = on");
             migrate(database, {
@@ -93,7 +83,8 @@ const makeGateway = (database: Database): LmsCacheGatewayService => ({
         cacheReadTry("listCourseMaterials", () => readCourseMaterials(database, lmsCourseId)),
     listMaterialResources: (lmsCourseId, lmsMaterialId) =>
         cacheReadTry("listMaterialResources", () => readMaterialResources(database, lmsCourseId, lmsMaterialId)),
-    appendCourses: (courses) => cacheWriteTry("appendCourses", () => recordCourses(database, courses)),
+    appendCourses: (retrievedCourses) =>
+        cacheWriteTry("appendCourses", () => recordCourses(database, retrievedCourses)),
     appendCourseMaterials: (refresh) =>
         cacheWriteTry("appendCourseMaterials", () => recordCourseMaterials(database, refresh)),
     appendMaterialResources: (refresh) =>
@@ -120,124 +111,111 @@ const cacheWriteTry = <A>(operation: string, evaluate: () => A): Effect.Effect<A
 
 const describeCause = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause);
 
-const transaction = <A>(database: Database, work: () => A): A => {
-    database.$client.exec("begin immediate");
-    try {
-        const result = work();
-        database.$client.exec("commit");
-        return result;
-    } catch (cause) {
-        database.$client.exec("rollback");
-        throw cause;
-    }
-};
-
 const recordCourses = (database: Database, retrievedCourses: readonly Course[]): void => {
-    transaction(database, () => {
-        insertCourses(database, retrievedCourses);
-    });
+    insertCourses(database, retrievedCourses);
 };
 
 const recordCourseMaterials = (database: Database, refresh: CourseMaterialsRefresh): void => {
-    transaction(database, () => {
-        const courseRetrievalId = insertCourses(database, refresh.courses);
-        const coursePosition = findCoursePosition(database, courseRetrievalId, refresh.courseMaterials.lmsCourseId);
-        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
-        insertCourseMaterials(database, courseMaterialRetrievalId, refresh.courseMaterials);
-    });
+    const courseRetrievalId = insertCourses(database, refresh.courses);
+    const coursePosition = findCoursePosition(database, courseRetrievalId, refresh.courseMaterials.lmsCourseId);
+    const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
+    insertCourseMaterials(database, courseMaterialRetrievalId, refresh.courseMaterials);
 };
 
 const recordMaterialResources = (database: Database, refresh: MaterialResourcesRefresh): void => {
-    transaction(database, () => {
-        const courseRetrievalId = insertCourses(database, refresh.courses);
-        const coursePosition = findCoursePosition(database, courseRetrievalId, refresh.courseMaterials.lmsCourseId);
-        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
-        insertCourseMaterials(database, courseMaterialRetrievalId, refresh.courseMaterials);
+    const courseRetrievalId = insertCourses(database, refresh.courses);
+    const coursePosition = findCoursePosition(database, courseRetrievalId, refresh.courseMaterials.lmsCourseId);
+    const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
+    insertCourseMaterials(database, courseMaterialRetrievalId, refresh.courseMaterials);
 
-        const materialPosition = findMaterialPosition(
-            database,
-            courseMaterialRetrievalId,
-            refresh.materialResources.lmsMaterialId,
-        );
-        const materialResourceRetrieval = database.$client.prepare(
-            `insert into material_resource_retrievals
-                (course_material_retrieval_id, course_material_position, fetched_at)
-             values (?, ?, ?)
-             returning id`,
-        ).get(courseMaterialRetrievalId, materialPosition, now()) as { id: number };
-
-        refresh.materialResources.resources.forEach((resource, position) => {
-            database.$client.prepare(
-                "insert into material_resources (retrieval_id, position, name) values (?, ?, ?)",
-            ).run(materialResourceRetrieval.id, position, resource.name);
+    const materialPosition = findMaterialPosition(
+        database,
+        courseMaterialRetrievalId,
+        refresh.materialResources.lmsMaterialId,
+    );
+    const materialResourceRetrieval = database.insert(materialResourceRetrievals).values({
+        courseMaterialRetrievalId,
+        courseMaterialPosition: materialPosition,
+        fetchedAt: now(),
+    }).returning({ id: materialResourceRetrievals.id }).get();
+    if (materialResourceRetrieval == null) {
+        throw new LmsCacheGatewayError({
+            operation: "appendMaterialResources",
+            message: "Could not create retrieval.",
         });
-    });
+    }
+    const resourceRows = refresh.materialResources.resources.map((resource, position) => ({
+        retrievalId: materialResourceRetrieval.id,
+        position,
+        name: resource.name,
+    }));
+    if (resourceRows.length > 0) database.insert(materialResources).values(resourceRows).run();
 };
 
 const insertCourses = (database: Database, retrievedCourses: readonly Course[]): number => {
-    const retrieval = database.$client.prepare(
-        "insert into course_retrievals (fetched_at) values (?) returning id",
-    ).get(now()) as { id: number };
-
-    retrievedCourses.forEach((course, position) => {
-        database.$client.prepare(
-            `insert into courses (retrieval_id, position, lms_course_id, name, availability)
-             values (?, ?, ?, ?, ?)`,
-        ).run(
-            retrieval.id,
-            position,
-            course.availability === "available" ? course.lmsCourseId : null,
-            course.name,
-            course.availability,
-        );
-    });
+    const retrieval = database.insert(courseRetrievals).values({ fetchedAt: now() })
+        .returning({ id: courseRetrievals.id }).get();
+    if (retrieval == null) {
+        throw new LmsCacheGatewayError({ operation: "appendCourses", message: "Could not create retrieval." });
+    }
+    const courseRows = retrievedCourses.map((course, position) => ({
+        retrievalId: retrieval.id,
+        position,
+        lmsCourseId: course.availability === "available" ? course.lmsCourseId : null,
+        name: course.name,
+        availability: course.availability,
+    }));
+    if (courseRows.length > 0) database.insert(courses).values(courseRows).run();
     return retrieval.id;
 };
 
-const insertCourseMaterialRetrieval = (database: Database, courseRetrievalId: number, coursePosition: number): number =>
-    (database.$client.prepare(
-        `insert into course_material_retrievals (course_retrieval_id, course_position, fetched_at)
-         values (?, ?, ?)
-         returning id`,
-    ).get(courseRetrievalId, coursePosition, now()) as { id: number }).id;
-
-const insertCourseMaterials = (database: Database, retrievalId: number, courseMaterials: CourseMaterials): void => {
-    courseMaterials.folders.forEach((folder, folderPosition) => {
-        database.$client.prepare(
-            "insert into course_material_folders (retrieval_id, position, name, class_date) values (?, ?, ?, ?)",
-        ).run(retrievalId, folderPosition, folder.name, folder.classDate?.getTime() ?? null);
-    });
-
-    let materialPosition = 0;
-    for (const [folderPosition, folder] of courseMaterials.folders.entries()) {
-        for (const material of folder.materials) {
-            const deadline = encodePublicationDeadline(material.publicationDeadline);
-            database.$client.prepare(
-                `insert into course_materials
-                    (retrieval_id, position, lms_material_id, folder_position, name, type,
-                     publication_deadline_status, publication_deadline_at, resource_availability)
-                 values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            ).run(
-                retrievalId,
-                materialPosition,
-                material.lmsMaterialId,
-                folderPosition,
-                material.name,
-                material.type,
-                deadline.status,
-                deadline.at,
-                material.type === "material" ? material.resourceAvailability : null,
-            );
-            materialPosition += 1;
-        }
+const insertCourseMaterialRetrieval = (
+    database: Database,
+    courseRetrievalId: number,
+    coursePosition: number,
+): number => {
+    const retrieval = database.insert(courseMaterialRetrievals).values({
+        courseRetrievalId,
+        coursePosition,
+        fetchedAt: now(),
+    }).returning({ id: courseMaterialRetrievals.id }).get();
+    if (retrieval == null) {
+        throw new LmsCacheGatewayError({ operation: "appendCourseMaterials", message: "Could not create retrieval." });
     }
+    return retrieval.id;
+};
+
+const insertCourseMaterials = (database: Database, retrievalId: number, retrievedMaterials: CourseMaterials): void => {
+    const folderRows = retrievedMaterials.folders.map((folder, position) => ({
+        retrievalId,
+        position,
+        name: folder.name,
+        classDate: folder.classDate ?? null,
+    }));
+    if (folderRows.length > 0) database.insert(courseMaterialFolders).values(folderRows).run();
+
+    const materialRows = retrievedMaterials.folders.flatMap((folder, folderPosition) =>
+        folder.materials.map((material, materialIndex) => ({
+            retrievalId,
+            position: materialIndex + retrievedMaterials.folders
+                .slice(0, folderPosition)
+                .reduce((count, previousFolder) => count + previousFolder.materials.length, 0),
+            lmsMaterialId: material.lmsMaterialId,
+            folderPosition,
+            name: material.name,
+            type: material.type,
+            ...encodePublicationDeadline(material.publicationDeadline),
+            resourceAvailability: material.type === "material" ? material.resourceAvailability : null,
+        }))
+    );
+    if (materialRows.length > 0) database.insert(courseMaterials).values(materialRows).run();
 };
 
 const findCoursePosition = (database: Database, retrievalId: number, lmsCourseId: string): number => {
-    const row = database.$client.prepare(
-        "select position from courses where retrieval_id = ? and lms_course_id = ?",
-    ).get(retrievalId, lmsCourseId) as { position: number } | undefined;
-    if (row === undefined) {
+    const row = database.select({ position: courses.position })
+        .from(courses)
+        .where(and(eq(courses.retrievalId, retrievalId), eq(courses.lmsCourseId, lmsCourseId))).get();
+    if (row == null) {
         throw new LmsCacheGatewayError({
             operation: "append",
             message: `The course ${lmsCourseId} was absent from its bundled course retrieval.`,
@@ -247,10 +225,11 @@ const findCoursePosition = (database: Database, retrievalId: number, lmsCourseId
 };
 
 const findMaterialPosition = (database: Database, retrievalId: number, lmsMaterialId: string): number => {
-    const row = database.$client.prepare(
-        "select position from course_materials where retrieval_id = ? and lms_material_id = ?",
-    ).get(retrievalId, lmsMaterialId) as { position: number } | undefined;
-    if (row === undefined) {
+    const row = database.select({ position: courseMaterials.position })
+        .from(courseMaterials)
+        .where(and(eq(courseMaterials.retrievalId, retrievalId), eq(courseMaterials.lmsMaterialId, lmsMaterialId)))
+        .get();
+    if (row == null) {
         throw new LmsCacheGatewayError({
             operation: "append",
             message: `The material ${lmsMaterialId} was absent from its bundled material retrieval.`,
@@ -260,111 +239,152 @@ const findMaterialPosition = (database: Database, retrievalId: number, lmsMateri
 };
 
 const readCourses = (database: Database): readonly Course[] => {
-    const retrieval = database.$client.prepare(
-        "select id from course_retrievals order by id desc limit 1",
-    ).get() as { id: number } | undefined;
-    if (retrieval === undefined) {
+    const retrieval = database.select({ id: courseRetrievals.id })
+        .from(courseRetrievals).orderBy(desc(courseRetrievals.id)).limit(1).get();
+    if (retrieval == null) {
         throw cacheMiss("listCourses", "No course retrieval has been synchronized yet.");
     }
-    const rows = database.$client.prepare(
-        "select retrieval_id, position, lms_course_id, name, availability from courses where retrieval_id = ? order by position",
-    ).all(retrieval.id) as CourseRow[];
-    return rows.map(decodeCourse);
+    return database.select({
+        lmsCourseId: courses.lmsCourseId,
+        name: courses.name,
+        availability: courses.availability,
+    }).from(courses).where(eq(courses.retrievalId, retrieval.id)).orderBy(asc(courses.position)).all()
+        .map(decodeCourse);
 };
 
 const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMaterials => {
-    const retrieval = database.$client.prepare(
-        `select cmr.id
-         from course_material_retrievals cmr
-         join courses c on c.retrieval_id = cmr.course_retrieval_id and c.position = cmr.course_position
-         where c.lms_course_id = ?
-         order by cmr.id desc
-         limit 1`,
-    ).get(lmsCourseId) as { id: number } | undefined;
-    if (retrieval === undefined) {
+    const retrieval = database.select({ id: courseMaterialRetrievals.id })
+        .from(courseMaterialRetrievals)
+        .innerJoin(
+            courses,
+            and(
+                eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
+                eq(courses.position, courseMaterialRetrievals.coursePosition),
+            ),
+        )
+        .where(eq(courses.lmsCourseId, lmsCourseId))
+        .orderBy(desc(courseMaterialRetrievals.id))
+        .limit(1)
+        .get();
+    if (retrieval == null) {
         throw cacheMiss(
             "listCourseMaterials",
             `No material retrieval for course ${lmsCourseId} has been synchronized yet.`,
         );
     }
-
-    const folders = database.$client.prepare(
-        "select position, name, class_date from course_material_folders where retrieval_id = ? order by position",
-    ).all(retrieval.id) as FolderRow[];
-    const materialRows = database.$client.prepare(
-        `select position, folder_position, lms_material_id, name, type, publication_deadline_status,
-                publication_deadline_at, resource_availability
-         from course_materials where retrieval_id = ? order by position`,
-    ).all(retrieval.id) as MaterialRow[];
-    const materialByFolder = Map.groupBy(materialRows, (material) => material.folder_position);
+    const folders = database.select({
+        position: courseMaterialFolders.position,
+        name: courseMaterialFolders.name,
+        classDate: courseMaterialFolders.classDate,
+    })
+        .from(courseMaterialFolders)
+        .where(eq(courseMaterialFolders.retrievalId, retrieval.id))
+        .orderBy(asc(courseMaterialFolders.position))
+        .all();
+    const materials = database.select({
+        folderPosition: courseMaterials.folderPosition,
+        lmsMaterialId: courseMaterials.lmsMaterialId,
+        name: courseMaterials.name,
+        type: courseMaterials.type,
+        publicationDeadlineStatus: courseMaterials.publicationDeadlineStatus,
+        publicationDeadlineAt: courseMaterials.publicationDeadlineAt,
+        resourceAvailability: courseMaterials.resourceAvailability,
+    })
+        .from(courseMaterials)
+        .where(eq(courseMaterials.retrievalId, retrieval.id))
+        .orderBy(asc(courseMaterials.position))
+        .all();
+    const materialsByFolder = Map.groupBy(materials, (material) => material.folderPosition);
 
     return {
         lmsCourseId: LmsCourseId(lmsCourseId),
         folders: folders.map((folder) => ({
             name: folder.name,
-            ...(folder.class_date === null
-                ? {}
-                : { classDate: DateTime.toDate(DateTime.makeUnsafe(folder.class_date)) }),
-            materials: (materialByFolder.get(folder.position) ?? []).map(decodeCourseMaterial),
+            ...(folder.classDate === null ? {} : { classDate: folder.classDate }),
+            materials: (materialsByFolder.get(folder.position) ?? []).map(decodeCourseMaterial),
         })),
     };
 };
 
 const readMaterialResources = (database: Database, lmsCourseId: string, lmsMaterialId: string): MaterialResources => {
-    const retrieval = database.$client.prepare(
-        `select mrr.id
-         from material_resource_retrievals mrr
-         join course_materials cm on cm.retrieval_id = mrr.course_material_retrieval_id
-             and cm.position = mrr.course_material_position
-         join course_material_retrievals cmr on cmr.id = cm.retrieval_id
-         join courses c on c.retrieval_id = cmr.course_retrieval_id and c.position = cmr.course_position
-         where c.lms_course_id = ? and cm.lms_material_id = ?
-         order by mrr.id desc
-         limit 1`,
-    ).get(lmsCourseId, lmsMaterialId) as { id: number } | undefined;
-    if (retrieval === undefined) {
+    const retrieval = database.select({ id: materialResourceRetrievals.id })
+        .from(materialResourceRetrievals)
+        .innerJoin(
+            courseMaterials,
+            and(
+                eq(courseMaterials.retrievalId, materialResourceRetrievals.courseMaterialRetrievalId),
+                eq(courseMaterials.position, materialResourceRetrievals.courseMaterialPosition),
+            ),
+        )
+        .innerJoin(courseMaterialRetrievals, eq(courseMaterialRetrievals.id, courseMaterials.retrievalId))
+        .innerJoin(
+            courses,
+            and(
+                eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
+                eq(courses.position, courseMaterialRetrievals.coursePosition),
+            ),
+        )
+        .where(and(eq(courses.lmsCourseId, lmsCourseId), eq(courseMaterials.lmsMaterialId, lmsMaterialId)))
+        .orderBy(desc(materialResourceRetrievals.id))
+        .limit(1)
+        .get();
+    if (retrieval == null) {
         throw cacheMiss(
             "listMaterialResources",
             `No resource retrieval for material ${lmsMaterialId} has been synchronized yet.`,
         );
     }
-    const rows = database.$client.prepare(
-        "select position, name from material_resources where retrieval_id = ? order by position",
-    ).all(retrieval.id) as ResourceRow[];
+    const resources = database.select({ name: materialResources.name })
+        .from(materialResources)
+        .where(eq(materialResources.retrievalId, retrieval.id))
+        .orderBy(asc(materialResources.position))
+        .all();
     return {
         lmsCourseId: LmsCourseId(lmsCourseId),
         lmsMaterialId: LmsMaterialId(lmsMaterialId),
-        resources: rows.map((row) => ({ name: row.name })),
+        resources: resources.map((resource) => ({ name: resource.name })),
     };
 };
 
-const decodeCourse = (row: CourseRow): Course =>
-    row.availability === "available" && row.lms_course_id !== null
-        ? { lmsCourseId: LmsCourseId(row.lms_course_id), name: row.name, availability: "available" }
+const decodeCourse = (row: CourseReadRow): Course =>
+    row.availability === "available" && row.lmsCourseId !== null
+        ? { lmsCourseId: LmsCourseId(row.lmsCourseId), name: row.name, availability: "available" }
         : { name: row.name, availability: "unavailable" };
 
-const decodeCourseMaterial = (row: MaterialRow): CourseMaterial => {
+const decodeCourseMaterial = (row: CourseMaterialReadRow): CourseMaterial => {
     const base = {
-        lmsMaterialId: LmsMaterialId(row.lms_material_id),
+        lmsMaterialId: LmsMaterialId(row.lmsMaterialId),
         name: row.name,
         publicationDeadline: decodePublicationDeadline(row),
     };
     return row.type === "material"
-        ? { ...base, type: "material", resourceAvailability: row.resource_availability ?? "unavailable" }
+        ? { ...base, type: "material", resourceAvailability: row.resourceAvailability ?? "unavailable" }
         : { ...base, type: row.type };
 };
 
 const encodePublicationDeadline = (value: CourseMaterial["publicationDeadline"]): {
-    readonly status: "scheduled" | "no-deadline" | "unavailable";
-    readonly at: number | null;
-} => value instanceof Date ? { status: "scheduled", at: value.getTime() } : { status: value, at: null };
+    readonly publicationDeadlineStatus: "scheduled" | "no-deadline" | "unavailable";
+    readonly publicationDeadlineAt: Date | null;
+} => value instanceof Date
+    ? { publicationDeadlineStatus: "scheduled", publicationDeadlineAt: value }
+    : { publicationDeadlineStatus: value, publicationDeadlineAt: null };
 
-const decodePublicationDeadline = (row: MaterialRow): CourseMaterial["publicationDeadline"] =>
-    row.publication_deadline_status === "scheduled"
-        ? DateTime.toDate(DateTime.makeUnsafe(row.publication_deadline_at ?? 0))
-        : row.publication_deadline_status;
+const decodePublicationDeadline = (
+    row: CourseMaterialReadRow,
+): CourseMaterial["publicationDeadline"] =>
+    row.publicationDeadlineStatus === "scheduled"
+        ? row.publicationDeadlineAt ?? DateTime.toDate(DateTime.makeUnsafe(0))
+        : row.publicationDeadlineStatus;
 
 const cacheMiss = (operation: string, message: string): LmsCacheMissError =>
     new LmsCacheMissError({ operation, message });
 
-const now = (): number => DateTime.toEpochMillis(DateTime.nowUnsafe());
+const now = (): Date => DateTime.toDate(DateTime.nowUnsafe());
+
+const databaseDirectory = (databasePath: string): string => {
+    const separatorIndex = Math.max(databasePath.lastIndexOf("/"), databasePath.lastIndexOf("\\"));
+    if (separatorIndex === -1) return ".";
+    return separatorIndex === 2 && databasePath[1] === ":"
+        ? databasePath.slice(0, separatorIndex + 1)
+        : databasePath.slice(0, separatorIndex);
+};
