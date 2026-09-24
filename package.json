@@ -5,7 +5,8 @@
     "workspaces": ["./*"],
     "scripts": {
         "cli": "deno task --filter=ku-potato-entrypoint cli",
-        "lint": "effect-tsgo patch --oxlint --no-typescript && mkdir -p types && deno types > types/deno.d.ts && oxlint"
+        "lint": "deno lint && deno task oxlint",
+        "oxlint": "effect-tsgo patch --oxlint --no-typescript && mkdir -p types && deno types > types/deno.d.ts && oxlint"
     },
     "devDependencies": {
         "@types/node": "24.0.0",
