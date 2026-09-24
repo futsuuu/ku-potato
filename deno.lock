@@ -489,6 +489,7 @@
       "core": {
         "packageJson": {
           "dependencies": [
+            "npm:@jsr/std__assert@1",
             "npm:effect@4.0.0-rc.116"
           ]
         }

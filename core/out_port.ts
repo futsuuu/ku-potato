@@ -2,44 +2,73 @@
 
 import type {
     Course,
-    CourseMaterial,
     CourseMaterials,
+    CourseMaterialsRefresh,
     LmsCourseId,
     LmsMaterialId,
-    MaterialResource,
+    MaterialResources,
+    MaterialResourcesRefresh,
 } from "ku-potato-domain";
-import { type Effect, Schema } from "effect";
+import { Context, type Effect, Schema } from "effect";
 
-export interface CourseMaterialsGateway {
-    readonly list: Effect.Effect<readonly CourseMaterials[], CourseMaterialsGatewayError>;
-}
-
-/** Retrieves the course index from an external LMS. */
-export interface CourseGateway {
-    readonly listCourses: Effect.Effect<readonly Course[], CourseMaterialsGatewayError>;
-}
-
-/** Retrieves materials and their resources from a selected LMS course. */
-export interface CourseMaterialGateway {
-    /** Lists every material in a course, with its containing folder's display information. */
-    readonly listMaterials: (
+/** The external LMS data source, implemented by the Playwright adapter. */
+export interface LmsSourceGatewayService {
+    readonly refreshCourses: Effect.Effect<readonly Course[], LmsSourceGatewayError>;
+    readonly refreshCourseMaterials: (
         lmsCourseId: LmsCourseId,
-    ) => Effect.Effect<readonly CourseMaterial[], CourseMaterialsGatewayError>;
-    /**
-     * Lists resources for one material in a course.
-     *
-     * The course ID is retained because the LMS opens a material detail page
-     * from its course page rather than through a standalone material URL.
-     */
+    ) => Effect.Effect<CourseMaterialsRefresh, LmsSourceGatewayError>;
+    readonly refreshMaterialResources: (
+        lmsCourseId: LmsCourseId,
+        lmsMaterialId: LmsMaterialId,
+    ) => Effect.Effect<MaterialResourcesRefresh, LmsSourceGatewayError>;
+}
+
+/** The persistent cache, implemented by the SQLite adapter. */
+export interface LmsCacheGatewayService {
+    readonly listCourses: Effect.Effect<readonly Course[], LmsCacheGatewayError | LmsCacheMissError>;
+    readonly listCourseMaterials: (
+        lmsCourseId: LmsCourseId,
+    ) => Effect.Effect<CourseMaterials, LmsCacheGatewayError | LmsCacheMissError>;
     readonly listMaterialResources: (
         lmsCourseId: LmsCourseId,
         lmsMaterialId: LmsMaterialId,
-    ) => Effect.Effect<readonly MaterialResource[], CourseMaterialsGatewayError>;
+    ) => Effect.Effect<MaterialResources, LmsCacheGatewayError | LmsCacheMissError>;
+    readonly appendCourses: (courses: readonly Course[]) => Effect.Effect<void, LmsCacheGatewayError>;
+    readonly appendCourseMaterials: (refresh: CourseMaterialsRefresh) => Effect.Effect<void, LmsCacheGatewayError>;
+    readonly appendMaterialResources: (refresh: MaterialResourcesRefresh) => Effect.Effect<void, LmsCacheGatewayError>;
 }
 
-/** A failure while obtaining course materials. */
-export class CourseMaterialsGatewayError extends Schema.TaggedError<CourseMaterialsGatewayError>()(
-    "CourseMaterialsGatewayError",
+/** Context service for an external LMS data source. */
+export class LmsSourceGateway extends Context.Service<LmsSourceGateway, LmsSourceGatewayService>()(
+    "ku-potato/core/LmsSourceGateway",
+) {}
+
+/** Context service for the persistent LMS cache. */
+export class LmsCacheGateway extends Context.Service<LmsCacheGateway, LmsCacheGatewayService>()(
+    "ku-potato/core/LmsCacheGateway",
+) {}
+
+/** A failure while obtaining data from KU-LMS. */
+export class LmsSourceGatewayError extends Schema.TaggedError<LmsSourceGatewayError>()(
+    "LmsSourceGatewayError",
+    {
+        operation: Schema.String,
+        message: Schema.String,
+    },
+) {}
+
+/** A failure while reading or recording the persistent cache. */
+export class LmsCacheGatewayError extends Schema.TaggedError<LmsCacheGatewayError>()(
+    "LmsCacheGatewayError",
+    {
+        operation: Schema.String,
+        message: Schema.String,
+    },
+) {}
+
+/** The requested value has never been synchronized into the cache. */
+export class LmsCacheMissError extends Schema.TaggedError<LmsCacheMissError>()(
+    "LmsCacheMissError",
     {
         operation: Schema.String,
         message: Schema.String,

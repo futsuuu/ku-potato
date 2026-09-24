@@ -1,14 +1,57 @@
 /** Application inbound ports, implemented by the application layer. */
 
-import type { Course, CourseMaterials } from "ku-potato-domain";
+import type { Course, CourseMaterials, LmsCourseId, LmsMaterialId, MaterialResources } from "ku-potato-domain";
 import type { Effect } from "effect";
-import type { CourseMaterialsGatewayError } from "./out_port.ts";
+import type {
+    LmsCacheGateway,
+    LmsCacheGatewayError,
+    LmsCacheMissError,
+    LmsSourceGateway,
+    LmsSourceGatewayError,
+} from "./out_port.ts";
 
-export interface ListCourseMaterials {
-    readonly execute: Effect.Effect<readonly CourseMaterials[], CourseMaterialsGatewayError>;
+export interface ListCourses {
+    readonly execute: Effect.Effect<readonly Course[], LmsCacheGatewayError | LmsCacheMissError, LmsCacheGateway>;
 }
 
-/** Lists the courses visible on the LMS home page without opening a course. */
-export interface ListCourses {
-    readonly execute: Effect.Effect<readonly Course[], CourseMaterialsGatewayError>;
+export interface SyncCourses {
+    readonly execute: Effect.Effect<
+        readonly Course[],
+        LmsSourceGatewayError | LmsCacheGatewayError | LmsCacheMissError,
+        LmsSourceGateway | LmsCacheGateway
+    >;
+}
+
+export interface ListCourseMaterials {
+    readonly execute: (
+        lmsCourseId: LmsCourseId,
+    ) => Effect.Effect<CourseMaterials, LmsCacheGatewayError | LmsCacheMissError, LmsCacheGateway>;
+}
+
+export interface SyncCourseMaterials {
+    readonly execute: (
+        lmsCourseId: LmsCourseId,
+    ) => Effect.Effect<
+        CourseMaterials,
+        LmsSourceGatewayError | LmsCacheGatewayError | LmsCacheMissError,
+        LmsSourceGateway | LmsCacheGateway
+    >;
+}
+
+export interface ListMaterialResources {
+    readonly execute: (
+        lmsCourseId: LmsCourseId,
+        lmsMaterialId: LmsMaterialId,
+    ) => Effect.Effect<MaterialResources, LmsCacheGatewayError | LmsCacheMissError, LmsCacheGateway>;
+}
+
+export interface SyncMaterialResources {
+    readonly execute: (
+        lmsCourseId: LmsCourseId,
+        lmsMaterialId: LmsMaterialId,
+    ) => Effect.Effect<
+        MaterialResources,
+        LmsSourceGatewayError | LmsCacheGatewayError | LmsCacheMissError,
+        LmsSourceGateway | LmsCacheGateway
+    >;
 }

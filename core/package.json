@@ -19,5 +19,8 @@
     "dependencies": {
         "ku-potato-domain": "workspace:*",
         "effect": "catalog:"
+    },
+    "devDependencies": {
+        "@std/assert": "jsr:1"
     }
 }

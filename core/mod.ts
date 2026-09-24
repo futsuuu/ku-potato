@@ -1,16 +1,82 @@
-import type { ListCourseMaterials, ListCourses } from "./in_port.ts";
-import type { CourseGateway, CourseMaterialsGateway } from "./out_port.ts";
+import type {
+    ListCourseMaterials,
+    ListCourses,
+    ListMaterialResources,
+    SyncCourseMaterials,
+    SyncCourses,
+    SyncMaterialResources,
+} from "./in_port.ts";
+import { LmsCacheGateway, LmsSourceGateway } from "./out_port.ts";
+import type { LmsCourseId, LmsMaterialId } from "ku-potato-domain";
+import { Effect } from "effect";
 
-/** Creates the application input port with a concrete output-port implementation. */
-export function makeListCourseMaterials(gateway: CourseMaterialsGateway): ListCourseMaterials {
-    return {
-        execute: gateway.list,
-    };
+/** Cache-only query. Its environment intentionally excludes `LmsSourceGateway`. */
+const listCourses = Effect.gen(function* () {
+    const cache = yield* LmsCacheGateway;
+    return yield* cache.listCourses;
+});
+
+/** Cache-only query. Its environment intentionally excludes `LmsSourceGateway`. */
+const listCourseMaterials = Effect.fn("Core.listCourseMaterials")(function* (lmsCourseId: LmsCourseId) {
+    const cache = yield* LmsCacheGateway;
+    return yield* cache.listCourseMaterials(lmsCourseId);
+});
+
+/** Cache-only query. Its environment intentionally excludes `LmsSourceGateway`. */
+const listMaterialResources = Effect.fn("Core.listMaterialResources")(function* (
+    lmsCourseId: LmsCourseId,
+    lmsMaterialId: LmsMaterialId,
+) {
+    const cache = yield* LmsCacheGateway;
+    return yield* cache.listMaterialResources(lmsCourseId, lmsMaterialId);
+});
+
+const syncCourses = Effect.gen(function* () {
+    const source = yield* LmsSourceGateway;
+    const cache = yield* LmsCacheGateway;
+    yield* cache.appendCourses(yield* source.refreshCourses);
+    return yield* cache.listCourses;
+});
+
+const syncCourseMaterials = Effect.fn("Core.syncCourseMaterials")(function* (lmsCourseId: LmsCourseId) {
+    const source = yield* LmsSourceGateway;
+    const cache = yield* LmsCacheGateway;
+    const refresh = yield* source.refreshCourseMaterials(lmsCourseId);
+    yield* cache.appendCourseMaterials(refresh);
+    return yield* cache.listCourseMaterials(lmsCourseId);
+});
+
+const syncMaterialResources = Effect.fn("Core.syncMaterialResources")(function* (
+    lmsCourseId: LmsCourseId,
+    lmsMaterialId: LmsMaterialId,
+) {
+    const source = yield* LmsSourceGateway;
+    const cache = yield* LmsCacheGateway;
+    const refresh = yield* source.refreshMaterialResources(lmsCourseId, lmsMaterialId);
+    yield* cache.appendMaterialResources(refresh);
+    return yield* cache.listMaterialResources(lmsCourseId, lmsMaterialId);
+});
+
+export function makeListCourses(): ListCourses {
+    return { execute: listCourses };
 }
 
-/** Creates the primitive course-index input port. */
-export function makeListCourses(gateway: CourseGateway): ListCourses {
-    return {
-        execute: gateway.listCourses,
-    };
+export function makeSyncCourses(): SyncCourses {
+    return { execute: syncCourses };
+}
+
+export function makeListCourseMaterials(): ListCourseMaterials {
+    return { execute: listCourseMaterials };
+}
+
+export function makeSyncCourseMaterials(): SyncCourseMaterials {
+    return { execute: syncCourseMaterials };
+}
+
+export function makeListMaterialResources(): ListMaterialResources {
+    return { execute: listMaterialResources };
+}
+
+export function makeSyncMaterialResources(): SyncMaterialResources {
+    return { execute: syncMaterialResources };
 }
