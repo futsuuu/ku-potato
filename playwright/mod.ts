@@ -63,7 +63,7 @@ export const LmsSourceGatewayLive = LmsSourceGateway.of({
             Effect.gen(function* () {
                 const courses = yield* readCourses(page);
                 const courseMaterials = yield* readCourseMaterials(page, lmsCourseId);
-                const resources = yield* readMaterialResourcesFromCoursePage(page, lmsCourseId, lmsMaterialId);
+                const resources = yield* readMaterialResourcesFromCoursePage(page, lmsMaterialId);
                 return {
                     courses,
                     courseMaterials,
@@ -140,7 +140,6 @@ const readCourseMaterials = Effect.fn("PlaywrightBrowser.readCourseMaterials")(f
 const readMaterialResourcesFromCoursePage = Effect.fn("PlaywrightBrowser.readMaterialResourcesFromCoursePage")(
     function* (
         page: playwright.Page,
-        lmsCourseId: LmsCourseId,
         lmsMaterialId: LmsMaterialId,
     ): Effect.fn.Return<MaterialResource[], LmsSourceGatewayError> {
         const materialCell = page.locator(`td.kyozaititleCell#${lmsMaterialId}`);
