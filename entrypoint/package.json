@@ -9,6 +9,7 @@
         "ku-potato-cli": "workspace:*",
         "ku-potato-core": "workspace:*",
         "ku-potato-playwright": "workspace:*",
+        "ku-potato-sqlite": "workspace:*",
         "effect": "catalog:"
     }
 }
