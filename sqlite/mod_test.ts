@@ -1,10 +1,10 @@
 import { assertEquals, assertInstanceOf } from "@std/assert";
 import { LmsCacheMissError } from "ku-potato-core/out_port";
 import {
-    type CourseMaterialsRefresh,
+    type CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
-    type MaterialResourcesRefresh,
+    type MaterialResourcesSnapshot,
 } from "ku-potato-domain";
 import { DateTime, Effect } from "effect";
 import { makeLmsCacheGateway } from "./mod.ts";
@@ -15,7 +15,7 @@ Deno.test("SQLite cache keeps material resources after a later course material s
     const courseId = LmsCourseId("course-1");
     const materialId = LmsMaterialId("material-1");
     const course = { lmsCourseId: courseId, name: "Programming", availability: "available" } as const;
-    const courseMaterials: CourseMaterialsRefresh = {
+    const courseMaterials: CourseMaterialsSnapshot = {
         courses: [course],
         courseMaterials: {
             lmsCourseId: courseId,
@@ -32,14 +32,14 @@ Deno.test("SQLite cache keeps material resources after a later course material s
             }],
         },
     };
-    const materialResources: MaterialResourcesRefresh = {
+    const materialResources: MaterialResourcesSnapshot = {
         ...courseMaterials,
         materialResources: {
             lmsMaterialId: materialId,
             resources: [{ name: "week-1.pdf" }],
         },
     };
-    const laterCourseMaterials: CourseMaterialsRefresh = {
+    const laterCourseMaterials: CourseMaterialsSnapshot = {
         courses: [course],
         courseMaterials: {
             lmsCourseId: courseId,
@@ -58,12 +58,18 @@ Deno.test("SQLite cache keeps material resources after a later course material s
                 courses: yield* cache.listCourses,
                 materials: yield* cache.listCourseMaterials(courseId),
                 resources: yield* cache.listMaterialResources(materialId),
+                detail: yield* cache.getMaterialDetail(materialId),
             };
         })));
 
         assertEquals(result.courses, [course]);
         assertEquals(result.materials, laterCourseMaterials.courseMaterials);
         assertEquals(result.resources, materialResources.materialResources);
+        assertEquals(result.detail, {
+            course,
+            material: courseMaterials.courseMaterials.folders[0]?.materials[0],
+            resources: materialResources.materialResources.resources,
+        });
     } finally {
         await Deno.remove(directory, { recursive: true });
     }

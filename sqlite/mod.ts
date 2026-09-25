@@ -9,12 +9,13 @@ import {
 import {
     type Course,
     type CourseMaterials,
-    type CourseMaterialsRefresh,
+    type CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
     type Material,
+    type MaterialDetail,
     type MaterialResources,
-    type MaterialResourcesRefresh,
+    type MaterialResourcesSnapshot,
 } from "ku-potato-domain";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
@@ -83,12 +84,14 @@ const makeGateway = (database: Database): LmsCacheGatewayService => ({
         cacheReadTry("listCourseMaterials", () => readCourseMaterials(database, lmsCourseId)),
     listMaterialResources: (lmsMaterialId) =>
         cacheReadTry("listMaterialResources", () => readMaterialResources(database, lmsMaterialId)),
+    getMaterialDetail: (lmsMaterialId) =>
+        cacheReadTry("getMaterialDetail", () => readMaterialDetail(database, lmsMaterialId)),
     appendCourses: (retrievedCourses) =>
         cacheWriteTry("appendCourses", () => recordCourses(database, retrievedCourses)),
-    appendCourseMaterials: (refresh) =>
-        cacheWriteTry("appendCourseMaterials", () => recordCourseMaterials(database, refresh)),
-    appendMaterialResources: (refresh) =>
-        cacheWriteTry("appendMaterialResources", () => recordMaterialResources(database, refresh)),
+    appendCourseMaterials: (snapshot) =>
+        cacheWriteTry("appendCourseMaterials", () => recordCourseMaterials(database, snapshot)),
+    appendMaterialResources: (snapshot) =>
+        cacheWriteTry("appendMaterialResources", () => recordMaterialResources(database, snapshot)),
 });
 
 const cacheReadTry = <A>(
@@ -115,21 +118,21 @@ const recordCourses = (database: Database, retrievedCourses: readonly Course[]):
     insertCourses(database, retrievedCourses);
 };
 
-const recordCourseMaterials = (database: Database, refresh: CourseMaterialsRefresh): void => {
-    const courseRetrievalId = insertCourses(database, refresh.courses);
-    const coursePosition = findCoursePosition(database, courseRetrievalId, refresh.courseMaterials.lmsCourseId);
+const recordCourseMaterials = (database: Database, snapshot: CourseMaterialsSnapshot): void => {
+    const courseRetrievalId = insertCourses(database, snapshot.courses);
+    const coursePosition = findCoursePosition(database, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
     const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
-    insertCourseMaterials(database, courseMaterialRetrievalId, refresh.courseMaterials);
+    insertCourseMaterials(database, courseMaterialRetrievalId, snapshot.courseMaterials);
 };
 
-const recordMaterialResources = (database: Database, refresh: MaterialResourcesRefresh): void => {
-    const courseRetrievalId = insertCourses(database, refresh.courses);
-    const coursePosition = findCoursePosition(database, courseRetrievalId, refresh.courseMaterials.lmsCourseId);
+const recordMaterialResources = (database: Database, snapshot: MaterialResourcesSnapshot): void => {
+    const courseRetrievalId = insertCourses(database, snapshot.courses);
+    const coursePosition = findCoursePosition(database, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
     const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
-    insertCourseMaterials(database, courseMaterialRetrievalId, refresh.courseMaterials);
+    insertCourseMaterials(database, courseMaterialRetrievalId, snapshot.courseMaterials);
 
     const materialResourceRetrieval = database.insert(materialResourceRetrievals).values({
-        lmsMaterialId: refresh.materialResources.lmsMaterialId,
+        lmsMaterialId: snapshot.materialResources.lmsMaterialId,
         fetchedAt: now(),
     }).returning({ id: materialResourceRetrievals.id }).get();
     if (materialResourceRetrieval == null) {
@@ -138,7 +141,7 @@ const recordMaterialResources = (database: Database, refresh: MaterialResourcesR
             message: "Could not create retrieval.",
         });
     }
-    const resourceRows = refresh.materialResources.resources.map((resource, position) => ({
+    const resourceRows = snapshot.materialResources.resources.map((resource, position) => ({
         retrievalId: materialResourceRetrieval.id,
         position,
         name: resource.name,
@@ -307,6 +310,56 @@ const readMaterialResources = (database: Database, lmsMaterialId: string): Mater
     return {
         lmsMaterialId: LmsMaterialId(lmsMaterialId),
         resources: resources.map((resource) => ({ name: resource.name })),
+    };
+};
+
+const readMaterialDetail = (database: Database, lmsMaterialId: string): MaterialDetail => {
+    const row = database.select({
+        courseLmsCourseId: courses.lmsCourseId,
+        courseName: courses.name,
+        courseAvailability: courses.availability,
+        folderPosition: courseMaterials.folderPosition,
+        lmsMaterialId: courseMaterials.lmsMaterialId,
+        name: courseMaterials.name,
+        type: courseMaterials.type,
+        publicationDeadlineStatus: courseMaterials.publicationDeadlineStatus,
+        publicationDeadlineAt: courseMaterials.publicationDeadlineAt,
+        resourceAvailability: courseMaterials.resourceAvailability,
+    })
+        .from(courseMaterials)
+        .innerJoin(courseMaterialRetrievals, eq(courseMaterialRetrievals.id, courseMaterials.retrievalId))
+        .innerJoin(
+            courses,
+            and(
+                eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
+                eq(courses.position, courseMaterialRetrievals.coursePosition),
+            ),
+        )
+        .where(eq(courseMaterials.lmsMaterialId, lmsMaterialId))
+        .orderBy(desc(courseMaterialRetrievals.id))
+        .limit(1)
+        .get();
+    if (row == null) {
+        throw cacheMiss("getMaterialDetail", `No material ${lmsMaterialId} has been synchronized yet.`);
+    }
+    if (row.courseAvailability !== "available" || row.courseLmsCourseId === null) {
+        throw new LmsCacheGatewayError({
+            operation: "getMaterialDetail",
+            message: `Material ${lmsMaterialId} belongs to an unavailable course.`,
+        });
+    }
+    const material = decodeMaterial(row);
+    const resources = material.type === "material" && material.resourceAvailability === "available"
+        ? readMaterialResources(database, lmsMaterialId).resources
+        : [];
+    return {
+        course: {
+            lmsCourseId: LmsCourseId(row.courseLmsCourseId),
+            name: row.courseName,
+            availability: "available",
+        },
+        material,
+        resources,
     };
 };
 
