@@ -24,6 +24,9 @@ export type Course =
         readonly availability: "unavailable";
     };
 
+/** A course that currently exposes an LMS link. */
+export type AvailableCourse = Extract<Course, { readonly availability: "available" }>;
+
 /** A teaching material displayed on a course's teaching-material page. */
 export type Material =
     & {
@@ -63,14 +66,21 @@ export type MaterialResources = {
     readonly resources: readonly Resource[];
 };
 
-/** A material retrieval bundled with the prerequisite course retrieval. */
-export type CourseMaterialsRefresh = {
+/** Cached information needed to display one globally identified material. */
+export type MaterialDetail = {
+    readonly course: AvailableCourse;
+    readonly material: Material;
+    readonly resources: readonly Resource[];
+};
+
+/** A course-material snapshot bundled with its prerequisite course snapshot. */
+export type CourseMaterialsSnapshot = {
     readonly courses: readonly Course[];
     readonly courseMaterials: CourseMaterials;
 };
 
-/** A resource retrieval bundled with its prerequisite course and material retrievals. */
-export type MaterialResourcesRefresh = {
+/** A resource snapshot bundled with its prerequisite course and material snapshots. */
+export type MaterialResourcesSnapshot = {
     readonly courses: readonly Course[];
     readonly courseMaterials: CourseMaterials;
     readonly materialResources: MaterialResources;
