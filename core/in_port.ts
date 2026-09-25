@@ -1,73 +1,94 @@
 /** Application inbound ports, implemented by the application layer. */
 
-import type { Course, CourseMaterials, LmsCourseId, LmsMaterialId, MaterialResources } from "ku-potato-domain";
+import type { Course, CourseMaterials, LmsCourseId, LmsMaterialId, MaterialDetail } from "ku-potato-domain";
 import type { Effect } from "effect";
 import type {
+    HeadPolicy,
+    LmsAuthenticationGateway,
     LmsAuthenticationRequiredError,
+    LmsAuthenticationStatus,
     LmsAuthenticationStorageError,
     LmsCacheGateway,
     LmsCacheGatewayError,
     LmsCacheMissError,
-    LmsCourseNotFoundError,
     LmsMaterialNotFoundError,
     LmsSourceGateway,
     LmsSourceGatewayError,
 } from "./out_port.ts";
 
-export interface ListCourses {
-    readonly execute: Effect.Effect<readonly Course[], LmsCacheGatewayError | LmsCacheMissError, LmsCacheGateway>;
+/** Whether a query may synchronize its cache from KU-LMS. */
+export type SyncPolicy = "auto" | "true" | "false";
+
+export type QueryOptions = {
+    readonly sync: SyncPolicy;
+    readonly head: HeadPolicy;
+};
+
+export type QueryError =
+    | LmsSourceGatewayError
+    | LmsAuthenticationRequiredError
+    | LmsAuthenticationStorageError
+    | LmsCacheGatewayError
+    | LmsCacheMissError;
+
+export interface Login {
+    readonly execute: (
+        head: HeadPolicy,
+    ) => Effect.Effect<
+        void,
+        LmsSourceGatewayError | LmsAuthenticationRequiredError | LmsAuthenticationStorageError,
+        LmsAuthenticationGateway
+    >;
 }
 
-export interface SyncCourses {
+export interface Logout {
+    readonly execute: Effect.Effect<void, LmsAuthenticationStorageError, LmsAuthenticationGateway>;
+}
+
+export interface GetAuthenticationStatus {
     readonly execute: Effect.Effect<
-        readonly Course[],
-        | LmsSourceGatewayError
-        | LmsAuthenticationRequiredError
-        | LmsAuthenticationStorageError
-        | LmsCacheGatewayError
-        | LmsCacheMissError,
-        LmsSourceGateway | LmsCacheGateway
+        LmsAuthenticationStatus,
+        LmsSourceGatewayError | LmsAuthenticationStorageError,
+        LmsAuthenticationGateway
     >;
 }
 
-export interface ListCourseMaterials {
+export interface ListCourses {
     readonly execute: (
-        lmsCourseId: LmsCourseId,
-    ) => Effect.Effect<CourseMaterials, LmsCacheGatewayError | LmsCacheMissError, LmsCacheGateway>;
+        options: QueryOptions,
+    ) => Effect.Effect<readonly Course[], QueryError, LmsSourceGateway | LmsCacheGateway>;
 }
 
-export interface SyncCourseMaterials {
+export type ListMaterialsOptions = QueryOptions & {
+    readonly lmsCourseIds: readonly LmsCourseId[];
+};
+
+export type MaterialListFailure = {
+    readonly lmsCourseId: LmsCourseId;
+    readonly error: LmsSourceGatewayError | LmsCacheGatewayError | LmsCacheMissError;
+};
+
+export type MaterialListResult = {
+    readonly courseMaterials: readonly CourseMaterials[];
+    readonly failures: readonly MaterialListFailure[];
+};
+
+export interface ListMaterials {
     readonly execute: (
-        lmsCourseId: LmsCourseId,
+        options: ListMaterialsOptions,
+    ) => Effect.Effect<MaterialListResult, QueryError, LmsSourceGateway | LmsCacheGateway>;
+}
+
+export type ViewMaterialOptions = QueryOptions & {
+    readonly lmsMaterialId: LmsMaterialId;
+};
+
+export interface ViewMaterial {
+    readonly execute: (
+        options: ViewMaterialOptions,
     ) => Effect.Effect<
-        CourseMaterials,
-        | LmsSourceGatewayError
-        | LmsAuthenticationRequiredError
-        | LmsAuthenticationStorageError
-        | LmsCourseNotFoundError
-        | LmsCacheGatewayError
-        | LmsCacheMissError,
-        LmsSourceGateway | LmsCacheGateway
-    >;
-}
-
-export interface ListMaterialResources {
-    readonly execute: (
-        lmsMaterialId: LmsMaterialId,
-    ) => Effect.Effect<MaterialResources, LmsCacheGatewayError | LmsCacheMissError, LmsCacheGateway>;
-}
-
-export interface SyncMaterialResources {
-    readonly execute: (
-        lmsMaterialId: LmsMaterialId,
-    ) => Effect.Effect<
-        MaterialResources,
-        | LmsSourceGatewayError
-        | LmsAuthenticationRequiredError
-        | LmsAuthenticationStorageError
-        | LmsMaterialNotFoundError
-        | LmsCacheGatewayError
-        | LmsCacheMissError,
+        MaterialDetail,
+        QueryError | LmsMaterialNotFoundError,
         LmsSourceGateway | LmsCacheGateway
     >;
 }

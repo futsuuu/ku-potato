@@ -1,33 +1,34 @@
 import { CliInboundAdapter } from "ku-potato-cli";
 import {
-    makeListCourseMaterials,
+    makeGetAuthenticationStatus,
     makeListCourses,
-    makeListMaterialResources,
-    makeSyncCourseMaterials,
-    makeSyncCourses,
-    makeSyncMaterialResources,
+    makeListMaterials,
+    makeLogin,
+    makeLogout,
+    makeViewMaterial,
 } from "ku-potato-core";
-import { LmsCacheGateway, LmsSourceGateway } from "ku-potato-core/out_port";
-import { LmsSourceGatewayLive } from "ku-potato-playwright";
-import { makeLmsCacheGateway } from "ku-potato-sqlite";
+import { LmsAuthenticationGateway, LmsCacheGateway, LmsSourceGateway } from "ku-potato-core/out_port";
+import { LmsAuthenticationGatewayLive, LmsSourceGatewayLive } from "ku-potato-playwright";
+import { makeLazyLmsCacheGateway } from "ku-potato-sqlite";
 import { Effect } from "effect";
 
 const program = Effect.scoped(Effect.gen(function* () {
-    const cache = yield* makeLmsCacheGateway();
+    const cache = yield* makeLazyLmsCacheGateway();
     return yield* CliInboundAdapter.run(
         Deno.args,
+        makeLogin(),
+        makeLogout(),
+        makeGetAuthenticationStatus(),
         makeListCourses(),
-        makeSyncCourses(),
-        makeListCourseMaterials(),
-        makeSyncCourseMaterials(),
-        makeListMaterialResources(),
-        makeSyncMaterialResources(),
+        makeListMaterials(),
+        makeViewMaterial(),
     ).pipe(
+        Effect.provideService(LmsAuthenticationGateway, LmsAuthenticationGatewayLive),
         Effect.provideService(LmsCacheGateway, cache),
         Effect.provideService(LmsSourceGateway, LmsSourceGatewayLive),
     );
 }));
 
 if (import.meta.main) {
-    await Effect.runPromise(program);
+    Deno.exitCode = await Effect.runPromise(program);
 }

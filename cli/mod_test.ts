@@ -1,109 +1,154 @@
 import { assertEquals } from "@std/assert";
 import type {
-    ListCourseMaterials,
+    GetAuthenticationStatus,
     ListCourses,
-    ListMaterialResources,
-    SyncCourseMaterials,
-    SyncCourses,
-    SyncMaterialResources,
+    ListMaterials,
+    Login,
+    Logout,
+    ViewMaterial,
 } from "ku-potato-core/in_port";
-import { LmsCacheGateway, LmsSourceGateway } from "ku-potato-core/out_port";
-import { type CourseMaterials, LmsCourseId, LmsMaterialId, type MaterialResources } from "ku-potato-domain";
+import {
+    LmsAuthenticationGateway,
+    LmsCacheGateway,
+    LmsSourceGateway,
+    LmsSourceGatewayError,
+} from "ku-potato-core/out_port";
+import { LmsCourseId } from "ku-potato-domain";
 import { Effect } from "effect";
 import { CliInboundAdapter } from "./mod.ts";
 
-Deno.test("教材・資料コマンドは対応する入力ポートへIDを渡す", async () => {
+Deno.test("階層化したコマンドはポリシーとIDを対応する入力ポートへ渡す", async () => {
     const calls: string[] = [];
-    const courseMaterials: CourseMaterials = { lmsCourseId: LmsCourseId("course-1"), folders: [] };
-    const materialResources: MaterialResources = {
-        lmsMaterialId: LmsMaterialId("material-1"),
-        resources: [],
+    const login: Login = {
+        execute: (head) => Effect.sync(() => calls.push(`auth-login:${head}`)).pipe(Effect.asVoid),
     };
-    const listCourseMaterials: ListCourseMaterials = {
-        execute: (lmsCourseId) =>
-            Effect.sync(() => calls.push(`list-course-materials:${lmsCourseId}`)).pipe(
-                Effect.as(courseMaterials),
+    const logout: Logout = {
+        execute: Effect.sync(() => calls.push("auth-logout")).pipe(Effect.asVoid),
+    };
+    const status: GetAuthenticationStatus = {
+        execute: Effect.sync(() => calls.push("auth-status")).pipe(Effect.as("authenticated" as const)),
+    };
+    const listCourses: ListCourses = {
+        execute: ({ sync, head }) => Effect.sync(() => calls.push(`course-list:${sync}:${head}`)).pipe(Effect.as([])),
+    };
+    const listMaterials: ListMaterials = {
+        execute: ({ lmsCourseIds, sync, head }) =>
+            Effect.sync(() => calls.push(`material-list:${lmsCourseIds.join(",")}:${sync}:${head}`)).pipe(
+                Effect.as({ courseMaterials: [], failures: [] }),
             ),
     };
-    const syncCourseMaterials: SyncCourseMaterials = {
-        execute: (lmsCourseId) =>
-            Effect.sync(() => calls.push(`sync-course-materials:${lmsCourseId}`)).pipe(
-                Effect.as(courseMaterials),
-            ),
-    };
-    const listMaterialResources: ListMaterialResources = {
-        execute: (lmsMaterialId) =>
-            Effect.sync(() => calls.push(`list-material-resources:${lmsMaterialId}`)).pipe(
-                Effect.as(materialResources),
-            ),
-    };
-    const syncMaterialResources: SyncMaterialResources = {
-        execute: (lmsMaterialId) =>
-            Effect.sync(() => calls.push(`sync-material-resources:${lmsMaterialId}`)).pipe(
-                Effect.as(materialResources),
+    const viewMaterial: ViewMaterial = {
+        execute: ({ lmsMaterialId, sync, head }) =>
+            Effect.sync(() => calls.push(`material-view:${lmsMaterialId}:${sync}:${head}`)).pipe(
+                Effect.as({
+                    course: {
+                        lmsCourseId: LmsCourseId("course-1"),
+                        name: "Programming",
+                        availability: "available" as const,
+                    },
+                    material: {
+                        lmsMaterialId,
+                        name: "Handout",
+                        type: "material" as const,
+                        publicationDeadline: "no-deadline" as const,
+                        resourceAvailability: "available" as const,
+                    },
+                    resources: [],
+                }),
             ),
     };
 
-    await runCli(
-        ["list-course-materials", "course-1"],
-        listCourseMaterials,
-        syncCourseMaterials,
-        listMaterialResources,
-        syncMaterialResources,
+    assertEquals(await runCli(["auth", "login", "--head", "false"], ports({ login })), 0);
+    assertEquals(await runCli(["auth", "logout"], ports({ logout })), 0);
+    assertEquals(await runCli(["auth", "status"], ports({ status })), 0);
+    assertEquals(await runCli(["course", "list", "--sync", "true", "--head", "false"], ports({ listCourses })), 0);
+    assertEquals(
+        await runCli(
+            [
+                "material",
+                "list",
+                "--course",
+                "course-1",
+                "--course",
+                "course-2",
+                "--sync",
+                "false",
+            ],
+            ports({ listMaterials }),
+        ),
+        0,
     );
-    await runCli(
-        ["sync-course-materials", "course-1"],
-        listCourseMaterials,
-        syncCourseMaterials,
-        listMaterialResources,
-        syncMaterialResources,
-    );
-    await runCli(
-        ["list-material-resources", "material-1"],
-        listCourseMaterials,
-        syncCourseMaterials,
-        listMaterialResources,
-        syncMaterialResources,
-    );
-    await runCli(
-        ["sync-material-resources", "material-1"],
-        listCourseMaterials,
-        syncCourseMaterials,
-        listMaterialResources,
-        syncMaterialResources,
+    assertEquals(
+        await runCli(["material", "view", "SRY1", "--head", "true"], ports({ viewMaterial })),
+        0,
     );
 
     assertEquals(calls, [
-        "list-course-materials:course-1",
-        "sync-course-materials:course-1",
-        "list-material-resources:material-1",
-        "sync-material-resources:material-1",
+        "auth-login:false",
+        "auth-logout",
+        "auth-status",
+        "course-list:true:false",
+        "material-list:course-1,course-2:false:auto",
+        "material-view:SRY1:auto:true",
     ]);
 });
 
-const runCli = (
-    commandArgs: readonly string[],
-    listCourseMaterials: ListCourseMaterials,
-    syncCourseMaterials: SyncCourseMaterials,
-    listMaterialResources: ListMaterialResources,
-    syncMaterialResources: SyncMaterialResources,
-) => Effect.runPromise(
-    CliInboundAdapter.run(
-        commandArgs,
-        unavailableListCourses,
-        unavailableSyncCourses,
-        listCourseMaterials,
-        syncCourseMaterials,
-        listMaterialResources,
-        syncMaterialResources,
-    ).pipe(
-        Effect.provideService(LmsCacheGateway, unavailableCache),
-        Effect.provideService(LmsSourceGateway, unavailableSource),
-    ),
-);
+Deno.test("教材一覧の部分失敗は終了コード1を返す", async () => {
+    const listMaterials: ListMaterials = {
+        execute: () =>
+            Effect.succeed({
+                courseMaterials: [],
+                failures: [{
+                    lmsCourseId: LmsCourseId("course-1"),
+                    error: new LmsSourceGatewayError({ operation: "fetch", message: "broken" }),
+                }],
+            }),
+    };
 
-const unavailableListCourses: ListCourses = { execute: Effect.die("unexpected list-courses") };
-const unavailableSyncCourses: SyncCourses = { execute: Effect.die("unexpected sync-courses") };
+    assertEquals(await runCli(["material", "list"], ports({ listMaterials })), 1);
+});
+
+type Ports = {
+    readonly login: Login;
+    readonly logout: Logout;
+    readonly status: GetAuthenticationStatus;
+    readonly listCourses: ListCourses;
+    readonly listMaterials: ListMaterials;
+    readonly viewMaterial: ViewMaterial;
+};
+
+const ports = (overrides: Partial<Ports>): Ports => ({
+    login: { execute: () => Effect.die("unexpected auth login") },
+    logout: { execute: Effect.die("unexpected auth logout") },
+    status: { execute: Effect.die("unexpected auth status") },
+    listCourses: { execute: () => Effect.die("unexpected course list") },
+    listMaterials: { execute: () => Effect.die("unexpected material list") },
+    viewMaterial: { execute: () => Effect.die("unexpected material view") },
+    ...overrides,
+});
+
+const runCli = (commandArgs: readonly string[], inputPorts: Ports) =>
+    Effect.runPromise(
+        CliInboundAdapter.run(
+            commandArgs,
+            inputPorts.login,
+            inputPorts.logout,
+            inputPorts.status,
+            inputPorts.listCourses,
+            inputPorts.listMaterials,
+            inputPorts.viewMaterial,
+        ).pipe(
+            Effect.provideService(LmsAuthenticationGateway, unavailableAuthentication),
+            Effect.provideService(LmsCacheGateway, unavailableCache),
+            Effect.provideService(LmsSourceGateway, unavailableSource),
+        ),
+    );
+
+const unavailableAuthentication = LmsAuthenticationGateway.of({
+    login: () => Effect.die("unexpected authentication login"),
+    logout: Effect.die("unexpected authentication logout"),
+    status: Effect.die("unexpected authentication status"),
+});
 
 const unavailableCache = LmsCacheGateway.of({
     listCourses: Effect.die("unexpected cache list-courses"),
