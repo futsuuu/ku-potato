@@ -2,15 +2,14 @@
 import { LmsSourceGateway, LmsSourceGatewayError } from "ku-potato-core/out_port";
 import {
     type Course,
-    type CourseMaterial,
-    type CourseMaterialFolder,
     type CourseMaterials,
     type CourseMaterialsRefresh,
     LmsCourseId,
     LmsMaterialId,
-    type MaterialFolderInfo,
-    type MaterialResource,
+    type Material,
+    type MaterialFolder,
     type MaterialResourcesRefresh,
+    type Resource,
 } from "ku-potato-domain";
 import { DateTime, Effect } from "effect";
 import * as playwright from "playwright-core";
@@ -58,17 +57,30 @@ export const LmsSourceGatewayLive = LmsSourceGateway.of({
                 return { courses, courseMaterials } satisfies CourseMaterialsRefresh;
             })
         ),
-    refreshMaterialResources: (lmsCourseId, lmsMaterialId) =>
+    refreshMaterialResources: (lmsMaterialId) =>
         withLoggedInLms((page) =>
             Effect.gen(function* () {
                 const courses = yield* readCourses(page);
-                const courseMaterials = yield* readCourseMaterials(page, lmsCourseId);
-                const resources = yield* readMaterialResourcesFromCoursePage(page, lmsMaterialId);
-                return {
-                    courses,
-                    courseMaterials,
-                    materialResources: { lmsCourseId, lmsMaterialId, resources },
-                } satisfies MaterialResourcesRefresh;
+                for (const course of courses) {
+                    if (course.availability === "unavailable") continue;
+                    yield* openLmsHome(page);
+                    const courseMaterials = yield* readCourseMaterials(page, course.lmsCourseId);
+                    if (
+                        !courseMaterials.folders.some((folder) =>
+                            folder.materials.some((material) => material.lmsMaterialId === lmsMaterialId)
+                        )
+                    ) continue;
+                    const resources = yield* readMaterialResourcesFromCoursePage(page, lmsMaterialId);
+                    return {
+                        courses,
+                        courseMaterials,
+                        materialResources: { lmsMaterialId, resources },
+                    } satisfies MaterialResourcesRefresh;
+                }
+                return yield* new LmsSourceGatewayError({
+                    operation: "find material",
+                    message: `教材を講義内で取得できません: ${lmsMaterialId}`,
+                });
             })
         ),
 });
@@ -117,13 +129,13 @@ const readCourseMaterials = Effect.fn("PlaywrightBrowser.readCourseMaterials")(f
         return { lmsCourseId, folders: [] };
     }
 
-    const folders: CourseMaterialFolder[] = [];
+    const folders: MaterialFolder[] = [];
     for (
         const folderRow of yield* tryPromise("find material folders", () => page.locator("tr.accordionHeader").all())
     ) {
         const folder = yield* readMaterialFolderInfo(folderRow);
         const contentRow = folderRow.locator("xpath=following-sibling::tr[1]");
-        const materials: CourseMaterial[] = [];
+        const materials: Material[] = [];
         for (
             const materialCell of yield* tryPromise(
                 "find materials",
@@ -141,7 +153,7 @@ const readMaterialResourcesFromCoursePage = Effect.fn("PlaywrightBrowser.readMat
     function* (
         page: playwright.Page,
         lmsMaterialId: LmsMaterialId,
-    ): Effect.fn.Return<MaterialResource[], LmsSourceGatewayError> {
+    ): Effect.fn.Return<Resource[], LmsSourceGatewayError> {
         const materialCell = page.locator(`td.kyozaititleCell#${lmsMaterialId}`);
         if ((yield* tryPromise("find material", () => materialCell.count())) === 0) {
             return yield* new LmsSourceGatewayError({
@@ -169,7 +181,7 @@ const readMaterialResourcesFromCoursePage = Effect.fn("PlaywrightBrowser.readMat
             () => page.locator('td[data-label="資料名"]').allTextContents(),
         ))
             .map(normalizeText)
-            .map((name): MaterialResource => ({ name }));
+            .map((name): Resource => ({ name }));
     },
 );
 
@@ -202,9 +214,16 @@ const openCourseMaterials = Effect.fn("PlaywrightBrowser.openCourseMaterials")(f
     );
 });
 
+const openLmsHome = Effect.fn("PlaywrightBrowser.openLmsHome")(function* (
+    page: playwright.Page,
+): Effect.fn.Return<void, LmsSourceGatewayError> {
+    yield* tryPromise("open KU-LMS home", () => page.goto("https://study.ns.kogakuin.ac.jp/lms"));
+    yield* tryPromise("wait for course index", () => page.locator(".lms-weekly-area").waitFor());
+});
+
 const readMaterialFolderInfo = Effect.fn("PlaywrightBrowser.readMaterialFolderInfo")(function* (
     folderRow: playwright.Locator,
-): Effect.fn.Return<MaterialFolderInfo, LmsSourceGatewayError> {
+): Effect.fn.Return<Omit<MaterialFolder, "materials">, LmsSourceGatewayError> {
     const name = normalizeText(
         (yield* tryPromise("read material folder name", () => folderRow.locator(".courseFolderName").textContent())) ??
             "",
@@ -215,7 +234,7 @@ const readMaterialFolderInfo = Effect.fn("PlaywrightBrowser.readMaterialFolderIn
 
 const readCourseMaterial = Effect.fn("PlaywrightBrowser.readCourseMaterial")(function* (
     materialCell: playwright.Locator,
-): Effect.fn.Return<CourseMaterial, LmsSourceGatewayError> {
+): Effect.fn.Return<Material, LmsSourceGatewayError> {
     const lmsMaterialId = yield* parseLmsMaterialId(
         yield* tryPromise("read LMS material ID", () => materialCell.getAttribute("id")),
     );
@@ -292,7 +311,7 @@ const captureCourseIndexDebugArtifacts = Effect.fn("PlaywrightBrowser.captureCou
     },
 );
 
-export function parseMaterialType(title: string | null): Effect.Effect<CourseMaterial["type"], LmsSourceGatewayError> {
+export function parseMaterialType(title: string | null): Effect.Effect<Material["type"], LmsSourceGatewayError> {
     switch (title) {
         case "Materials":
         case "資料":
@@ -344,7 +363,7 @@ export function parseLmsMaterialId(value: string | null): Effect.Effect<LmsMater
 
 export function parsePublicationDeadline(
     text: string | undefined,
-): Effect.Effect<CourseMaterial["publicationDeadline"], LmsSourceGatewayError> {
+): Effect.Effect<Material["publicationDeadline"], LmsSourceGatewayError> {
     if (text === "公開終了" || text === "Unavailable") return Effect.succeed("unavailable");
     return parseLmsDate(text).pipe(Effect.map((date) => date ?? "no-deadline"));
 }

@@ -9,7 +9,7 @@
         }
     },
     "fmt": {
-        "exclude": ["sqlite/drizzle"],
+        "exclude": ["domain/docs", "sqlite/drizzle"],
         "lineWidth": 120
     }
 }

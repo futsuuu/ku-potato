@@ -40,14 +40,12 @@ export interface SyncCourseMaterials {
 
 export interface ListMaterialResources {
     readonly execute: (
-        lmsCourseId: LmsCourseId,
         lmsMaterialId: LmsMaterialId,
     ) => Effect.Effect<MaterialResources, LmsCacheGatewayError | LmsCacheMissError, LmsCacheGateway>;
 }
 
 export interface SyncMaterialResources {
     readonly execute: (
-        lmsCourseId: LmsCourseId,
         lmsMaterialId: LmsMaterialId,
     ) => Effect.Effect<
         MaterialResources,

@@ -1,10 +1,10 @@
 /** Persistent cache schema. */
 
-import type { Course, CourseMaterial } from "ku-potato-domain";
+import type { Course, Material } from "ku-potato-domain";
 import { foreignKey, index, integer, primaryKey, snakeCase, text, unique } from "drizzle-orm/sqlite-core";
 
-type MaterialType = CourseMaterial["type"];
-type ResourceAvailability = Extract<CourseMaterial, { readonly type: "material" }>["resourceAvailability"];
+type MaterialType = Material["type"];
+type ResourceAvailability = Extract<Material, { readonly type: "material" }>["resourceAvailability"];
 type PublicationDeadlineStatus = "scheduled" | "no-deadline" | "unavailable";
 
 /** One successful execution of the `listCourses` primitive. */
@@ -80,21 +80,14 @@ export const courseMaterials = snakeCase.table("course_materials", {
     }),
 ]);
 
-/** One successful execution of `listMaterialResources` for one material result. */
+/** One successful execution of `listMaterialResources` for one globally identified material. */
 export const materialResourceRetrievals = snakeCase.table("material_resource_retrievals", {
     id: integer().primaryKey({ autoIncrement: true }),
-    courseMaterialRetrievalId: integer().notNull(),
-    courseMaterialPosition: integer().notNull(),
+    lmsMaterialId: text().notNull(),
     fetchedAt: integer({ mode: "timestamp_ms" }).notNull(),
 }, (table) => [
-    foreignKey({
-        columns: [table.courseMaterialRetrievalId, table.courseMaterialPosition],
-        foreignColumns: [courseMaterials.retrievalId, courseMaterials.position],
-        name: "material_resource_retrievals_course_material_fk",
-    }).onDelete("cascade"),
     index("material_resource_retrievals_material_fetched_at_index").on(
-        table.courseMaterialRetrievalId,
-        table.courseMaterialPosition,
+        table.lmsMaterialId,
         table.fetchedAt,
     ),
 ]);

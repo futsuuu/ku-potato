@@ -8,11 +8,11 @@ import {
 } from "ku-potato-core/out_port";
 import {
     type Course,
-    type CourseMaterial,
     type CourseMaterials,
     type CourseMaterialsRefresh,
     LmsCourseId,
     LmsMaterialId,
+    type Material,
     type MaterialResources,
     type MaterialResourcesRefresh,
 } from "ku-potato-domain";
@@ -35,7 +35,7 @@ export * from "./schema.ts";
 
 type Database = ReturnType<typeof drizzle>;
 type CourseReadRow = Pick<typeof courses.$inferSelect, "lmsCourseId" | "name" | "availability">;
-type CourseMaterialReadRow = Pick<
+type MaterialReadRow = Pick<
     typeof courseMaterials.$inferSelect,
     | "folderPosition"
     | "lmsMaterialId"
@@ -81,8 +81,8 @@ const makeGateway = (database: Database): LmsCacheGatewayService => ({
     listCourses: cacheReadTry("listCourses", () => readCourses(database)),
     listCourseMaterials: (lmsCourseId) =>
         cacheReadTry("listCourseMaterials", () => readCourseMaterials(database, lmsCourseId)),
-    listMaterialResources: (lmsCourseId, lmsMaterialId) =>
-        cacheReadTry("listMaterialResources", () => readMaterialResources(database, lmsCourseId, lmsMaterialId)),
+    listMaterialResources: (lmsMaterialId) =>
+        cacheReadTry("listMaterialResources", () => readMaterialResources(database, lmsMaterialId)),
     appendCourses: (retrievedCourses) =>
         cacheWriteTry("appendCourses", () => recordCourses(database, retrievedCourses)),
     appendCourseMaterials: (refresh) =>
@@ -128,14 +128,8 @@ const recordMaterialResources = (database: Database, refresh: MaterialResourcesR
     const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
     insertCourseMaterials(database, courseMaterialRetrievalId, refresh.courseMaterials);
 
-    const materialPosition = findMaterialPosition(
-        database,
-        courseMaterialRetrievalId,
-        refresh.materialResources.lmsMaterialId,
-    );
     const materialResourceRetrieval = database.insert(materialResourceRetrievals).values({
-        courseMaterialRetrievalId,
-        courseMaterialPosition: materialPosition,
+        lmsMaterialId: refresh.materialResources.lmsMaterialId,
         fetchedAt: now(),
     }).returning({ id: materialResourceRetrievals.id }).get();
     if (materialResourceRetrieval == null) {
@@ -224,20 +218,6 @@ const findCoursePosition = (database: Database, retrievalId: number, lmsCourseId
     return row.position;
 };
 
-const findMaterialPosition = (database: Database, retrievalId: number, lmsMaterialId: string): number => {
-    const row = database.select({ position: courseMaterials.position })
-        .from(courseMaterials)
-        .where(and(eq(courseMaterials.retrievalId, retrievalId), eq(courseMaterials.lmsMaterialId, lmsMaterialId)))
-        .get();
-    if (row == null) {
-        throw new LmsCacheGatewayError({
-            operation: "append",
-            message: `The material ${lmsMaterialId} was absent from its bundled material retrieval.`,
-        });
-    }
-    return row.position;
-};
-
 const readCourses = (database: Database): readonly Course[] => {
     const retrieval = database.select({ id: courseRetrievals.id })
         .from(courseRetrievals).orderBy(desc(courseRetrievals.id)).limit(1).get();
@@ -301,30 +281,15 @@ const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMat
         folders: folders.map((folder) => ({
             name: folder.name,
             ...(folder.classDate === null ? {} : { classDate: folder.classDate }),
-            materials: (materialsByFolder.get(folder.position) ?? []).map(decodeCourseMaterial),
+            materials: (materialsByFolder.get(folder.position) ?? []).map(decodeMaterial),
         })),
     };
 };
 
-const readMaterialResources = (database: Database, lmsCourseId: string, lmsMaterialId: string): MaterialResources => {
+const readMaterialResources = (database: Database, lmsMaterialId: string): MaterialResources => {
     const retrieval = database.select({ id: materialResourceRetrievals.id })
         .from(materialResourceRetrievals)
-        .innerJoin(
-            courseMaterials,
-            and(
-                eq(courseMaterials.retrievalId, materialResourceRetrievals.courseMaterialRetrievalId),
-                eq(courseMaterials.position, materialResourceRetrievals.courseMaterialPosition),
-            ),
-        )
-        .innerJoin(courseMaterialRetrievals, eq(courseMaterialRetrievals.id, courseMaterials.retrievalId))
-        .innerJoin(
-            courses,
-            and(
-                eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
-                eq(courses.position, courseMaterialRetrievals.coursePosition),
-            ),
-        )
-        .where(and(eq(courses.lmsCourseId, lmsCourseId), eq(courseMaterials.lmsMaterialId, lmsMaterialId)))
+        .where(eq(materialResourceRetrievals.lmsMaterialId, lmsMaterialId))
         .orderBy(desc(materialResourceRetrievals.id))
         .limit(1)
         .get();
@@ -340,7 +305,6 @@ const readMaterialResources = (database: Database, lmsCourseId: string, lmsMater
         .orderBy(asc(materialResources.position))
         .all();
     return {
-        lmsCourseId: LmsCourseId(lmsCourseId),
         lmsMaterialId: LmsMaterialId(lmsMaterialId),
         resources: resources.map((resource) => ({ name: resource.name })),
     };
@@ -351,7 +315,7 @@ const decodeCourse = (row: CourseReadRow): Course =>
         ? { lmsCourseId: LmsCourseId(row.lmsCourseId), name: row.name, availability: "available" }
         : { name: row.name, availability: "unavailable" };
 
-const decodeCourseMaterial = (row: CourseMaterialReadRow): CourseMaterial => {
+const decodeMaterial = (row: MaterialReadRow): Material => {
     const base = {
         lmsMaterialId: LmsMaterialId(row.lmsMaterialId),
         name: row.name,
@@ -362,7 +326,7 @@ const decodeCourseMaterial = (row: CourseMaterialReadRow): CourseMaterial => {
         : { ...base, type: row.type };
 };
 
-const encodePublicationDeadline = (value: CourseMaterial["publicationDeadline"]): {
+const encodePublicationDeadline = (value: Material["publicationDeadline"]): {
     readonly publicationDeadlineStatus: "scheduled" | "no-deadline" | "unavailable";
     readonly publicationDeadlineAt: Date | null;
 } => value instanceof Date
@@ -370,8 +334,8 @@ const encodePublicationDeadline = (value: CourseMaterial["publicationDeadline"])
     : { publicationDeadlineStatus: value, publicationDeadlineAt: null };
 
 const decodePublicationDeadline = (
-    row: CourseMaterialReadRow,
-): CourseMaterial["publicationDeadline"] =>
+    row: MaterialReadRow,
+): Material["publicationDeadline"] =>
     row.publicationDeadlineStatus === "scheduled"
         ? row.publicationDeadlineAt ?? DateTime.toDate(DateTime.makeUnsafe(0))
         : row.publicationDeadlineStatus;

@@ -53,13 +53,13 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
             Effect.flatMap(printCourseMaterials),
             Effect.asVoid,
         );
-    const cachedMaterialResources = (lmsCourseId: string, lmsMaterialId: string) =>
-        listMaterialResources.execute(LmsCourseId(lmsCourseId), LmsMaterialId(lmsMaterialId)).pipe(
+    const cachedMaterialResources = (lmsMaterialId: string) =>
+        listMaterialResources.execute(LmsMaterialId(lmsMaterialId)).pipe(
             Effect.flatMap(printMaterialResources),
             Effect.asVoid,
         );
-    const synchronizeMaterialResources = (lmsCourseId: string, lmsMaterialId: string) =>
-        syncMaterialResources.execute(LmsCourseId(lmsCourseId), LmsMaterialId(lmsMaterialId)).pipe(
+    const synchronizeMaterialResources = (lmsMaterialId: string) =>
+        syncMaterialResources.execute(LmsMaterialId(lmsMaterialId)).pipe(
             Effect.flatMap(printMaterialResources),
             Effect.asVoid,
         );
@@ -88,17 +88,17 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
         );
     const runSynchronizeCourseMaterials = (lmsCourseId: string) =>
         Effect.runPromiseWith(context)(synchronizeCourseMaterials(lmsCourseId));
-    const runCachedMaterialResources = (lmsCourseId: string, lmsMaterialId: string) =>
+    const runCachedMaterialResources = (lmsMaterialId: string) =>
         Effect.runPromiseWith(context)(
-            cachedMaterialResources(lmsCourseId, lmsMaterialId).pipe(
+            cachedMaterialResources(lmsMaterialId).pipe(
                 Effect.catchTag("LmsCacheMissError", (error) =>
                     Effect.logError(
-                        `${error.message} Run "ku-potato sync-material-resources ${lmsCourseId} ${lmsMaterialId}" to synchronize it.`,
+                        `${error.message} Run "ku-potato sync-material-resources ${lmsMaterialId}" to synchronize it.`,
                     )),
             ),
         );
-    const runSynchronizeMaterialResources = (lmsCourseId: string, lmsMaterialId: string) =>
-        Effect.runPromiseWith(context)(synchronizeMaterialResources(lmsCourseId, lmsMaterialId));
+    const runSynchronizeMaterialResources = (lmsMaterialId: string) =>
+        Effect.runPromiseWith(context)(synchronizeMaterialResources(lmsMaterialId));
 
     return yield* Effect.promise(() =>
         gunshi.cli(
@@ -149,33 +149,23 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
                         name: "list-material-resources",
                         description: "キャッシュ済みの資料一覧を表示する",
                         args: {
-                            lmsCourseId: {
-                                type: "positional",
-                                description: "LMS講義ID",
-                            },
                             lmsMaterialId: {
                                 type: "positional",
                                 description: "LMS教材ID",
                             },
                         },
-                        run: (command) =>
-                            runCachedMaterialResources(command.values.lmsCourseId, command.values.lmsMaterialId),
+                        run: (command) => runCachedMaterialResources(command.values.lmsMaterialId),
                     }),
                     "sync-material-resources": gunshi.define({
                         name: "sync-material-resources",
                         description: "KU-LMSから資料一覧を取得してキャッシュを更新する",
                         args: {
-                            lmsCourseId: {
-                                type: "positional",
-                                description: "LMS講義ID",
-                            },
                             lmsMaterialId: {
                                 type: "positional",
                                 description: "LMS教材ID",
                             },
                         },
-                        run: (command) =>
-                            runSynchronizeMaterialResources(command.values.lmsCourseId, command.values.lmsMaterialId),
+                        run: (command) => runSynchronizeMaterialResources(command.values.lmsMaterialId),
                     }),
                 },
             },
@@ -228,7 +218,6 @@ export const printCourseMaterials = Effect.fn("CliInboundAdapter.printCourseMate
 
 export const printMaterialResources = Effect.fn("CliInboundAdapter.printMaterialResources")(
     function* (materialResources: MaterialResources) {
-        yield* Effect.log(`LMS講義ID: ${materialResources.lmsCourseId}`);
         yield* Effect.log(`LMS教材ID: ${materialResources.lmsMaterialId}`);
         if (materialResources.resources.length === 0) {
             yield* Effect.log("資料: （なし）");

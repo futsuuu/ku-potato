@@ -35,7 +35,6 @@ Deno.test("SQLite cache keeps material resources after a later course material s
     const materialResources: MaterialResourcesRefresh = {
         ...courseMaterials,
         materialResources: {
-            lmsCourseId: courseId,
             lmsMaterialId: materialId,
             resources: [{ name: "week-1.pdf" }],
         },
@@ -58,7 +57,7 @@ Deno.test("SQLite cache keeps material resources after a later course material s
             return {
                 courses: yield* cache.listCourses,
                 materials: yield* cache.listCourseMaterials(courseId),
-                resources: yield* cache.listMaterialResources(courseId, materialId),
+                resources: yield* cache.listMaterialResources(materialId),
             };
         })));
 

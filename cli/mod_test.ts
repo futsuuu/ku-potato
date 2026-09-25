@@ -16,7 +16,6 @@ Deno.test("教材・資料コマンドは対応する入力ポートへIDを渡�
     const calls: string[] = [];
     const courseMaterials: CourseMaterials = { lmsCourseId: LmsCourseId("course-1"), folders: [] };
     const materialResources: MaterialResources = {
-        lmsCourseId: LmsCourseId("course-1"),
         lmsMaterialId: LmsMaterialId("material-1"),
         resources: [],
     };
@@ -33,14 +32,14 @@ Deno.test("教材・資料コマンドは対応する入力ポートへIDを渡�
             ),
     };
     const listMaterialResources: ListMaterialResources = {
-        execute: (lmsCourseId, lmsMaterialId) =>
-            Effect.sync(() => calls.push(`list-material-resources:${lmsCourseId}:${lmsMaterialId}`)).pipe(
+        execute: (lmsMaterialId) =>
+            Effect.sync(() => calls.push(`list-material-resources:${lmsMaterialId}`)).pipe(
                 Effect.as(materialResources),
             ),
     };
     const syncMaterialResources: SyncMaterialResources = {
-        execute: (lmsCourseId, lmsMaterialId) =>
-            Effect.sync(() => calls.push(`sync-material-resources:${lmsCourseId}:${lmsMaterialId}`)).pipe(
+        execute: (lmsMaterialId) =>
+            Effect.sync(() => calls.push(`sync-material-resources:${lmsMaterialId}`)).pipe(
                 Effect.as(materialResources),
             ),
     };
@@ -60,14 +59,14 @@ Deno.test("教材・資料コマンドは対応する入力ポートへIDを渡�
         syncMaterialResources,
     );
     await runCli(
-        ["list-material-resources", "course-1", "material-1"],
+        ["list-material-resources", "material-1"],
         listCourseMaterials,
         syncCourseMaterials,
         listMaterialResources,
         syncMaterialResources,
     );
     await runCli(
-        ["sync-material-resources", "course-1", "material-1"],
+        ["sync-material-resources", "material-1"],
         listCourseMaterials,
         syncCourseMaterials,
         listMaterialResources,
@@ -77,8 +76,8 @@ Deno.test("教材・資料コマンドは対応する入力ポートへIDを渡�
     assertEquals(calls, [
         "list-course-materials:course-1",
         "sync-course-materials:course-1",
-        "list-material-resources:course-1:material-1",
-        "sync-material-resources:course-1:material-1",
+        "list-material-resources:material-1",
+        "sync-material-resources:material-1",
     ]);
 });
 

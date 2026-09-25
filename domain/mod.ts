@@ -24,14 +24,8 @@ export type Course =
         readonly availability: "unavailable";
     };
 
-/** A folder displayed on a course's teaching-material page. */
-export type MaterialFolderInfo = {
-    readonly name: string;
-    readonly classDate?: Date;
-};
-
-/** A teaching material obtained from one course page. */
-export type CourseMaterial =
+/** A teaching material displayed on a course's teaching-material page. */
+export type Material =
     & {
         readonly lmsMaterialId: LmsMaterialId;
         readonly name: string;
@@ -45,27 +39,28 @@ export type CourseMaterial =
         readonly type: "report" | "test" | "questionnaire" | "e-learning";
     });
 
-/** A folder and every material it contained in one retrieval. */
-export type CourseMaterialFolder = MaterialFolderInfo & {
-    readonly materials: readonly CourseMaterial[];
+/** A folder and every material it contained in one course retrieval. */
+export type MaterialFolder = {
+    readonly name: string;
+    readonly classDate?: Date;
+    readonly materials: readonly Material[];
 };
 
 /** All folders and materials retrieved for one openable course. */
 export type CourseMaterials = {
     readonly lmsCourseId: LmsCourseId;
-    readonly folders: readonly CourseMaterialFolder[];
+    readonly folders: readonly MaterialFolder[];
 };
 
 /** A resource listed in the detail page for one teaching material. */
-export type MaterialResource = {
+export type Resource = {
     readonly name: string;
 };
 
 /** All resources retrieved for one material. */
 export type MaterialResources = {
-    readonly lmsCourseId: LmsCourseId;
     readonly lmsMaterialId: LmsMaterialId;
-    readonly resources: readonly MaterialResource[];
+    readonly resources: readonly Resource[];
 };
 
 /** A material retrieval bundled with the prerequisite course retrieval. */

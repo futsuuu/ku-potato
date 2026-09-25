@@ -23,12 +23,9 @@ const listCourseMaterials = Effect.fn("Core.listCourseMaterials")(function* (lms
 });
 
 /** Cache-only query. Its environment intentionally excludes `LmsSourceGateway`. */
-const listMaterialResources = Effect.fn("Core.listMaterialResources")(function* (
-    lmsCourseId: LmsCourseId,
-    lmsMaterialId: LmsMaterialId,
-) {
+const listMaterialResources = Effect.fn("Core.listMaterialResources")(function* (lmsMaterialId: LmsMaterialId) {
     const cache = yield* LmsCacheGateway;
-    return yield* cache.listMaterialResources(lmsCourseId, lmsMaterialId);
+    return yield* cache.listMaterialResources(lmsMaterialId);
 });
 
 const syncCourses = Effect.gen(function* () {
@@ -46,15 +43,12 @@ const syncCourseMaterials = Effect.fn("Core.syncCourseMaterials")(function* (lms
     return yield* cache.listCourseMaterials(lmsCourseId);
 });
 
-const syncMaterialResources = Effect.fn("Core.syncMaterialResources")(function* (
-    lmsCourseId: LmsCourseId,
-    lmsMaterialId: LmsMaterialId,
-) {
+const syncMaterialResources = Effect.fn("Core.syncMaterialResources")(function* (lmsMaterialId: LmsMaterialId) {
     const source = yield* LmsSourceGateway;
     const cache = yield* LmsCacheGateway;
-    const refresh = yield* source.refreshMaterialResources(lmsCourseId, lmsMaterialId);
+    const refresh = yield* source.refreshMaterialResources(lmsMaterialId);
     yield* cache.appendMaterialResources(refresh);
-    return yield* cache.listMaterialResources(lmsCourseId, lmsMaterialId);
+    return yield* cache.listMaterialResources(lmsMaterialId);
 });
 
 export function makeListCourses(): ListCourses {

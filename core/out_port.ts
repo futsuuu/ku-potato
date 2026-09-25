@@ -18,7 +18,6 @@ export interface LmsSourceGatewayService {
         lmsCourseId: LmsCourseId,
     ) => Effect.Effect<CourseMaterialsRefresh, LmsSourceGatewayError>;
     readonly refreshMaterialResources: (
-        lmsCourseId: LmsCourseId,
         lmsMaterialId: LmsMaterialId,
     ) => Effect.Effect<MaterialResourcesRefresh, LmsSourceGatewayError>;
 }
@@ -30,7 +29,6 @@ export interface LmsCacheGatewayService {
         lmsCourseId: LmsCourseId,
     ) => Effect.Effect<CourseMaterials, LmsCacheGatewayError | LmsCacheMissError>;
     readonly listMaterialResources: (
-        lmsCourseId: LmsCourseId,
         lmsMaterialId: LmsMaterialId,
     ) => Effect.Effect<MaterialResources, LmsCacheGatewayError | LmsCacheMissError>;
     readonly appendCourses: (courses: readonly Course[]) => Effect.Effect<void, LmsCacheGatewayError>;
