@@ -1,70 +1,137 @@
 /** Outbound adapter for KU-LMS, implemented with Playwright. */
-import { LmsSourceGateway, LmsSourceGatewayError } from "ku-potato-core/out_port";
+import {
+    type HeadPolicy,
+    LmsAuthenticationGateway,
+    LmsAuthenticationRequiredError,
+    LmsAuthenticationStorageError,
+    LmsCourseNotFoundError,
+    LmsMaterialNotFoundError,
+    LmsSourceGateway,
+    LmsSourceGatewayError,
+    type LmsSourceSession,
+} from "ku-potato-core/out_port";
 import {
     type Course,
     type CourseMaterials,
-    type CourseMaterialsRefresh,
+    type CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
     type Material,
     type MaterialFolder,
-    type MaterialResourcesRefresh,
+    type MaterialResourcesSnapshot,
     type Resource,
 } from "ku-potato-domain";
-import { DateTime, Effect } from "effect";
+import { DateTime, Effect, Semaphore } from "effect";
 import * as playwright from "playwright-core";
 
-function withLoggedInLms<A>(
-    operation: (page: playwright.Page) => Effect.Effect<A, LmsSourceGatewayError>,
-): Effect.Effect<A, LmsSourceGatewayError> {
+/** The default user-local location for Playwright authentication state. */
+export const defaultAuthenticationStoragePath = (): string => {
+    const localAppData = Deno.env.get("LOCALAPPDATA");
+    return localAppData === undefined
+        ? `${Deno.cwd()}/.ku-potato/auth/storage-state.json`
+        : `${localAppData}/ku-potato/auth/storage-state.json`;
+};
+
+/** Creates an LMS source that opens one exclusive tab per operation. */
+export const makeLmsSourceGateway = (storageStatePath = defaultAuthenticationStoragePath()) =>
+    makeLmsGateways(storageStatePath).source;
+
+/** Creates authentication operations backed by the same local browser state. */
+export const makeLmsAuthenticationGateway = (storageStatePath = defaultAuthenticationStoragePath()) =>
+    makeLmsGateways(storageStatePath).authentication;
+
+/** Creates source and authentication gateways that share one process-local browser permit. */
+export const makeLmsGateways = (storageStatePath = defaultAuthenticationStoragePath()) => {
+    const browserPermit = Semaphore.makeUnsafe(1);
+    const exclusively = browserPermit.withPermits(1);
+    return {
+        source: LmsSourceGateway.of({
+            withSession: (headPolicy, use) => exclusively(withAuthenticatedSession(storageStatePath, headPolicy, use)),
+        }),
+        authentication: LmsAuthenticationGateway.of({
+            login: (headPolicy) =>
+                exclusively(withAuthenticatedSession(storageStatePath, headPolicy, () => Effect.void)),
+            logout: exclusively(removeAuthenticationState(storageStatePath)),
+            status: exclusively(withBrowserSession(storageStatePath, true, false, () => Effect.void)).pipe(
+                Effect.as("authenticated" as const),
+                Effect.catchTag("LmsAuthenticationRequiredError", () => Effect.succeed("unauthenticated" as const)),
+            ),
+        }),
+    };
+};
+
+/** Playwright implementations with the default user-local authentication state. */
+const liveGateways = makeLmsGateways();
+export const LmsSourceGatewayLive = liveGateways.source;
+export const LmsAuthenticationGatewayLive = liveGateways.authentication;
+
+function withAuthenticatedSession<A, E, R>(
+    storageStatePath: string,
+    headPolicy: HeadPolicy,
+    use: (session: LmsSourceSession) => Effect.Effect<A, E, R>,
+) {
+    switch (headPolicy) {
+        case "true":
+            return withBrowserSession(storageStatePath, false, true, use);
+        case "false":
+            return withBrowserSession(storageStatePath, true, false, use);
+        case "auto":
+            return withBrowserSession(storageStatePath, true, false, use).pipe(
+                Effect.catchTag(
+                    "LmsAuthenticationRequiredError",
+                    () => withBrowserSession(storageStatePath, false, true, use),
+                ),
+            );
+    }
+}
+
+function withBrowserSession<A, E, R>(
+    storageStatePath: string,
+    headless: boolean,
+    allowInteraction: boolean,
+    use: (session: LmsSourceSession) => Effect.Effect<A, E, R>,
+) {
     return Effect.scoped(Effect.gen(function* () {
         const browser = yield* Effect.acquireRelease(
-            tryPromise("launch browser", () => launchBrowser({ headless: false })),
+            tryPromise("launch browser", () => launchBrowser({ headless })),
             (browser) => tryPromise("close browser", () => browser.close()).pipe(Effect.catch(Effect.logError)),
         );
         const context = yield* Effect.acquireRelease(
             tryPromise("create browser context", () => browser.newContext()),
             (context) => tryPromise("close browser context", () => context.close()).pipe(Effect.catch(Effect.logError)),
         );
-        yield* Effect.acquireRelease(
-            tryPromise(
-                "restore browser storage state",
-                () => context.setStorageState(".storage-state.json").catch(() => undefined),
-            ),
-            () =>
-                tryPromise(
-                    "save browser storage state",
-                    () =>
-                        context.storageState().then(JSON.stringify).then((state) =>
-                            Deno.writeTextFile(".storage-state.json", state)
-                        ),
-                ).pipe(Effect.catch(Effect.logError)),
-        );
+        yield* restoreAuthenticationState(context, storageStatePath);
         const page = yield* tryPromise("create browser page", () => context.newPage());
-        yield* loginToLms(page);
-        return yield* operation(page);
+        yield* loginToLms(page, allowInteraction);
+        yield* saveAuthenticationState(context, storageStatePath);
+        return yield* use(makeSession(page));
     }));
 }
 
-/** Playwright implementation of the external LMS source port. */
-export const LmsSourceGatewayLive = LmsSourceGateway.of({
-    refreshCourses: Effect.suspend(() => withLoggedInLms(readCourses)),
-    refreshCourseMaterials: (lmsCourseId) =>
-        withLoggedInLms((page) =>
-            Effect.gen(function* () {
+const makeSession = (page: playwright.Page): LmsSourceSession => {
+    const semaphore = Semaphore.makeUnsafe(1);
+    return {
+        fetchCourses: semaphore.withPermits(1)(
+            openLmsHome(page).pipe(Effect.andThen(readCourses(page))),
+        ),
+        fetchCourseMaterials: (lmsCourseId) =>
+            semaphore.withPermits(1)(Effect.gen(function* () {
+                yield* openLmsHome(page);
                 const courses = yield* readCourses(page);
                 const courseMaterials = yield* readCourseMaterials(page, lmsCourseId);
-                return { courses, courseMaterials } satisfies CourseMaterialsRefresh;
-            })
-        ),
-    refreshMaterialResources: (lmsMaterialId) =>
-        withLoggedInLms((page) =>
-            Effect.gen(function* () {
+                return { courses, courseMaterials } satisfies CourseMaterialsSnapshot;
+            })),
+        fetchMaterialResources: (lmsMaterialId) =>
+            semaphore.withPermits(1)(Effect.gen(function* () {
+                yield* openLmsHome(page);
                 const courses = yield* readCourses(page);
                 for (const course of courses) {
                     if (course.availability === "unavailable") continue;
                     yield* openLmsHome(page);
-                    const courseMaterials = yield* readCourseMaterials(page, course.lmsCourseId);
+                    const courseMaterials = yield* readCourseMaterials(page, course.lmsCourseId).pipe(
+                        Effect.catchTag("LmsCourseNotFoundError", () => Effect.void),
+                    );
+                    if (courseMaterials === undefined) continue;
                     if (
                         !courseMaterials.folders.some((folder) =>
                             folder.materials.some((material) => material.lmsMaterialId === lmsMaterialId)
@@ -75,15 +142,63 @@ export const LmsSourceGatewayLive = LmsSourceGateway.of({
                         courses,
                         courseMaterials,
                         materialResources: { lmsMaterialId, resources },
-                    } satisfies MaterialResourcesRefresh;
+                    } satisfies MaterialResourcesSnapshot;
                 }
-                return yield* new LmsSourceGatewayError({
-                    operation: "find material",
+                return yield* new LmsMaterialNotFoundError({
+                    lmsMaterialId,
                     message: `教材を講義内で取得できません: ${lmsMaterialId}`,
                 });
-            })
-        ),
+            })),
+    };
+};
+
+const restoreAuthenticationState = Effect.fn("PlaywrightBrowser.restoreAuthenticationState")(function* (
+    context: playwright.BrowserContext,
+    storageStatePath: string,
+) {
+    const exists = yield* authenticationStorageTry("read authentication state", () =>
+        Deno.stat(storageStatePath).then(
+            () => true,
+            (cause) => cause instanceof Deno.errors.NotFound ? false : Promise.reject(cause),
+        ));
+    if (exists) {
+        yield* authenticationStorageTry(
+            "restore authentication state",
+            () => context.setStorageState(storageStatePath),
+        );
+    }
 });
+
+const saveAuthenticationState = Effect.fn("PlaywrightBrowser.saveAuthenticationState")(function* (
+    context: playwright.BrowserContext,
+    storageStatePath: string,
+) {
+    yield* authenticationStorageTry(
+        "create authentication state directory",
+        () => Deno.mkdir(parentDirectory(storageStatePath), { recursive: true }),
+    );
+    yield* authenticationStorageTry(
+        "save authentication state",
+        () => context.storageState({ path: storageStatePath }),
+    );
+});
+
+function removeAuthenticationState(storageStatePath: string) {
+    return authenticationStorageTry(
+        "remove authentication state",
+        () =>
+            Deno.remove(storageStatePath).catch((cause) =>
+                cause instanceof Deno.errors.NotFound ? undefined : Promise.reject(cause)
+            ),
+    );
+}
+
+function authenticationStorageTry<A>(operation: string, evaluate: () => PromiseLike<A>) {
+    return Effect.tryPromise({
+        try: evaluate,
+        catch: (cause) => new LmsAuthenticationStorageError({ operation, message: errorMessage(cause) }),
+    });
+}
 
 function tryPromise<A>(operation: string, evaluate: () => PromiseLike<A>) {
     return Effect.tryPromise({
@@ -122,7 +237,7 @@ const readCourses = Effect.fn("PlaywrightBrowser.readCourses")(function* (
 const readCourseMaterials = Effect.fn("PlaywrightBrowser.readCourseMaterials")(function* (
     page: playwright.Page,
     lmsCourseId: LmsCourseId,
-): Effect.fn.Return<CourseMaterials, LmsSourceGatewayError> {
+): Effect.fn.Return<CourseMaterials, LmsSourceGatewayError | LmsCourseNotFoundError> {
     yield* openCourseMaterials(page, lmsCourseId);
     const noFoldersMessage = page.getByText("授業が登録されていません。", { exact: true });
     if (yield* tryPromise("check course-material availability", () => noFoldersMessage.isVisible())) {
@@ -188,7 +303,7 @@ const readMaterialResourcesFromCoursePage = Effect.fn("PlaywrightBrowser.readMat
 const openCourseMaterials = Effect.fn("PlaywrightBrowser.openCourseMaterials")(function* (
     page: playwright.Page,
     lmsCourseId: LmsCourseId,
-): Effect.fn.Return<void, LmsSourceGatewayError> {
+): Effect.fn.Return<void, LmsSourceGatewayError | LmsCourseNotFoundError> {
     yield* tryPromise("wait for course index", () => page.locator(".lms-weekly-area").waitFor());
     let courseLink: playwright.Locator | undefined;
     for (const candidate of yield* tryPromise("find course links", () => page.locator(".lms-cardname a").all())) {
@@ -201,8 +316,8 @@ const openCourseMaterials = Effect.fn("PlaywrightBrowser.openCourseMaterials")(f
         }
     }
     if (courseLink === undefined) {
-        return yield* new LmsSourceGatewayError({
-            operation: "find course",
+        return yield* new LmsCourseNotFoundError({
+            lmsCourseId,
             message: `講義をHOMEで取得できません: ${lmsCourseId}`,
         });
     }
@@ -257,9 +372,16 @@ const readCourseMaterial = Effect.fn("PlaywrightBrowser.readCourseMaterial")(fun
 
 const loginToLms = Effect.fn("PlaywrightBrowser.loginToLms")(function* (
     page: playwright.Page,
-): Effect.fn.Return<void, LmsSourceGatewayError> {
+    allowInteraction: boolean,
+): Effect.fn.Return<void, LmsSourceGatewayError | LmsAuthenticationRequiredError> {
     yield* tryPromise("open KU-LMS", () => page.goto("https://study.ns.kogakuin.ac.jp/lms"));
     yield* tryPromise("click KU-LMS login", () => page.locator("button[name='loginButton']").click());
+    if (isLmsAuthenticatedUrl(page.url())) return;
+    if (!allowInteraction) {
+        return yield* new LmsAuthenticationRequiredError({
+            message: "KU-LMSへのログインにはユーザー操作が必要です。",
+        });
+    }
     if (page.url().startsWith("https://slink.secioss.com/sso/timeout.cgi")) {
         yield* tryPromise("open SSO portal", () => page.goto("https://slink.secioss.com/user"));
         yield* tryPromise("wait for SSO login", () =>
@@ -270,14 +392,18 @@ const loginToLms = Effect.fn("PlaywrightBrowser.loginToLms")(function* (
             }, { timeout: 10 * 60 * 1000 }));
         yield* tryPromise("return to KU-LMS", () => page.goto("https://study.ns.kogakuin.ac.jp/lms"));
         yield* tryPromise("click KU-LMS login", () => page.locator("button[name='loginButton']").click());
-        return;
     }
     yield* tryPromise("wait for KU-LMS login", () =>
         page.waitForURL(
-            (url) => url.hostname === "study.ns.kogakuin.ac.jp" && url.pathname.startsWith("/lms/"),
+            (url) => isLmsAuthenticatedUrl(url),
             { timeout: 10 * 60 * 1000 },
         ));
 });
+
+const isLmsAuthenticatedUrl = (url: string | URL): boolean => {
+    const parsed = typeof url === "string" ? new URL(url) : url;
+    return parsed.hostname === "study.ns.kogakuin.ac.jp" && parsed.pathname.startsWith("/lms/");
+};
 
 const captureCourseIndexDebugArtifacts = Effect.fn("PlaywrightBrowser.captureCourseIndexDebugArtifacts")(
     function* (
@@ -396,3 +522,9 @@ function launchBrowser(opts: { headless: boolean }) {
         args: ["--disable-blink-features=AutomationControlled"],
     });
 }
+
+const parentDirectory = (path: string): string => {
+    const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+    if (separatorIndex === -1) return ".";
+    return separatorIndex === 2 && path[1] === ":" ? path.slice(0, separatorIndex + 1) : path.slice(0, separatorIndex);
+};
