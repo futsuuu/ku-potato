@@ -3,9 +3,13 @@
 import type { Course, CourseMaterials, LmsCourseId, LmsMaterialId, MaterialResources } from "ku-potato-domain";
 import type { Effect } from "effect";
 import type {
+    LmsAuthenticationRequiredError,
+    LmsAuthenticationStorageError,
     LmsCacheGateway,
     LmsCacheGatewayError,
     LmsCacheMissError,
+    LmsCourseNotFoundError,
+    LmsMaterialNotFoundError,
     LmsSourceGateway,
     LmsSourceGatewayError,
 } from "./out_port.ts";
@@ -17,7 +21,11 @@ export interface ListCourses {
 export interface SyncCourses {
     readonly execute: Effect.Effect<
         readonly Course[],
-        LmsSourceGatewayError | LmsCacheGatewayError | LmsCacheMissError,
+        | LmsSourceGatewayError
+        | LmsAuthenticationRequiredError
+        | LmsAuthenticationStorageError
+        | LmsCacheGatewayError
+        | LmsCacheMissError,
         LmsSourceGateway | LmsCacheGateway
     >;
 }
@@ -33,7 +41,12 @@ export interface SyncCourseMaterials {
         lmsCourseId: LmsCourseId,
     ) => Effect.Effect<
         CourseMaterials,
-        LmsSourceGatewayError | LmsCacheGatewayError | LmsCacheMissError,
+        | LmsSourceGatewayError
+        | LmsAuthenticationRequiredError
+        | LmsAuthenticationStorageError
+        | LmsCourseNotFoundError
+        | LmsCacheGatewayError
+        | LmsCacheMissError,
         LmsSourceGateway | LmsCacheGateway
     >;
 }
@@ -49,7 +62,12 @@ export interface SyncMaterialResources {
         lmsMaterialId: LmsMaterialId,
     ) => Effect.Effect<
         MaterialResources,
-        LmsSourceGatewayError | LmsCacheGatewayError | LmsCacheMissError,
+        | LmsSourceGatewayError
+        | LmsAuthenticationRequiredError
+        | LmsAuthenticationStorageError
+        | LmsMaterialNotFoundError
+        | LmsCacheGatewayError
+        | LmsCacheMissError,
         LmsSourceGateway | LmsCacheGateway
     >;
 }

@@ -4,6 +4,7 @@ import {
     type LmsCacheGatewayService,
     LmsSourceGateway,
     type LmsSourceGatewayService,
+    type LmsSourceSession,
 } from "./out_port.ts";
 import { type Course, LmsCourseId } from "ku-potato-domain";
 import { Effect } from "effect";
@@ -34,7 +35,7 @@ Deno.test("SyncCourses obtains data from the source then reads the persisted val
                 cachedCourses = retrievedCourses;
             }),
     }));
-    const source = LmsSourceGateway.of(sourceGateway({ refreshCourses: Effect.succeed(courses) }));
+    const source = LmsSourceGateway.of(sourceGateway({ fetchCourses: Effect.succeed(courses) }));
 
     const result = await Effect.runPromise(
         makeSyncCourses().execute.pipe(
@@ -50,15 +51,19 @@ const cacheGateway = (overrides: Partial<LmsCacheGatewayService>): LmsCacheGatew
     listCourses: Effect.die("unexpected listCourses"),
     listCourseMaterials: () => Effect.die("unexpected listCourseMaterials"),
     listMaterialResources: () => Effect.die("unexpected listMaterialResources"),
+    getMaterialDetail: () => Effect.die("unexpected getMaterialDetail"),
     appendCourses: () => Effect.die("unexpected appendCourses"),
     appendCourseMaterials: () => Effect.die("unexpected appendCourseMaterials"),
     appendMaterialResources: () => Effect.die("unexpected appendMaterialResources"),
     ...overrides,
 });
 
-const sourceGateway = (overrides: Partial<LmsSourceGatewayService>): LmsSourceGatewayService => ({
-    refreshCourses: Effect.die("unexpected refreshCourses"),
-    refreshCourseMaterials: () => Effect.die("unexpected refreshCourseMaterials"),
-    refreshMaterialResources: () => Effect.die("unexpected refreshMaterialResources"),
-    ...overrides,
-});
+const sourceGateway = (overrides: Partial<LmsSourceSession>): LmsSourceGatewayService => {
+    const session: LmsSourceSession = {
+        fetchCourses: Effect.die("unexpected fetchCourses"),
+        fetchCourseMaterials: () => Effect.die("unexpected fetchCourseMaterials"),
+        fetchMaterialResources: () => Effect.die("unexpected fetchMaterialResources"),
+        ...overrides,
+    };
+    return { withSession: (_headPolicy, use) => use(session) };
+};

@@ -31,23 +31,23 @@ const listMaterialResources = Effect.fn("Core.listMaterialResources")(function* 
 const syncCourses = Effect.gen(function* () {
     const source = yield* LmsSourceGateway;
     const cache = yield* LmsCacheGateway;
-    yield* cache.appendCourses(yield* source.refreshCourses);
+    yield* cache.appendCourses(yield* source.withSession("auto", (session) => session.fetchCourses));
     return yield* cache.listCourses;
 });
 
 const syncCourseMaterials = Effect.fn("Core.syncCourseMaterials")(function* (lmsCourseId: LmsCourseId) {
     const source = yield* LmsSourceGateway;
     const cache = yield* LmsCacheGateway;
-    const refresh = yield* source.refreshCourseMaterials(lmsCourseId);
-    yield* cache.appendCourseMaterials(refresh);
+    const snapshot = yield* source.withSession("auto", (session) => session.fetchCourseMaterials(lmsCourseId));
+    yield* cache.appendCourseMaterials(snapshot);
     return yield* cache.listCourseMaterials(lmsCourseId);
 });
 
 const syncMaterialResources = Effect.fn("Core.syncMaterialResources")(function* (lmsMaterialId: LmsMaterialId) {
     const source = yield* LmsSourceGateway;
     const cache = yield* LmsCacheGateway;
-    const refresh = yield* source.refreshMaterialResources(lmsMaterialId);
-    yield* cache.appendMaterialResources(refresh);
+    const snapshot = yield* source.withSession("auto", (session) => session.fetchMaterialResources(lmsMaterialId));
+    yield* cache.appendMaterialResources(snapshot);
     return yield* cache.listMaterialResources(lmsMaterialId);
 });
 

@@ -109,13 +109,12 @@ const unavailableCache = LmsCacheGateway.of({
     listCourses: Effect.die("unexpected cache list-courses"),
     listCourseMaterials: () => Effect.die("unexpected cache list-course-materials"),
     listMaterialResources: () => Effect.die("unexpected cache list-material-resources"),
+    getMaterialDetail: () => Effect.die("unexpected cache get-material-detail"),
     appendCourses: () => Effect.die("unexpected cache append-courses"),
     appendCourseMaterials: () => Effect.die("unexpected cache append-course-materials"),
     appendMaterialResources: () => Effect.die("unexpected cache append-material-resources"),
 });
 
 const unavailableSource = LmsSourceGateway.of({
-    refreshCourses: Effect.die("unexpected source sync-courses"),
-    refreshCourseMaterials: () => Effect.die("unexpected source sync-course-materials"),
-    refreshMaterialResources: () => Effect.die("unexpected source sync-material-resources"),
+    withSession: () => Effect.die("unexpected source session"),
 });
