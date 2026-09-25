@@ -7,7 +7,23 @@ import {
     type MaterialResourcesSnapshot,
 } from "ku-potato-domain";
 import { DateTime, Effect } from "effect";
-import { makeLmsCacheGateway } from "./mod.ts";
+import { makeLazyLmsCacheGateway, makeLmsCacheGateway } from "./mod.ts";
+
+Deno.test("lazy SQLite cache does not open the database until it is used", async () => {
+    const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
+    const databasePath = temporaryDatabasePath(directory);
+
+    try {
+        const existsBeforeUse = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+            yield* makeLazyLmsCacheGateway(databasePath);
+            return yield* fileExists(databasePath);
+        })));
+
+        assertEquals(existsBeforeUse, false);
+    } finally {
+        await Deno.remove(directory, { recursive: true });
+    }
+});
 
 Deno.test("SQLite cache keeps material resources after a later course material snapshot", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
@@ -77,6 +93,17 @@ Deno.test("SQLite cache keeps material resources after a later course material s
 
 const temporaryDatabasePath = (directory: string): string =>
     `${directory}${directory.includes("\\") ? "\\" : "/"}cache.sqlite3`;
+
+const fileExists = (path: string): Effect.Effect<boolean> =>
+    Effect.promise(async () => {
+        try {
+            await Deno.stat(path);
+            return true;
+        } catch (error) {
+            if (error instanceof Deno.errors.NotFound) return false;
+            throw error;
+        }
+    });
 
 Deno.test("SQLite cache describes an unseeded value as a cache miss", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });

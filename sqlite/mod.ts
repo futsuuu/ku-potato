@@ -78,6 +78,34 @@ export const makeLmsCacheGateway = (
             }),
     ).pipe(Effect.map(({ gateway }) => gateway));
 
+/**
+ * Creates a cache service that opens and migrates SQLite only when a cache
+ * operation is first executed, then reuses it for the surrounding scope.
+ */
+export const makeLazyLmsCacheGateway = (
+    databasePath = defaultCacheDatabasePath(),
+): Effect.Effect<LmsCacheGatewayService, never, Scope.Scope> =>
+    Effect.gen(function* () {
+        const scope = yield* Scope.Scope;
+        const cachedGateway = yield* Effect.cached(
+            makeLmsCacheGateway(databasePath).pipe(Effect.provideService(Scope.Scope, scope)),
+        );
+        return LmsCacheGateway.of({
+            listCourses: cachedGateway.pipe(Effect.flatMap((cache) => cache.listCourses)),
+            listCourseMaterials: (lmsCourseId) =>
+                cachedGateway.pipe(Effect.flatMap((cache) => cache.listCourseMaterials(lmsCourseId))),
+            listMaterialResources: (lmsMaterialId) =>
+                cachedGateway.pipe(Effect.flatMap((cache) => cache.listMaterialResources(lmsMaterialId))),
+            getMaterialDetail: (lmsMaterialId) =>
+                cachedGateway.pipe(Effect.flatMap((cache) => cache.getMaterialDetail(lmsMaterialId))),
+            appendCourses: (courses) => cachedGateway.pipe(Effect.flatMap((cache) => cache.appendCourses(courses))),
+            appendCourseMaterials: (snapshot) =>
+                cachedGateway.pipe(Effect.flatMap((cache) => cache.appendCourseMaterials(snapshot))),
+            appendMaterialResources: (snapshot) =>
+                cachedGateway.pipe(Effect.flatMap((cache) => cache.appendMaterialResources(snapshot))),
+        });
+    });
+
 const makeGateway = (database: Database): LmsCacheGatewayService => ({
     listCourses: cacheReadTry("listCourses", () => readCourses(database)),
     listCourseMaterials: (lmsCourseId) =>
