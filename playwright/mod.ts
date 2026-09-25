@@ -132,12 +132,13 @@ const makeSession = (page: playwright.Page): LmsSourceSession => {
                         Effect.catchTag("LmsCourseNotFoundError", () => Effect.void),
                     );
                     if (courseMaterials === undefined) continue;
-                    if (
-                        !courseMaterials.folders.some((folder) =>
-                            folder.materials.some((material) => material.lmsMaterialId === lmsMaterialId)
-                        )
-                    ) continue;
-                    const resources = yield* readMaterialResourcesFromCoursePage(page, lmsMaterialId);
+                    const material = courseMaterials.folders
+                        .flatMap((folder) => folder.materials)
+                        .find((material) => material.lmsMaterialId === lmsMaterialId);
+                    if (material === undefined) continue;
+                    const resources = material.type === "material" && material.resourceAvailability === "available"
+                        ? yield* readMaterialResourcesFromCoursePage(page, lmsMaterialId)
+                        : [];
                     return {
                         courses,
                         courseMaterials,
@@ -216,7 +217,6 @@ const readCourses = Effect.fn("PlaywrightBrowser.readCourses")(function* (
 ): Effect.fn.Return<Course[], LmsSourceGatewayError> {
     const courseCards = page.locator(".lms-cardname");
     yield* tryPromise("wait for course index", () => page.locator(".lms-weekly-area").waitFor());
-    yield* captureCourseIndexDebugArtifacts(page, courseCards);
 
     const courses: Course[] = [];
     for (const courseCard of yield* tryPromise("find course cards", () => courseCards.all())) {
@@ -332,8 +332,19 @@ const openCourseMaterials = Effect.fn("PlaywrightBrowser.openCourseMaterials")(f
 const openLmsHome = Effect.fn("PlaywrightBrowser.openLmsHome")(function* (
     page: playwright.Page,
 ): Effect.fn.Return<void, LmsSourceGatewayError> {
-    yield* tryPromise("open KU-LMS home", () => page.goto("https://study.ns.kogakuin.ac.jp/lms"));
-    yield* tryPromise("wait for course index", () => page.locator(".lms-weekly-area").waitFor());
+    const courseIndex = page.locator(".lms-weekly-area");
+    if (yield* tryPromise("check course index", () => courseIndex.isVisible())) return;
+
+    const homeLink = page.locator("a[href*='/lms/homeRedirect/']").first();
+    const homeHref = yield* tryPromise("find KU-LMS home link", () => homeLink.getAttribute("href"));
+    if (homeHref === null) {
+        return yield* new LmsSourceGatewayError({
+            operation: "open KU-LMS home",
+            message: "認証済み画面からKU-LMSホームへのリンクを取得できません。",
+        });
+    }
+    yield* tryPromise("open KU-LMS home", () => page.goto(new URL(homeHref, page.url()).href));
+    yield* tryPromise("wait for course index", () => courseIndex.waitFor());
 });
 
 const readMaterialFolderInfo = Effect.fn("PlaywrightBrowser.readMaterialFolderInfo")(function* (
@@ -404,38 +415,6 @@ const isLmsAuthenticatedUrl = (url: string | URL): boolean => {
     const parsed = typeof url === "string" ? new URL(url) : url;
     return parsed.hostname === "study.ns.kogakuin.ac.jp" && parsed.pathname.startsWith("/lms/");
 };
-
-const captureCourseIndexDebugArtifacts = Effect.fn("PlaywrightBrowser.captureCourseIndexDebugArtifacts")(
-    function* (
-        page: playwright.Page,
-        courseCards: playwright.Locator,
-    ): Effect.fn.Return<void, LmsSourceGatewayError> {
-        const timestamp = DateTime.formatIso(DateTime.nowUnsafe()).replace(/[:.]/g, "-");
-        const directory = `.debug/list-courses/${timestamp}`;
-        yield* tryPromise("create course-index debug directory", () => Deno.mkdir(directory, { recursive: true }));
-        const [html, aria, cardHtml] = yield* Effect.all([
-            tryPromise("capture course-index HTML", () => page.content()),
-            tryPromise("capture course-index accessibility tree", () => page.ariaSnapshot({ boxes: true, mode: "ai" })),
-            tryPromise(
-                "capture course-card HTML",
-                () => courseCards.evaluateAll((cards) => cards.map((card) => card.outerHTML).join("\n\n")),
-            ),
-        ]);
-        yield* Effect.all([
-            tryPromise("write course-index HTML", () => Deno.writeTextFile(`${directory}/home.html`, html)),
-            tryPromise("write course-card HTML", () => Deno.writeTextFile(`${directory}/course-cards.html`, cardHtml)),
-            tryPromise(
-                "write course-index accessibility tree",
-                () => Deno.writeTextFile(`${directory}/home.aria.yml`, aria),
-            ),
-            tryPromise(
-                "take course-index screenshot",
-                () => page.screenshot({ path: `${directory}/home.png`, fullPage: true }),
-            ),
-        ]);
-        yield* Effect.logInfo(`講義一覧のデバッグ情報を保存しました: ${directory}`);
-    },
-);
 
 export function parseMaterialType(title: string | null): Effect.Effect<Material["type"], LmsSourceGatewayError> {
     switch (title) {
