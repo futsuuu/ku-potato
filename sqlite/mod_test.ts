@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertInstanceOf } from "@std/assert";
-import { LmsCacheGatewayError, LmsCacheMissError } from "ku-potato-core/out_port";
+import { LmsCacheGateway, LmsCacheGatewayError, LmsCacheMissError } from "ku-potato-core/out_port";
 import {
     type CourseMaterialsSnapshot,
     LmsCourseId,
@@ -7,7 +7,7 @@ import {
     type MaterialResourcesSnapshot,
 } from "ku-potato-domain";
 import { DateTime, Effect, Result } from "effect";
-import { makeLazyLmsCacheGateway, makeLmsCacheGateway } from "./mod.ts";
+import { makeLazyLmsCacheGateway, makeLmsCacheGateway, makeLmsCacheGatewayLayer } from "./mod.ts";
 
 Deno.test("lazy SQLite cache does not open the database until it is used", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
@@ -20,6 +20,30 @@ Deno.test("lazy SQLite cache does not open the database until it is used", async
         })));
 
         assertEquals(existsBeforeUse, false);
+    } finally {
+        await Deno.remove(directory, { recursive: true });
+    }
+});
+
+Deno.test("SQLite Layer opens the database only for a cache operation and closes it with the scope", async () => {
+    const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
+    const databasePath = temporaryDatabasePath(directory);
+
+    try {
+        const result = await Effect.runPromise(
+            Effect.gen(function* () {
+                const cache = yield* LmsCacheGateway;
+                const beforeUse = yield* fileExists(databasePath);
+                const firstRead = yield* Effect.result(cache.listCourses);
+                const afterUse = yield* fileExists(databasePath);
+                return { beforeUse, firstRead, afterUse };
+            }).pipe(Effect.provide(makeLmsCacheGatewayLayer(databasePath))),
+        );
+
+        assertEquals(result.beforeUse, false);
+        assert(Result.isFailure(result.firstRead));
+        assertInstanceOf(result.firstRead.failure, LmsCacheMissError);
+        assertEquals(result.afterUse, true);
     } finally {
         await Deno.remove(directory, { recursive: true });
     }

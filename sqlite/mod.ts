@@ -20,7 +20,7 @@ import {
 import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
-import { DateTime, Effect, Schema, Scope } from "effect";
+import { DateTime, Effect, Layer, Schema, Scope } from "effect";
 import { fileURLToPath } from "node:url";
 import {
     courseMaterialFolders,
@@ -106,6 +106,10 @@ export const makeLazyLmsCacheGateway = (
                 cachedGateway.pipe(Effect.flatMap((cache) => cache.appendMaterialResources(snapshot))),
         });
     });
+
+/** A scoped cache service that retains lazy database initialization. */
+export const makeLmsCacheGatewayLayer = (databasePath = defaultCacheDatabasePath()) =>
+    Layer.effect(LmsCacheGateway, makeLazyLmsCacheGateway(databasePath));
 
 const makeGateway = (database: Database): LmsCacheGatewayService => ({
     listCourses: cacheReadTry("listCourses", () => readCourses(database)),
