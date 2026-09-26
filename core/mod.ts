@@ -19,7 +19,7 @@ import {
     type LmsSourceSession,
 } from "./out_port.ts";
 import type { Course, CourseMaterials, LmsCourseId } from "ku-potato-domain";
-import { Effect } from "effect";
+import { Effect, Result } from "effect";
 
 const login = (head: QueryOptions["head"]) =>
     Effect.gen(function* () {
@@ -68,7 +68,7 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
     } else {
         for (const lmsCourseId of courseIds) {
             const cached = yield* Effect.result(cache.listCourseMaterials(lmsCourseId));
-            if (cached._tag === "Success") {
+            if (Result.isSuccess(cached)) {
                 materialsByCourseId.set(lmsCourseId, cached.success);
             } else if (cached.failure._tag === "LmsCacheMissError" && options.sync === "auto") {
                 courseIdsToFetch.push(lmsCourseId);
@@ -83,7 +83,7 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
             Effect.gen(function* () {
                 for (const lmsCourseId of courseIdsToFetch) {
                     const fetched = yield* Effect.result(fetchAndCacheCourseMaterials(session, cache, lmsCourseId));
-                    if (fetched._tag === "Success") {
+                    if (Result.isSuccess(fetched)) {
                         materialsByCourseId.set(lmsCourseId, fetched.success);
                     } else if (fetched.failure._tag !== "LmsCourseNotFoundError") {
                         failures.push({ lmsCourseId, error: fetched.failure });

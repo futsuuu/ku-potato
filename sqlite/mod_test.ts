@@ -1,12 +1,12 @@
-import { assertEquals, assertInstanceOf } from "@std/assert";
-import { LmsCacheMissError } from "ku-potato-core/out_port";
+import { assert, assertEquals, assertInstanceOf } from "@std/assert";
+import { LmsCacheGatewayError, LmsCacheMissError } from "ku-potato-core/out_port";
 import {
     type CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
     type MaterialResourcesSnapshot,
 } from "ku-potato-domain";
-import { DateTime, Effect } from "effect";
+import { DateTime, Effect, Result } from "effect";
 import { makeLazyLmsCacheGateway, makeLmsCacheGateway } from "./mod.ts";
 
 Deno.test("lazy SQLite cache does not open the database until it is used", async () => {
@@ -91,6 +91,76 @@ Deno.test("SQLite cache keeps material resources after a later course material s
     }
 });
 
+Deno.test("SQLite cache rolls back every failed snapshot write", async () => {
+    const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
+    const courseId = LmsCourseId("course-1");
+    const materialId = LmsMaterialId("material-1");
+    const course = { lmsCourseId: courseId, name: "Original course", availability: "available" } as const;
+    const material = {
+        lmsMaterialId: materialId,
+        name: "Original material",
+        type: "material",
+        publicationDeadline: "no-deadline",
+        resourceAvailability: "available",
+    } as const;
+    const original: MaterialResourcesSnapshot = {
+        courses: [course],
+        courseMaterials: {
+            lmsCourseId: courseId,
+            folders: [{ name: "Original folder", materials: [material] }],
+        },
+        materialResources: { lmsMaterialId: materialId, resources: [{ name: "original.pdf" }] },
+    };
+    const changedCourse = { ...course, name: "Changed course" };
+    const changedMaterials = {
+        lmsCourseId: courseId,
+        folders: [{ name: "Changed folder", materials: [{ ...material, name: "Changed material" }] }],
+    };
+
+    try {
+        await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+            const cache = yield* makeLmsCacheGateway(temporaryDatabasePath(directory));
+            yield* cache.appendMaterialResources(original);
+
+            const badCourses = yield* Effect.result(cache.appendCourses([
+                changedCourse,
+                { ...course, name: null as unknown as string },
+            ]));
+            assert(Result.isFailure(badCourses));
+            assertInstanceOf(badCourses.failure, LmsCacheGatewayError);
+            assertEquals(yield* cache.listCourses, original.courses);
+
+            const badMaterials = yield* Effect.result(cache.appendCourseMaterials({
+                courses: [changedCourse],
+                courseMaterials: {
+                    lmsCourseId: courseId,
+                    folders: [{ name: "Changed folder", materials: [material, material] }],
+                },
+            }));
+            assert(Result.isFailure(badMaterials));
+            assertInstanceOf(badMaterials.failure, LmsCacheGatewayError);
+            assertEquals(yield* cache.listCourses, original.courses);
+            assertEquals(yield* cache.listCourseMaterials(courseId), original.courseMaterials);
+
+            const badResources = yield* Effect.result(cache.appendMaterialResources({
+                courses: [changedCourse],
+                courseMaterials: changedMaterials,
+                materialResources: {
+                    lmsMaterialId: materialId,
+                    resources: [{ name: null as unknown as string }],
+                },
+            }));
+            assert(Result.isFailure(badResources));
+            assertInstanceOf(badResources.failure, LmsCacheGatewayError);
+            assertEquals(yield* cache.listCourses, original.courses);
+            assertEquals(yield* cache.listCourseMaterials(courseId), original.courseMaterials);
+            assertEquals(yield* cache.listMaterialResources(materialId), original.materialResources);
+        })));
+    } finally {
+        await Deno.remove(directory, { recursive: true });
+    }
+});
+
 const temporaryDatabasePath = (directory: string): string =>
     `${directory}${directory.includes("\\") ? "\\" : "/"}cache.sqlite3`;
 
@@ -112,10 +182,8 @@ Deno.test("SQLite cache describes an unseeded value as a cache miss", async () =
             const cache = yield* makeLmsCacheGateway(temporaryDatabasePath(directory));
             return yield* Effect.result(cache.listCourses);
         })));
-        assertEquals(result._tag, "Failure");
-        if (result._tag === "Failure") {
-            assertInstanceOf(result.failure, LmsCacheMissError);
-        }
+        assert(Result.isFailure(result));
+        assertInstanceOf(result.failure, LmsCacheMissError);
     } finally {
         await Deno.remove(directory, { recursive: true });
     }

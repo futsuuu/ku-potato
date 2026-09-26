@@ -35,6 +35,7 @@ import {
 export * from "./schema.ts";
 
 type Database = ReturnType<typeof drizzle>;
+type CacheConnection = Pick<Database, "insert" | "select">;
 type CourseReadRow = Pick<typeof courses.$inferSelect, "lmsCourseId" | "name" | "availability">;
 type MaterialReadRow = Pick<
     typeof courseMaterials.$inferSelect,
@@ -143,41 +144,47 @@ const cacheWriteTry = <A>(operation: string, evaluate: () => A): Effect.Effect<A
 const describeCause = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause);
 
 const recordCourses = (database: Database, retrievedCourses: readonly Course[]): void => {
-    insertCourses(database, retrievedCourses);
+    database.transaction((transaction) => {
+        insertCourses(transaction, retrievedCourses);
+    });
 };
 
 const recordCourseMaterials = (database: Database, snapshot: CourseMaterialsSnapshot): void => {
-    const courseRetrievalId = insertCourses(database, snapshot.courses);
-    const coursePosition = findCoursePosition(database, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
-    const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
-    insertCourseMaterials(database, courseMaterialRetrievalId, snapshot.courseMaterials);
+    database.transaction((transaction) => {
+        const courseRetrievalId = insertCourses(transaction, snapshot.courses);
+        const coursePosition = findCoursePosition(transaction, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
+        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(transaction, courseRetrievalId, coursePosition);
+        insertCourseMaterials(transaction, courseMaterialRetrievalId, snapshot.courseMaterials);
+    });
 };
 
 const recordMaterialResources = (database: Database, snapshot: MaterialResourcesSnapshot): void => {
-    const courseRetrievalId = insertCourses(database, snapshot.courses);
-    const coursePosition = findCoursePosition(database, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
-    const courseMaterialRetrievalId = insertCourseMaterialRetrieval(database, courseRetrievalId, coursePosition);
-    insertCourseMaterials(database, courseMaterialRetrievalId, snapshot.courseMaterials);
+    database.transaction((transaction) => {
+        const courseRetrievalId = insertCourses(transaction, snapshot.courses);
+        const coursePosition = findCoursePosition(transaction, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
+        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(transaction, courseRetrievalId, coursePosition);
+        insertCourseMaterials(transaction, courseMaterialRetrievalId, snapshot.courseMaterials);
 
-    const materialResourceRetrieval = database.insert(materialResourceRetrievals).values({
-        lmsMaterialId: snapshot.materialResources.lmsMaterialId,
-        fetchedAt: now(),
-    }).returning({ id: materialResourceRetrievals.id }).get();
-    if (materialResourceRetrieval == null) {
-        throw new LmsCacheGatewayError({
-            operation: "appendMaterialResources",
-            message: "Could not create retrieval.",
-        });
-    }
-    const resourceRows = snapshot.materialResources.resources.map((resource, position) => ({
-        retrievalId: materialResourceRetrieval.id,
-        position,
-        name: resource.name,
-    }));
-    if (resourceRows.length > 0) database.insert(materialResources).values(resourceRows).run();
+        const materialResourceRetrieval = transaction.insert(materialResourceRetrievals).values({
+            lmsMaterialId: snapshot.materialResources.lmsMaterialId,
+            fetchedAt: now(),
+        }).returning({ id: materialResourceRetrievals.id }).get();
+        if (materialResourceRetrieval == null) {
+            throw new LmsCacheGatewayError({
+                operation: "appendMaterialResources",
+                message: "Could not create retrieval.",
+            });
+        }
+        const resourceRows = snapshot.materialResources.resources.map((resource, position) => ({
+            retrievalId: materialResourceRetrieval.id,
+            position,
+            name: resource.name,
+        }));
+        if (resourceRows.length > 0) transaction.insert(materialResources).values(resourceRows).run();
+    });
 };
 
-const insertCourses = (database: Database, retrievedCourses: readonly Course[]): number => {
+const insertCourses = (database: CacheConnection, retrievedCourses: readonly Course[]): number => {
     const retrieval = database.insert(courseRetrievals).values({ fetchedAt: now() })
         .returning({ id: courseRetrievals.id }).get();
     if (retrieval == null) {
@@ -195,7 +202,7 @@ const insertCourses = (database: Database, retrievedCourses: readonly Course[]):
 };
 
 const insertCourseMaterialRetrieval = (
-    database: Database,
+    database: CacheConnection,
     courseRetrievalId: number,
     coursePosition: number,
 ): number => {
@@ -210,7 +217,11 @@ const insertCourseMaterialRetrieval = (
     return retrieval.id;
 };
 
-const insertCourseMaterials = (database: Database, retrievalId: number, retrievedMaterials: CourseMaterials): void => {
+const insertCourseMaterials = (
+    database: CacheConnection,
+    retrievalId: number,
+    retrievedMaterials: CourseMaterials,
+): void => {
     const folderRows = retrievedMaterials.folders.map((folder, position) => ({
         retrievalId,
         position,
@@ -236,7 +247,7 @@ const insertCourseMaterials = (database: Database, retrievalId: number, retrieve
     if (materialRows.length > 0) database.insert(courseMaterials).values(materialRows).run();
 };
 
-const findCoursePosition = (database: Database, retrievalId: number, lmsCourseId: string): number => {
+const findCoursePosition = (database: CacheConnection, retrievalId: number, lmsCourseId: string): number => {
     const row = database.select({ position: courses.position })
         .from(courses)
         .where(and(eq(courses.retrievalId, retrievalId), eq(courses.lmsCourseId, lmsCourseId))).get();
