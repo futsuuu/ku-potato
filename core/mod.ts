@@ -1,31 +1,57 @@
-import type {
-    GetAuthenticationStatus,
-    ListCourses,
-    ListMaterials,
+import {
+    Application,
+    ApplicationError,
     ListMaterialsOptions,
-    Login,
-    Logout,
     MaterialListFailure,
     QueryOptions,
     SyncPolicy,
-    ViewMaterial,
     ViewMaterialOptions,
 } from "./in_port.ts";
 import {
     LmsAuthenticationGateway,
+    type LmsAuthenticationRequiredError,
+    type LmsAuthenticationStorageError,
     LmsCacheGateway,
+    type LmsCacheGatewayError,
     type LmsCacheMissError,
+    type LmsMaterialNotFoundError,
     LmsSourceGateway,
+    type LmsSourceGatewayError,
     type LmsSourceSession,
 } from "./out_port.ts";
 import type { Course, CourseMaterials, LmsCourseId } from "ku-potato-domain";
-import { Effect, Result } from "effect";
+import { Effect, Layer, Result } from "effect";
 
-const login = (head: QueryOptions["head"]) =>
-    Effect.gen(function* () {
-        const authentication = yield* LmsAuthenticationGateway;
-        return yield* authentication.login(head);
-    });
+type OutboundServices = LmsAuthenticationGateway | LmsCacheGateway | LmsSourceGateway;
+type GatewayError =
+    | LmsSourceGatewayError
+    | LmsAuthenticationRequiredError
+    | LmsAuthenticationStorageError
+    | LmsCacheGatewayError
+    | LmsCacheMissError
+    | LmsMaterialNotFoundError;
+
+const toApplicationError = (error: GatewayError): ApplicationError => {
+    switch (error._tag) {
+        case "LmsSourceGatewayError":
+            return new ApplicationError({ reason: "source", message: error.message });
+        case "LmsAuthenticationRequiredError":
+            return new ApplicationError({ reason: "authentication-required", message: error.message });
+        case "LmsAuthenticationStorageError":
+            return new ApplicationError({ reason: "authentication-storage", message: error.message });
+        case "LmsCacheGatewayError":
+            return new ApplicationError({ reason: "cache", message: error.message });
+        case "LmsCacheMissError":
+            return new ApplicationError({ reason: "cache-miss", message: error.message });
+        case "LmsMaterialNotFoundError":
+            return new ApplicationError({ reason: "material-not-found", message: error.message });
+    }
+};
+
+const login = Effect.fn("Core.login")(function* (head: QueryOptions["head"]) {
+    const authentication = yield* LmsAuthenticationGateway;
+    return yield* authentication.login(head);
+});
 
 const logout = Effect.gen(function* () {
     const authentication = yield* LmsAuthenticationGateway;
@@ -73,7 +99,7 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
             } else if (cached.failure._tag === "LmsCacheMissError" && options.sync === "auto") {
                 courseIdsToFetch.push(lmsCourseId);
             } else {
-                failures.push({ lmsCourseId, error: cached.failure });
+                failures.push({ lmsCourseId, error: toApplicationError(cached.failure) });
             }
         }
     }
@@ -86,7 +112,7 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
                     if (Result.isSuccess(fetched)) {
                         materialsByCourseId.set(lmsCourseId, fetched.success);
                     } else if (fetched.failure._tag !== "LmsCourseNotFoundError") {
-                        failures.push({ lmsCourseId, error: fetched.failure });
+                        failures.push({ lmsCourseId, error: toApplicationError(fetched.failure) });
                     }
                 }
             }));
@@ -142,26 +168,23 @@ const deduplicateCourseIds = (courseIds: readonly LmsCourseId[]): readonly LmsCo
 const availableCourseIds = (courses: readonly Course[]): readonly LmsCourseId[] =>
     courses.flatMap((course) => course.availability === "available" ? [course.lmsCourseId] : []);
 
-export function makeLogin(): Login {
-    return { execute: login };
-}
+/** Construct the application with its outbound services before it reaches an inbound adapter. */
+export const ApplicationLive = Layer.effect(
+    Application,
+    Effect.gen(function* () {
+        const context = yield* Effect.context<OutboundServices>();
+        const bind = <A, E extends GatewayError>(
+            operation: Effect.Effect<A, E, OutboundServices>,
+        ): Effect.Effect<A, ApplicationError> =>
+            operation.pipe(Effect.provide(context), Effect.mapError(toApplicationError));
 
-export function makeLogout(): Logout {
-    return { execute: logout };
-}
-
-export function makeGetAuthenticationStatus(): GetAuthenticationStatus {
-    return { execute: getAuthenticationStatus };
-}
-
-export function makeListCourses(): ListCourses {
-    return { execute: listCourses };
-}
-
-export function makeListMaterials(): ListMaterials {
-    return { execute: listMaterials };
-}
-
-export function makeViewMaterial(): ViewMaterial {
-    return { execute: viewMaterial };
-}
+        return Application.of({
+            login: { execute: (head) => bind(login(head)) },
+            logout: { execute: bind(logout) },
+            getAuthenticationStatus: { execute: bind(getAuthenticationStatus) },
+            listCourses: { execute: (options) => bind(listCourses(options)) },
+            listMaterials: { execute: (options) => bind(listMaterials(options)) },
+            viewMaterial: { execute: (options) => bind(viewMaterial(options)) },
+        });
+    }),
+);

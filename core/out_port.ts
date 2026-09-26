@@ -11,12 +11,9 @@ import type {
     MaterialResourcesSnapshot,
 } from "ku-potato-domain";
 import { Context, type Effect, Schema } from "effect";
+import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
 
-/** Whether browser UI may be shown while authenticating. */
-export type HeadPolicy = "auto" | "true" | "false";
-
-/** Result of checking the locally stored LMS authentication state. */
-export type LmsAuthenticationStatus = "authenticated" | "unauthenticated";
+export type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
 
 /** One exclusive, single-tab session with the external LMS. */
 export interface LmsSourceSession {

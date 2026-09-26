@@ -1,5 +1,7 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
+import { Application } from "./in_port.ts";
 import {
+    LmsAuthenticationGateway,
     LmsCacheGateway,
     type LmsCacheGatewayService,
     LmsCacheMissError,
@@ -18,8 +20,8 @@ import {
     type MaterialDetail,
     type MaterialResourcesSnapshot,
 } from "ku-potato-domain";
-import { Effect } from "effect";
-import { makeListCourses, makeListMaterials, makeViewMaterial } from "./mod.ts";
+import { Effect, Layer, Result } from "effect";
+import { ApplicationLive } from "./mod.ts";
 
 const courseId = LmsCourseId("course-1");
 const missingCourseId = LmsCourseId("course-missing");
@@ -49,9 +51,8 @@ Deno.test("course list auto reads a complete cache without opening an LMS sessio
     const source = LmsSourceGateway.of({ withSession: () => Effect.die("unexpected LMS session") });
 
     const result = await Effect.runPromise(
-        makeListCourses().execute({ sync: "auto", head: "auto" }).pipe(
-            Effect.provideService(LmsCacheGateway, cache),
-            Effect.provideService(LmsSourceGateway, source),
+        Application.use((app) => app.listCourses.execute({ sync: "auto", head: "auto" })).pipe(
+            Effect.provide(testApplicationLayer(cache, source)),
         ),
     );
 
@@ -73,14 +74,31 @@ Deno.test("course list auto fetches and caches a missing course snapshot", async
     const source = LmsSourceGateway.of(sourceGateway({ fetchCourses: Effect.succeed(courses) }, heads));
 
     const result = await Effect.runPromise(
-        makeListCourses().execute({ sync: "auto", head: "false" }).pipe(
-            Effect.provideService(LmsCacheGateway, cache),
-            Effect.provideService(LmsSourceGateway, source),
+        Application.use((app) => app.listCourses.execute({ sync: "auto", head: "false" })).pipe(
+            Effect.provide(testApplicationLayer(cache, source)),
         ),
     );
 
     assertEquals(result, courses);
     assertEquals(heads, ["false"]);
+});
+
+Deno.test("application translates source failures before returning them to the inbound adapter", async () => {
+    const cache = LmsCacheGateway.of(cacheGateway({}));
+    const source = LmsSourceGateway.of(sourceGateway({
+        fetchCourses: Effect.fail(new LmsSourceGatewayError({ operation: "fetch", message: "LMS unavailable" })),
+    }));
+
+    const result = await Effect.runPromise(Effect.result(
+        Application.use((app) => app.listCourses.execute({ sync: "true", head: "false" })).pipe(
+            Effect.provide(testApplicationLayer(cache, source)),
+        ),
+    ));
+
+    assert(Result.isFailure(result));
+    assertEquals(result.failure._tag, "ApplicationError");
+    assertEquals(result.failure.reason, "source");
+    assertEquals(result.failure.message, "LMS unavailable");
 });
 
 Deno.test("material list ignores missing courses and retains internal failures", async () => {
@@ -107,13 +125,14 @@ Deno.test("material list ignores missing courses and retains internal failures",
     }));
 
     const result = await Effect.runPromise(
-        makeListMaterials().execute({
-            lmsCourseIds: [courseId, missingCourseId, brokenCourseId, courseId],
-            sync: "true",
-            head: "auto",
-        }).pipe(
-            Effect.provideService(LmsCacheGateway, cache),
-            Effect.provideService(LmsSourceGateway, source),
+        Application.use((app) =>
+            app.listMaterials.execute({
+                lmsCourseIds: [courseId, missingCourseId, brokenCourseId, courseId],
+                sync: "true",
+                head: "auto",
+            })
+        ).pipe(
+            Effect.provide(testApplicationLayer(cache, source)),
         ),
     );
 
@@ -121,6 +140,7 @@ Deno.test("material list ignores missing courses and retains internal failures",
     assertEquals(result.failures.map(({ lmsCourseId, error }) => [lmsCourseId, error.message]), [
         [brokenCourseId, "broken"],
     ]);
+    assertEquals(result.failures[0]?.error.reason, "source");
 });
 
 Deno.test("material list auto discovers cached courses and fetches only missing materials", async () => {
@@ -140,9 +160,8 @@ Deno.test("material list auto discovers cached courses and fetches only missing 
     }, heads));
 
     const result = await Effect.runPromise(
-        makeListMaterials().execute({ lmsCourseIds: [], sync: "auto", head: "false" }).pipe(
-            Effect.provideService(LmsCacheGateway, cache),
-            Effect.provideService(LmsSourceGateway, source),
+        Application.use((app) => app.listMaterials.execute({ lmsCourseIds: [], sync: "auto", head: "false" })).pipe(
+            Effect.provide(testApplicationLayer(cache, source)),
         ),
     );
 
@@ -182,15 +201,32 @@ Deno.test("material view true fetches a fresh resource snapshot before reading i
     }, heads));
 
     const result = await Effect.runPromise(
-        makeViewMaterial().execute({ lmsMaterialId: material.lmsMaterialId, sync: "true", head: "true" }).pipe(
-            Effect.provideService(LmsCacheGateway, cache),
-            Effect.provideService(LmsSourceGateway, source),
+        Application.use((app) =>
+            app.viewMaterial.execute({ lmsMaterialId: material.lmsMaterialId, sync: "true", head: "true" })
+        ).pipe(
+            Effect.provide(testApplicationLayer(cache, source)),
         ),
     );
 
     assertEquals(result, materialDetail);
     assertEquals(heads, ["true"]);
 });
+
+const testApplicationLayer = (
+    cache: LmsCacheGateway["Service"],
+    source: LmsSourceGateway["Service"],
+) => ApplicationLive.pipe(Layer.provide(Layer.mergeAll(
+    Layer.succeed(
+        LmsAuthenticationGateway,
+        LmsAuthenticationGateway.of({
+            login: () => Effect.die("unexpected login"),
+            logout: Effect.die("unexpected logout"),
+            status: Effect.die("unexpected status"),
+        }),
+    ),
+    Layer.succeed(LmsCacheGateway, cache),
+    Layer.succeed(LmsSourceGateway, source),
+)));
 
 const cacheGateway = (overrides: Partial<LmsCacheGatewayService>): LmsCacheGatewayService => ({
     listCourses: Effect.die("unexpected listCourses"),
