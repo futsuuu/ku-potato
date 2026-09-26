@@ -7,12 +7,7 @@ import type {
     Logout,
     ViewMaterial,
 } from "ku-potato-core/in_port";
-import {
-    LmsAuthenticationGateway,
-    LmsCacheGateway,
-    LmsSourceGateway,
-    LmsSourceGatewayError,
-} from "ku-potato-core/out_port";
+import { Application, ApplicationError } from "ku-potato-core/in_port";
 import { LmsCourseId } from "ku-potato-domain";
 import { Effect, Terminal } from "effect";
 import { CliInboundAdapter } from "./mod.ts";
@@ -131,7 +126,7 @@ Deno.test("階層化したコマンドはポリシーとIDを対応する入力�
 Deno.test("コマンドの失敗はTerminalに表示して終了コード1を返す", async () => {
     const output: string[] = [];
     const login: Login = {
-        execute: () => Effect.fail(new LmsSourceGatewayError({ operation: "login", message: "ログイン失敗" })),
+        execute: () => Effect.fail(new ApplicationError({ reason: "source", message: "ログイン失敗" })),
     };
 
     assertEquals(await runCli(["auth", "login"], ports({ login }), output), 1);
@@ -146,13 +141,20 @@ Deno.test("教材一覧の部分失敗は終了コード1を返す", async () =>
                 courseMaterials: [],
                 failures: [{
                     lmsCourseId: LmsCourseId("course-1"),
-                    error: new LmsSourceGatewayError({ operation: "fetch", message: "broken" }),
+                    error: new ApplicationError({ reason: "source", message: "broken" }),
                 }],
             }),
     };
 
     assertEquals(await runCli(["material", "list"], ports({ listMaterials }), output), 1);
     assertEquals(output, ["講義 course-1: broken\n"]);
+});
+
+Deno.test("不明なコマンドはTerminalに表示して終了コード1を返す", async () => {
+    const output: string[] = [];
+
+    assertEquals(await runCli(["course", "unknown"], ports({}), output), 1);
+    assertEquals(output, ["Command not found: unknown\n"]);
 });
 
 type Ports = {
@@ -176,18 +178,18 @@ const ports = (overrides: Partial<Ports>): Ports => ({
 
 const runCli = (commandArgs: readonly string[], inputPorts: Ports, output: string[]) =>
     Effect.runPromise(
-        CliInboundAdapter.run(
-            commandArgs,
-            inputPorts.login,
-            inputPorts.logout,
-            inputPorts.status,
-            inputPorts.listCourses,
-            inputPorts.listMaterials,
-            inputPorts.viewMaterial,
-        ).pipe(
-            Effect.provideService(LmsAuthenticationGateway, unavailableAuthentication),
-            Effect.provideService(LmsCacheGateway, unavailableCache),
-            Effect.provideService(LmsSourceGateway, unavailableSource),
+        CliInboundAdapter.run(commandArgs).pipe(
+            Effect.provideService(
+                Application,
+                Application.of({
+                    login: inputPorts.login,
+                    logout: inputPorts.logout,
+                    getAuthenticationStatus: inputPorts.status,
+                    listCourses: inputPorts.listCourses,
+                    listMaterials: inputPorts.listMaterials,
+                    viewMaterial: inputPorts.viewMaterial,
+                }),
+            ),
             Effect.provideService(
                 Terminal.Terminal,
                 Terminal.make({
@@ -203,23 +205,3 @@ const runCli = (commandArgs: readonly string[], inputPorts: Ports, output: strin
             ),
         ),
     );
-
-const unavailableAuthentication = LmsAuthenticationGateway.of({
-    login: () => Effect.die("unexpected authentication login"),
-    logout: Effect.die("unexpected authentication logout"),
-    status: Effect.die("unexpected authentication status"),
-});
-
-const unavailableCache = LmsCacheGateway.of({
-    listCourses: Effect.die("unexpected cache list-courses"),
-    listCourseMaterials: () => Effect.die("unexpected cache list-course-materials"),
-    listMaterialResources: () => Effect.die("unexpected cache list-material-resources"),
-    getMaterialDetail: () => Effect.die("unexpected cache get-material-detail"),
-    appendCourses: () => Effect.die("unexpected cache append-courses"),
-    appendCourseMaterials: () => Effect.die("unexpected cache append-course-materials"),
-    appendMaterialResources: () => Effect.die("unexpected cache append-material-resources"),
-});
-
-const unavailableSource = LmsSourceGateway.of({
-    withSession: () => Effect.die("unexpected source session"),
-});

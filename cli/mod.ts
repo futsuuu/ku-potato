@@ -1,15 +1,7 @@
 /** Inbound adapter for the command-line interface. */
 
-import type {
-    GetAuthenticationStatus,
-    ListCourses,
-    ListMaterials,
-    Login,
-    Logout,
-    MaterialListResult,
-    ViewMaterial,
-} from "ku-potato-core/in_port";
-import type { HeadPolicy, LmsAuthenticationGateway, LmsCacheGateway, LmsSourceGateway } from "ku-potato-core/out_port";
+import type { MaterialListResult } from "ku-potato-core/in_port";
+import { Application, type HeadPolicy } from "ku-potato-core/in_port";
 import {
     type Course,
     type CourseMaterials,
@@ -18,11 +10,14 @@ import {
     type Material,
     type MaterialDetail,
 } from "ku-potato-domain";
-import { Effect, Terminal } from "effect";
+import { Effect, Schema, Terminal } from "effect";
 import * as gunshi from "gunshi";
 
-type CliServices = LmsAuthenticationGateway | LmsCacheGateway | LmsSourceGateway | Terminal.Terminal;
 type DisplayableError = { readonly message: string };
+
+class CliCommandError extends Schema.TaggedError<CliCommandError>()("CliCommandError", {
+    message: Schema.String,
+}) {}
 
 const display = (message: string) =>
     Terminal.Terminal.pipe(Effect.flatMap((terminal) => terminal.display(`${message}\n`)));
@@ -44,19 +39,14 @@ const syncArgument = {
 /** Runs the command hierarchy against input ports supplied by the composition root. */
 export const main = Effect.fn("CliInboundAdapter.run")(function* (
     commandArgs: readonly string[],
-    login: Login,
-    logout: Logout,
-    getAuthenticationStatus: GetAuthenticationStatus,
-    listCourses: ListCourses,
-    listMaterials: ListMaterials,
-    viewMaterial: ViewMaterial,
 ) {
-    const context = yield* Effect.context<CliServices>();
+    const { login, logout, getAuthenticationStatus, listCourses, listMaterials, viewMaterial } = yield* Application;
+    const context = yield* Effect.context<Terminal.Terminal>();
     let exitCode = 0;
     const markFailure = Effect.sync(() => {
         exitCode = 1;
     });
-    const run = <E extends DisplayableError>(effect: Effect.Effect<void, E, CliServices>) =>
+    const run = <E extends DisplayableError>(effect: Effect.Effect<void, E, Terminal.Terminal>) =>
         Effect.runPromiseWith(context)(
             effect.pipe(
                 Effect.catch((error) =>
@@ -106,99 +96,104 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
         ),
     );
 
-    yield* Effect.promise(() =>
-        gunshi.cli(
-            [...commandArgs],
-            gunshi.define({
-                name: "ku-potato",
-                description: "Command-Line Interface for KU-PORT and KU-LMS",
-            }),
-            {
-                name: "ku-potato",
-                version: "0.0.0",
-                description: "Command-Line Interface for KU-PORT and KU-LMS",
-                subCommands: {
-                    auth: gunshi.define({
-                        name: "auth",
-                        description: "KU-LMSの認証状態を管理する",
-                        subCommands: {
-                            login: gunshi.define({
-                                name: "login",
-                                description: "KU-LMSへログインする",
-                                args: { head: headArgument },
-                                run: (command) => runLogin(command.values.head),
-                            }),
-                            logout: gunshi.define({
-                                name: "logout",
-                                description: "ローカルの認証情報を削除する",
-                                run: runLogout,
-                            }),
-                            status: gunshi.define({
-                                name: "status",
-                                description: "保存済みの認証状態をheadlessで確認する",
-                                run: runAuthenticationStatus,
-                            }),
-                        },
-                    }),
-                    course: gunshi.define({
-                        name: "course",
-                        description: "講義を表示する",
-                        subCommands: {
-                            list: gunshi.define({
-                                name: "list",
-                                description: "講義一覧を表示する",
-                                args: { sync: syncArgument, head: headArgument },
-                                run: (command) => runCourseList(command.values.sync, command.values.head),
-                            }),
-                        },
-                    }),
-                    material: gunshi.define({
-                        name: "material",
-                        description: "教材を表示する",
-                        subCommands: {
-                            list: gunshi.define({
-                                name: "list",
-                                description: "教材一覧を講義ごとに表示する",
-                                args: {
-                                    course: {
-                                        type: "string",
-                                        multiple: true,
-                                        description: "対象のLMS講義ID（複数指定可）",
+    yield* Effect.tryPromise({
+        try: () =>
+            gunshi.cli(
+                [...commandArgs],
+                gunshi.define({
+                    name: "ku-potato",
+                    description: "Command-Line Interface for KU-PORT and KU-LMS",
+                }),
+                {
+                    name: "ku-potato",
+                    version: "0.0.0",
+                    description: "Command-Line Interface for KU-PORT and KU-LMS",
+                    subCommands: {
+                        auth: gunshi.define({
+                            name: "auth",
+                            description: "KU-LMSの認証状態を管理する",
+                            subCommands: {
+                                login: gunshi.define({
+                                    name: "login",
+                                    description: "KU-LMSへログインする",
+                                    args: { head: headArgument },
+                                    run: (command) => runLogin(command.values.head),
+                                }),
+                                logout: gunshi.define({
+                                    name: "logout",
+                                    description: "ローカルの認証情報を削除する",
+                                    run: runLogout,
+                                }),
+                                status: gunshi.define({
+                                    name: "status",
+                                    description: "保存済みの認証状態をheadlessで確認する",
+                                    run: runAuthenticationStatus,
+                                }),
+                            },
+                        }),
+                        course: gunshi.define({
+                            name: "course",
+                            description: "講義を表示する",
+                            subCommands: {
+                                list: gunshi.define({
+                                    name: "list",
+                                    description: "講義一覧を表示する",
+                                    args: { sync: syncArgument, head: headArgument },
+                                    run: (command) => runCourseList(command.values.sync, command.values.head),
+                                }),
+                            },
+                        }),
+                        material: gunshi.define({
+                            name: "material",
+                            description: "教材を表示する",
+                            subCommands: {
+                                list: gunshi.define({
+                                    name: "list",
+                                    description: "教材一覧を講義ごとに表示する",
+                                    args: {
+                                        course: {
+                                            type: "string",
+                                            multiple: true,
+                                            description: "対象のLMS講義ID（複数指定可）",
+                                        },
+                                        sync: syncArgument,
+                                        head: headArgument,
                                     },
-                                    sync: syncArgument,
-                                    head: headArgument,
-                                },
-                                run: (command) =>
-                                    runMaterialList(
-                                        command.values.course,
-                                        command.values.sync,
-                                        command.values.head,
-                                    ),
-                            }),
-                            view: gunshi.define({
-                                name: "view",
-                                description: "教材の詳細を表示する",
-                                args: {
-                                    materialId: {
-                                        type: "positional",
-                                        required: true,
-                                        description: "LMS教材ID",
+                                    run: (command) =>
+                                        runMaterialList(
+                                            command.values.course,
+                                            command.values.sync,
+                                            command.values.head,
+                                        ),
+                                }),
+                                view: gunshi.define({
+                                    name: "view",
+                                    description: "教材の詳細を表示する",
+                                    args: {
+                                        materialId: {
+                                            type: "positional",
+                                            required: true,
+                                            description: "LMS教材ID",
+                                        },
+                                        sync: syncArgument,
+                                        head: headArgument,
                                     },
-                                    sync: syncArgument,
-                                    head: headArgument,
-                                },
-                                run: (command) =>
-                                    runMaterialView(
-                                        command.values.materialId,
-                                        command.values.sync,
-                                        command.values.head,
-                                    ),
-                            }),
-                        },
-                    }),
+                                    run: (command) =>
+                                        runMaterialView(
+                                            command.values.materialId,
+                                            command.values.sync,
+                                            command.values.head,
+                                        ),
+                                }),
+                            },
+                        }),
+                    },
                 },
-            },
-        )
+            ),
+        catch: (cause) => new CliCommandError({ message: cause instanceof Error ? cause.message : String(cause) }),
+    }).pipe(
+        Effect.asVoid,
+        Effect.catch((error) => display(error.message).pipe(Effect.andThen(markFailure))),
     );
     return exitCode;
 });
