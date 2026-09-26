@@ -1,3 +1,4 @@
+import { DenoTerminal } from "@effect/platform-deno";
 import { CliInboundAdapter } from "ku-potato-cli";
 import {
     makeGetAuthenticationStatus,
@@ -26,6 +27,7 @@ const program = Effect.scoped(Effect.gen(function* () {
         Effect.provideService(LmsAuthenticationGateway, LmsAuthenticationGatewayLive),
         Effect.provideService(LmsCacheGateway, cache),
         Effect.provideService(LmsSourceGateway, LmsSourceGatewayLive),
+        Effect.provide(DenoTerminal.layer),
     );
 }));
 

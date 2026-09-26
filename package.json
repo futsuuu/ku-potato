@@ -15,6 +15,10 @@
         "oxlint-tsgolint": "7.0.2001"
     },
     "catalog": {
-        "effect": "4.0.0-rc.116"
+        "effect": "4.0.0-rc.116",
+        "@effect/platform-deno": "4.0.0-rc.116"
+    },
+    "overrides": {
+        "@effect/platform-node-shared": "4.0.0-rc.116"
     }
 }

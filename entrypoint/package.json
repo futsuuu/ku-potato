@@ -6,6 +6,7 @@
         "cli": "deno run --allow-all --unsafe-proto cli.ts"
     },
     "dependencies": {
+        "@effect/platform-deno": "catalog:",
         "ku-potato-cli": "workspace:*",
         "ku-potato-core": "workspace:*",
         "ku-potato-playwright": "workspace:*",
