@@ -18,13 +18,21 @@ This repository follows the Hexagonal Architecture (Ports & Adapters).
   - Inbound adapters (presentation layer)
   - Handle user input and expose application features
   - Depend on inbound ports
-- `/playwright` (TODO: `/sqlite`, ...)
+- `/playwright`, `/sqlite`
   - Outbound adapters (infrastructure layer)
   - Interact with the outside world
   - Implement outbound ports
 - `/entrypoint`
   - Program entrypoints
-  - Inject inbound/outbound adapters into the application
+  - Construct adapters and the application
+
+### Dependency boundaries
+
+- Inbound adapters import application features only from `/core/in_port`.
+- Outbound adapters import application requirements only from `/core/out_port`.
+- Only entrypoints import the `/core` root and compose concrete adapters.
+- Inbound port effects do not expose outbound service requirements. The application layer resolves them while
+  constructing its `Layer`.
 
 ## References
 
