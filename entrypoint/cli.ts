@@ -1,35 +1,23 @@
 import { DenoTerminal } from "@effect/platform-deno";
 import { CliInboundAdapter } from "ku-potato-cli";
-import {
-    makeGetAuthenticationStatus,
-    makeListCourses,
-    makeListMaterials,
-    makeLogin,
-    makeLogout,
-    makeViewMaterial,
-} from "ku-potato-core";
-import { LmsAuthenticationGateway, LmsCacheGateway, LmsSourceGateway } from "ku-potato-core/out_port";
-import { LmsAuthenticationGatewayLive, LmsSourceGatewayLive } from "ku-potato-playwright";
-import { makeLazyLmsCacheGateway } from "ku-potato-sqlite";
-import { Effect } from "effect";
+import { ApplicationLive } from "ku-potato-core";
+import { LmsAuthenticationGateway, LmsSourceGateway } from "ku-potato-core/out_port";
+import { makeLmsGateways } from "ku-potato-playwright";
+import { makeLmsCacheGatewayLayer } from "ku-potato-sqlite";
+import { Effect, Layer } from "effect";
 
-const program = Effect.scoped(Effect.gen(function* () {
-    const cache = yield* makeLazyLmsCacheGateway();
-    return yield* CliInboundAdapter.run(
-        Deno.args,
-        makeLogin(),
-        makeLogout(),
-        makeGetAuthenticationStatus(),
-        makeListCourses(),
-        makeListMaterials(),
-        makeViewMaterial(),
-    ).pipe(
-        Effect.provideService(LmsAuthenticationGateway, LmsAuthenticationGatewayLive),
-        Effect.provideService(LmsCacheGateway, cache),
-        Effect.provideService(LmsSourceGateway, LmsSourceGatewayLive),
-        Effect.provide(DenoTerminal.layer),
+const program = Effect.gen(function* () {
+    const gateways = makeLmsGateways();
+    const outbound = Layer.mergeAll(
+        Layer.succeed(LmsAuthenticationGateway, gateways.authentication),
+        Layer.succeed(LmsSourceGateway, gateways.source),
+        makeLmsCacheGatewayLayer(),
     );
-}));
+    const application = ApplicationLive.pipe(Layer.provide(outbound));
+    return yield* CliInboundAdapter.run(Deno.args).pipe(
+        Effect.provide(Layer.merge(application, DenoTerminal.layer)),
+    );
+});
 
 if (import.meta.main) {
     Deno.exitCode = await Effect.runPromise(program);
