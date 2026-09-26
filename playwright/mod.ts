@@ -60,11 +60,6 @@ export const makeLmsGateways = (storageStatePath = defaultAuthenticationStorageP
     };
 };
 
-/** Playwright implementations with the default user-local authentication state. */
-const liveGateways = makeLmsGateways();
-export const LmsSourceGatewayLive = liveGateways.source;
-export const LmsAuthenticationGatewayLive = liveGateways.authentication;
-
 function withAuthenticatedSession<A, E, R>(
     storageStatePath: string,
     headPolicy: HeadPolicy,
