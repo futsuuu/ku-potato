@@ -22,8 +22,8 @@ This repository follows the Hexagonal Architecture (Ports & Adapters).
   - Outbound adapters (infrastructure layer)
   - Interact with the outside world
   - Implement outbound ports
-- `/entrypoint`
-  - Program entrypoints
+- `/cli/main.ts`
+  - Program entrypoints (composition root)
   - Construct adapters and the application
 
 ### Dependency boundaries

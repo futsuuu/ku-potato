@@ -8,9 +8,15 @@
             "default": "./mod.ts"
         }
     },
+    "scripts": {
+        "main": "deno run --allow-all --unsafe-proto main.ts"
+    },
     "dependencies": {
+        "@effect/platform-deno": "catalog:",
         "ku-potato-core": "workspace:*",
         "ku-potato-domain": "workspace:*",
+        "ku-potato-playwright": "workspace:*",
+        "ku-potato-sqlite": "workspace:*",
         "effect": "catalog:",
         "gunshi": "0.37.3"
     },

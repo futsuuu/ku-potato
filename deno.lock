@@ -588,6 +588,7 @@
       "cli": {
         "packageJson": {
           "dependencies": [
+            "npm:@effect/platform-deno@4.0.0-rc.116",
             "npm:@jsr/std__assert@1",
             "npm:effect@4.0.0-rc.116",
             "npm:gunshi@0.37.3"
@@ -605,14 +606,6 @@
       "domain": {
         "packageJson": {
           "dependencies": [
-            "npm:effect@4.0.0-rc.116"
-          ]
-        }
-      },
-      "entrypoint": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@effect/platform-deno@4.0.0-rc.116",
             "npm:effect@4.0.0-rc.116"
           ]
         }
