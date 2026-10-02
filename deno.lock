@@ -1,13 +1,13 @@
 {
   "version": "5",
   "specifiers": {
-    "npm:@effect/platform-deno@4.0.0-rc.116": "4.0.0-rc.116_effect@4.0.0-rc.116",
+    "npm:@effect/platform-deno@4.0.0": "4.0.0_effect@4.0.0",
     "npm:@effect/tsgo@0.45.0": "0.45.0",
     "npm:@jsr/std__assert@1": "1.0.19",
     "npm:@types/node@24.0.0": "24.0.0",
     "npm:drizzle-kit@1.0.0-rc.4": "1.0.0-rc.4",
-    "npm:drizzle-orm@1.0.0-rc.4": "1.0.0-rc.4_effect@4.0.0-rc.116",
-    "npm:effect@4.0.0-rc.116": "4.0.0-rc.116",
+    "npm:drizzle-orm@1.0.0-rc.4": "1.0.0-rc.4_effect@4.0.0",
+    "npm:effect@4.0.0": "4.0.0",
     "npm:gunshi@0.37.3": "0.37.3",
     "npm:oxlint-tsgolint@7.0.2001": "7.0.2001",
     "npm:oxlint@1.82.0": "1.82.0_oxlint-tsgolint@7.0.2001",
@@ -17,8 +17,8 @@
     "@drizzle-team/brocli@0.12.1": {
       "integrity": "sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw=="
     },
-    "@effect/platform-deno@4.0.0-rc.116_effect@4.0.0-rc.116": {
-      "integrity": "sha512-33NqEXzFI40ptKaZ8x3xaH/Co0uZQuvFUi4ghhimB/OX9RWy2wt8F6MW4eD4PGy11FDqAJbcKItPvzZ2hHZAPw==",
+    "@effect/platform-deno@4.0.0_effect@4.0.0": {
+      "integrity": "sha512-guV8xylp+jU+kK+Bgyp//xfFX0ol0jlQC8b3pWab4G2zO5RF+xy9Isd2mZtKik4TfEzxxyeF4MCsQ+fLmt4dRQ==",
       "dependencies": [
         "@db/redis@npm:@jsr/db__redis@0.42.0",
         "@effect/platform-node-shared",
@@ -29,8 +29,8 @@
         "effect"
       ]
     },
-    "@effect/platform-node-shared@4.0.0-rc.116_effect@4.0.0-rc.116": {
-      "integrity": "sha512-4FB6UriGqArWFUaFqVchhfCRmmtOVzmD/k/bH6LErlKY8a9amt5dk6c3Arsi7AvUpChsdO+3jsG+P85HsxMkNA==",
+    "@effect/platform-node-shared@4.0.0_effect@4.0.0": {
+      "integrity": "sha512-VBXHJU9UXVZPdQGGDRjGXpo+TpOzRwZuMrdKAtIxi1qwcRftmacZ1zTgIrzBa0Z2RA2KVkoOecQUsTlt/nJZhw==",
       "dependencies": [
         "@types/ws",
         "effect",
@@ -434,8 +434,8 @@
         "undici-types"
       ]
     },
-    "@types/ws@8.18.1": {
-      "integrity": "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==",
+    "@types/ws@8.18.2": {
+      "integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
       "dependencies": [
         "@types/node"
       ]
@@ -454,7 +454,7 @@
       ],
       "bin": true
     },
-    "drizzle-orm@1.0.0-rc.4_effect@4.0.0-rc.116": {
+    "drizzle-orm@1.0.0-rc.4_effect@4.0.0": {
       "integrity": "sha512-BT+pf+qoiYHqltoA88Jmf6ilGMXPlpfE0hEJKc2adRtMCAl25Swk/t5gXcWxZNAwdtf3F5gCd2FpeOyP/pT0Hw==",
       "dependencies": [
         "effect"
@@ -463,8 +463,8 @@
         "effect"
       ]
     },
-    "effect@4.0.0-rc.116": {
-      "integrity": "sha512-nawqJHSjHV8XIBRZNZ+D7cLZpN3kkSjzy6aiT9ofKENsl7xAMFKEoDa0itN5JFl3GUQ1PIN1T1HNlva5+xyO/A=="
+    "effect@4.0.0": {
+      "integrity": "sha512-ooc1TG5t+FfzgYnFz2ff6BBKyZ7EwBRVXC7c4RhQUAD6/TZ2gTXXMeb4WX7a19ozQo4J73/QW+S00YAIresoMQ=="
     },
     "esbuild@0.25.12": {
       "integrity": "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==",
@@ -568,28 +568,25 @@
     "undici-types@7.8.0": {
       "integrity": "sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw=="
     },
-    "ws@8.21.3": {
-      "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw=="
+    "ws@8.22.0": {
+      "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="
     }
   },
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@effect/platform-deno@4.0.0-rc.116",
+        "npm:@effect/platform-deno@4.0.0",
         "npm:@effect/tsgo@0.45.0",
         "npm:@jsr/std__assert@1",
         "npm:@types/node@24.0.0",
         "npm:drizzle-kit@1.0.0-rc.4",
         "npm:drizzle-orm@1.0.0-rc.4",
-        "npm:effect@4.0.0-rc.116",
+        "npm:effect@4.0.0",
         "npm:gunshi@0.37.3",
         "npm:oxlint-tsgolint@7.0.2001",
         "npm:oxlint@1.82.0",
         "npm:playwright-core@1.63.0"
-      ],
-      "overrides": {
-        "@effect/platform-node-shared": "4.0.0-rc.116"
-      }
+      ]
     }
   }
 }
