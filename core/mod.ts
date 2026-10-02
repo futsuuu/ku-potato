@@ -19,7 +19,7 @@ import {
     type LmsSourceGatewayError,
     type LmsSourceSession,
 } from "./out_port.ts";
-import type { Course, CourseMaterials, LmsCourseId } from "ku-potato-domain";
+import type { Course, CourseMaterials, LmsCourseId } from "../domain/mod.ts";
 import { Effect, Layer, Result } from "effect";
 
 type OutboundServices = LmsAuthenticationGateway | LmsCacheGateway | LmsSourceGateway;

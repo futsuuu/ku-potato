@@ -1,11 +1,11 @@
 import { assert, assertEquals, assertInstanceOf } from "@std/assert";
-import { LmsCacheGateway, LmsCacheGatewayError, LmsCacheMissError } from "ku-potato-core/out_port";
+import { LmsCacheGateway, LmsCacheGatewayError, LmsCacheMissError } from "../core/out_port.ts";
 import {
     type CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
     type MaterialResourcesSnapshot,
-} from "ku-potato-domain";
+} from "../domain/mod.ts";
 import { DateTime, Effect, Result } from "effect";
 import { makeLazyLmsCacheGateway, makeLmsCacheGateway, makeLmsCacheGatewayLayer } from "./mod.ts";
 

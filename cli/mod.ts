@@ -1,7 +1,7 @@
 /** Inbound adapter for the command-line interface. */
 
-import type { MaterialListResult } from "ku-potato-core/in_port";
-import { Application, type HeadPolicy } from "ku-potato-core/in_port";
+import type { MaterialListResult } from "../core/in_port.ts";
+import { Application, type HeadPolicy } from "../core/in_port.ts";
 import {
     type Course,
     type CourseMaterials,
@@ -9,7 +9,7 @@ import {
     LmsMaterialId,
     type Material,
     type MaterialDetail,
-} from "ku-potato-domain";
+} from "../domain/mod.ts";
 import { Effect, Schema, Terminal } from "effect";
 import * as gunshi from "gunshi";
 

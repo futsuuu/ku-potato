@@ -19,7 +19,7 @@ import {
     LmsMaterialId,
     type MaterialDetail,
     type MaterialResourcesSnapshot,
-} from "ku-potato-domain";
+} from "../domain/mod.ts";
 import { Effect, Layer, Result } from "effect";
 import { ApplicationLive } from "./mod.ts";
 

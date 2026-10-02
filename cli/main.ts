@@ -1,8 +1,8 @@
 import { DenoTerminal } from "@effect/platform-deno";
-import { ApplicationLive } from "ku-potato-core";
-import { LmsAuthenticationGateway, LmsSourceGateway } from "ku-potato-core/out_port";
-import { makeLmsGateways } from "ku-potato-playwright";
-import { makeLmsCacheGatewayLayer } from "ku-potato-sqlite";
+import { ApplicationLive } from "../core/mod.ts";
+import { LmsAuthenticationGateway, LmsSourceGateway } from "../core/out_port.ts";
+import { makeLmsGateways } from "../playwright/mod.ts";
+import { makeLmsCacheGatewayLayer } from "../sqlite/mod.ts";
 import { Effect, Layer } from "effect";
 import { CliInboundAdapter } from "./mod.ts";
 

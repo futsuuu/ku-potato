@@ -6,9 +6,9 @@ import type {
     Login,
     Logout,
     ViewMaterial,
-} from "ku-potato-core/in_port";
-import { Application, ApplicationError } from "ku-potato-core/in_port";
-import { LmsCourseId } from "ku-potato-domain";
+} from "../core/in_port.ts";
+import { Application, ApplicationError } from "../core/in_port.ts";
+import { LmsCourseId } from "../domain/mod.ts";
 import { Effect, Terminal } from "effect";
 import { CliInboundAdapter } from "./mod.ts";
 

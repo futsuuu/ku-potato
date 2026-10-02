@@ -9,7 +9,7 @@ import type {
     MaterialDetail,
     MaterialResources,
     MaterialResourcesSnapshot,
-} from "ku-potato-domain";
+} from "../domain/mod.ts";
 import { Context, type Effect, Schema } from "effect";
 import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
 

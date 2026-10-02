@@ -9,7 +9,7 @@ import {
     LmsSourceGateway,
     LmsSourceGatewayError,
     type LmsSourceSession,
-} from "ku-potato-core/out_port";
+} from "../core/out_port.ts";
 import {
     type Course,
     type CourseMaterials,
@@ -20,7 +20,7 @@ import {
     type MaterialFolder,
     type MaterialResourcesSnapshot,
     type Resource,
-} from "ku-potato-domain";
+} from "../domain/mod.ts";
 import { DateTime, Effect, Semaphore } from "effect";
 import * as playwright from "playwright-core";
 

@@ -5,7 +5,7 @@ import {
     LmsCacheGatewayError,
     type LmsCacheGatewayService,
     LmsCacheMissError,
-} from "ku-potato-core/out_port";
+} from "../core/out_port.ts";
 import {
     type Course,
     type CourseMaterials,
@@ -16,7 +16,7 @@ import {
     type MaterialDetail,
     type MaterialResources,
     type MaterialResourcesSnapshot,
-} from "ku-potato-domain";
+} from "../domain/mod.ts";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";

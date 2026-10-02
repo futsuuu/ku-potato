@@ -575,59 +575,20 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@effect/platform-deno@4.0.0-rc.116",
         "npm:@effect/tsgo@0.45.0",
+        "npm:@jsr/std__assert@1",
         "npm:@types/node@24.0.0",
+        "npm:drizzle-kit@1.0.0-rc.4",
+        "npm:drizzle-orm@1.0.0-rc.4",
+        "npm:effect@4.0.0-rc.116",
+        "npm:gunshi@0.37.3",
         "npm:oxlint-tsgolint@7.0.2001",
-        "npm:oxlint@1.82.0"
+        "npm:oxlint@1.82.0",
+        "npm:playwright-core@1.63.0"
       ],
       "overrides": {
         "@effect/platform-node-shared": "4.0.0-rc.116"
-      }
-    },
-    "members": {
-      "cli": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@effect/platform-deno@4.0.0-rc.116",
-            "npm:@jsr/std__assert@1",
-            "npm:effect@4.0.0-rc.116",
-            "npm:gunshi@0.37.3"
-          ]
-        }
-      },
-      "core": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@jsr/std__assert@1",
-            "npm:effect@4.0.0-rc.116"
-          ]
-        }
-      },
-      "domain": {
-        "packageJson": {
-          "dependencies": [
-            "npm:effect@4.0.0-rc.116"
-          ]
-        }
-      },
-      "playwright": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@jsr/std__assert@1",
-            "npm:effect@4.0.0-rc.116",
-            "npm:playwright-core@1.63.0"
-          ]
-        }
-      },
-      "sqlite": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@jsr/std__assert@1",
-            "npm:drizzle-kit@1.0.0-rc.4",
-            "npm:drizzle-orm@1.0.0-rc.4",
-            "npm:effect@4.0.0-rc.116"
-          ]
-        }
       }
     }
   }

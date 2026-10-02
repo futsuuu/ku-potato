@@ -1,6 +1,6 @@
 /** Application inbound ports, implemented by the application layer. */
 
-import type { Course, CourseMaterials, LmsCourseId, LmsMaterialId, MaterialDetail } from "ku-potato-domain";
+import type { Course, CourseMaterials, LmsCourseId, LmsMaterialId, MaterialDetail } from "../domain/mod.ts";
 import { Context, type Effect, Schema } from "effect";
 import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
 

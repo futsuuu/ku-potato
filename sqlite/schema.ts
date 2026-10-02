@@ -1,6 +1,6 @@
 /** Persistent cache schema. */
 
-import type { Course, Material } from "ku-potato-domain";
+import type { Course, Material } from "../domain/mod.ts";
 import { foreignKey, index, integer, primaryKey, snakeCase, text, unique } from "drizzle-orm/sqlite-core";
 
 type MaterialType = Material["type"];
