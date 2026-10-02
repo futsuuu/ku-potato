@@ -10,7 +10,7 @@
     "ignorePatterns": ["/types", "node_modules"],
     "overrides": [
         {
-            "files": ["*_test.ts"],
+            "files": ["*_test.ts", "vite.config.ts", "desktop/server.ts"],
             "rules": {
                 "effecttsgo/async-function": "off"
             }

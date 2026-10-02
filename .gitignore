@@ -1,3 +1,6 @@
-/types
+/.npmrc
+/dist
 node_modules
-.debug
+
+/.tmp
+/types

@@ -1,8 +1,56 @@
 {
     "$schema": "https://raw.github.com/denoland/deno/main/cli/schemas/config-file.v1.json",
-    "nodeModulesDir": "auto",
+    "tasks": {
+        "cli": "deno run --allow-all --unsafe-proto cli/main.ts",
+        "dev": "deno run --allow-all --node-modules-dir vite",
+        "build": "deno run --allow-all --node-modules-dir vite build",
+        "db:generate": "deno run --allow-all --node-modules-dir drizzle-kit generate --config=sqlite/drizzle.config.ts",
+        "test": "deno test --allow-all --unsafe-proto",
+        "lint": "deno lint && deno task oxlint",
+        "oxlint": "deno run --allow-all --node-modules-dir @effect/tsgo patch --oxlint --no-typescript && mkdir -p types && deno types > types/deno.d.ts && deno run --allow-all --node-modules-dir oxlint"
+    },
+    "imports": {
+        "@effect/platform-deno": "npm:@effect/platform-deno@4.0.0",
+        "@effect/tsgo": "npm:@effect/tsgo@0.45.0",
+        "@solidjs/meta": "npm:@solidjs/meta@1.0.0-next.2",
+        "@solidjs/vite-plugin": "npm:@solidjs/vite-plugin@3.0.0-next.47",
+        "@solidjs/web": "npm:@solidjs/web@2.0.0-rc.13",
+        "@std/assert": "jsr:@std/assert@1",
+        "@std/http": "jsr:@std/http@1",
+        "@types/node": "npm:@types/node@24.0.0",
+        "drizzle-kit": "npm:drizzle-kit@1.0.0-rc.4",
+        "drizzle-orm": "npm:drizzle-orm@1.0.0-rc.4",
+        "effect": "npm:effect@4.0.0",
+        "gunshi": "npm:gunshi@0.37.3",
+        "oxlint": "npm:oxlint@1.82.0",
+        "oxlint-tsgolint": "npm:oxlint-tsgolint@7.0.2001",
+        "playwright-core": "npm:playwright-core@1.63.0",
+        "solid-js": "npm:solid-js@2.0.0-rc.13",
+        "vite": "npm:vite@8.3.1"
+    },
+    // Enabling this makes `deno desktop` embed entire imported packages, even with
+    // `--node-modules-dir=none --exclude-unused-npm`. Omitting either flag embeds all of node_modules.
+    // Keep it disabled here and enable `--node-modules-dir` explicitly when needed.
+    "nodeModulesDir": "none",
+    // Required for Oxlint's type-aware linting.
+    "jsrDepsInNodeModules": true,
     "unstable": ["tsgo"],
-    "exclude": ["types"],
+    "compilerOptions": {
+        "jsx": "preserve",
+        "jsxImportSource": "@solidjs/web",
+        "lib": ["dom", "dom.iterable", "dom.asynciterable", "deno.ns", "deno.desktop"]
+    },
+    "desktop": {
+        "app": {
+            "name": "ku-potato"
+        },
+        "output": {
+            "windows": "./dist/desktop/ku-potato",
+            "macos": "./dist/desktop/ku-potato",
+            "linux": "./dist/desktop/ku-potato"
+        }
+    },
+    "exclude": ["types", "dist", ".tmp"],
     "lint": {
         "rules": {
             "exclude": ["no-slow-types"]

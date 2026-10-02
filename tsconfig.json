@@ -4,8 +4,13 @@
         "noEmit": true,
         "strict": true,
         "target": "esnext",
-        "types": ["node"]
+        "jsx": "preserve",
+        "jsxImportSource": "@solidjs/web",
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "types": ["node", "vite/client"]
     },
+    "files": ["./types/deno.d.ts"],
     "include": ["."],
-    "exclude": ["node_modules"]
+    "exclude": ["node_modules", "dist", "types", ".tmp"]
 }

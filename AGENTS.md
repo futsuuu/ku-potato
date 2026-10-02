@@ -14,7 +14,7 @@ This repository follows the Hexagonal Architecture (Ports & Adapters).
 - `/core/out_port`
   - Outbound ports
   - Interfaces that define application requirements in the outside world
-- `/cli` (TODO: `/desktop`)
+- `/cli`, `/desktop`
   - Inbound adapters (presentation layer)
   - Handle user input and expose application features
   - Depend on inbound ports
@@ -22,7 +22,7 @@ This repository follows the Hexagonal Architecture (Ports & Adapters).
   - Outbound adapters (infrastructure layer)
   - Interact with the outside world
   - Implement outbound ports
-- `/cli/main.ts`
+- `/cli/main.ts`, `/desktop/server.ts`
   - Program entrypoints (composition root)
   - Construct adapters and the application
 
