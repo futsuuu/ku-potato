@@ -1,5 +1,10 @@
 import { serveDir, serveFile } from "@std/http/file-server";
 import { fileURLToPath } from "node:url";
+import type { DesktopBindings } from "./bindings.ts";
+
+// The first BrowserWindow adopts the window created by `deno desktop`.
+const win = new Deno.BrowserWindow<DesktopBindings>({ title: "KU-POTATO" });
+win.bind("greet", (name) => Promise.resolve(`Hello, ${name}! From Deno ${Deno.version.deno}.`));
 
 const devServerUrl = Deno.env.get("VITE_DEV_SERVER_URL");
 if (devServerUrl) {
