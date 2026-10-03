@@ -10,7 +10,7 @@
         "moduleResolution": "bundler",
         "types": ["node", "vite/client"]
     },
-    "files": ["./types/deno.d.ts"],
+    "files": ["./types/deno.d.ts", "./types/deno.desktop.d.ts"],
     "include": ["."],
     "exclude": ["node_modules", "dist", "types", ".tmp"]
 }

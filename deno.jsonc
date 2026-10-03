@@ -7,7 +7,7 @@
         "db:generate": "deno run --allow-all --node-modules-dir drizzle-kit generate --config=sqlite/drizzle.config.ts",
         "test": "deno test --allow-all --unsafe-proto",
         "lint": "deno lint && deno task oxlint",
-        "oxlint": "deno run --allow-all --node-modules-dir @effect/tsgo patch --oxlint --no-typescript && mkdir -p types && deno types > types/deno.d.ts && deno run --allow-all --node-modules-dir oxlint"
+        "oxlint": "deno run --allow-all --node-modules-dir @effect/tsgo patch --oxlint --no-typescript && deno run --allow-run --allow-net=raw.githubusercontent.com --allow-write=types scripts/deno_types.ts && deno run --allow-all --node-modules-dir oxlint"
     },
     "imports": {
         "@effect/platform-deno": "npm:@effect/platform-deno@4.0.0",
