@@ -1,12 +1,23 @@
 import type { AddressInfo } from "node:net";
 import * as path from "node:path";
 import solid from "@solidjs/vite-plugin";
+import { fileRoutes } from "filesystem-routing/vite";
 import { defineConfig, type Plugin } from "vite";
 
 export default defineConfig({
     plugins: [
-        solid({ start: { app: "desktop/client/App.tsx" } }),
-        denoDesktop({ server: "desktop/server.ts" }),
+        solid({
+            start: {
+                app: "desktop/client/App.tsx",
+            },
+        }),
+        fileRoutes({
+            dir: "desktop/client/routes",
+            types: "desktop/client/file-routes.d.ts",
+        }),
+        denoDesktop({
+            server: "desktop/server.ts",
+        }),
     ],
 });
 
@@ -84,8 +95,11 @@ function denoDesktopBuildPlugin(opts: DenoDesktopOptions): Plugin {
                 const status = await new Deno.Command(Deno.execPath(), {
                     args: [
                         "desktop",
-                        "--allow-env=VITE_DEV_SERVER_URL",
+                        "--exclude-unused-npm",
+                        "--allow-all",
+                        "--unsafe-proto",
                         `--include=./dist/client`,
+                        `--include=./sqlite/drizzle`,
                         opts.server,
                     ],
                     cwd: client.config.root,
@@ -121,7 +135,10 @@ function spawnDevelopmentDesktop(
         args: [
             "desktop",
             "--hmr",
-            "--allow-env=VITE_DEV_SERVER_URL",
+            "--exclude-unused-npm",
+            "--allow-all",
+            "--unsafe-proto",
+            "--include=./sqlite/drizzle",
             opts.server,
         ],
         cwd: env.cwd,

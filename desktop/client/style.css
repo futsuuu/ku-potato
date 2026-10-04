@@ -1,8 +1,8 @@
 :root {
-    font-family: system-ui, sans-serif;
-    color: #384348;
-    background: #ffffff;
-    font-size: 1.1em;
+    font-family: Inter, Arial, "Noto Sans JP", system-ui, sans-serif;
+    text-autospace: normal;
+    color: #081f38;
+    background: #fdfdff;
 }
 
 body {
@@ -12,22 +12,43 @@ body {
 main {
     max-width: 56rem;
     margin: 0 auto;
-    padding: 4rem 2rem;
+    padding: 2rem 1rem;
 }
 
-h1 {
-    margin: 0 0 1rem;
-}
-
-form {
+header {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
+    justify-content: space-between;
+    gap: 1rem;
 }
 
-input,
 button {
     font: inherit;
     padding: 0.5rem 0.75rem;
+}
+
+ul {
+    padding: 0;
+    list-style: none;
+}
+
+li {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #dddddd;
+}
+
+small {
+    display: block;
+    margin-top: 0.25rem;
+    color: #9fa5ab;
+    overflow-wrap: anywhere;
+}
+
+a {
+    color: #1c73d0;
+    text-underline-offset: 3px;
+}
+
+nav {
+    margin-bottom: 1rem;
 }
