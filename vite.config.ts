@@ -9,6 +9,7 @@ export default defineConfig({
         solid({
             start: {
                 app: "desktop/client/App.tsx",
+                document: "desktop/client/Document.tsx",
             },
         }),
         fileRoutes({
