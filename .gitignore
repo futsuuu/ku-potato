@@ -1,6 +1,7 @@
 /.npmrc
 /dist
-node_modules
+/node_modules
 
 /.tmp
+/deno.node-modules.jsonc
 /types
