@@ -1,4 +1,5 @@
 import type { AddressInfo } from "node:net";
+import * as path from "node:path";
 import solid from "@solidjs/vite-plugin";
 import { defineConfig, type Plugin } from "vite";
 
@@ -49,7 +50,7 @@ function denoDesktopDevelopmentPlugin(opts: DenoDesktopOptions): Plugin {
                 const running = spawnDevelopmentDesktop({
                     cwd: server.config.root,
                     devServerUrl: developmentServerUrl(address),
-                    webview2UserDataFolder,
+                    webview2UserDataFolder: path.join(server.config.root, webview2UserDataFolder),
                 }, opts);
                 server.watcher.unwatch(webview2UserDataFolder);
                 child = running;
