@@ -67,11 +67,22 @@ export const makeLmsCacheGateway = (
         cacheWriteTry("open", () => {
             Deno.mkdirSync(databaseDirectory(databasePath), { recursive: true });
             const database = drizzle(databasePath);
-            database.$client.exec("pragma foreign_keys = on");
-            migrate(database, {
-                migrationsFolder: fileURLToPath(new URL("./drizzle", import.meta.url)),
-            });
-            return { database, gateway: LmsCacheGateway.of(makeGateway(database)) };
+            try {
+                // Drizzle starts a transaction, inside which SQLite ignores foreign_keys changes.
+                // Disable before migrating so table rebuilds cannot cascade-delete cached history.
+                database.$client.exec("pragma foreign_keys = off");
+                migrate(database, {
+                    migrationsFolder: fileURLToPath(new URL("./drizzle", import.meta.url)),
+                });
+                database.$client.exec("pragma foreign_keys = on");
+                if (database.$client.prepare("pragma foreign_key_check").all().length > 0) {
+                    throw new Error("Cache migration left inconsistent foreign keys.");
+                }
+                return { database, gateway: LmsCacheGateway.of(makeGateway(database)) };
+            } catch (cause) {
+                database.$client.close();
+                throw cause;
+            }
         }),
         ({ database }) =>
             Effect.sync(() => {
@@ -92,6 +103,8 @@ export const makeLazyLmsCacheGateway = (
             makeLmsCacheGateway(databasePath).pipe(Effect.provideService(Scope.Scope, scope)),
         );
         return LmsCacheGateway.of({
+            findMaterialCourseId: (lmsMaterialId) =>
+                cachedGateway.pipe(Effect.flatMap((cache) => cache.findMaterialCourseId(lmsMaterialId))),
             listCourses: cachedGateway.pipe(Effect.flatMap((cache) => cache.listCourses)),
             listCourseMaterials: (lmsCourseId) =>
                 cachedGateway.pipe(Effect.flatMap((cache) => cache.listCourseMaterials(lmsCourseId))),
@@ -112,6 +125,13 @@ export const makeLmsCacheGatewayLayer = (databasePath = defaultCacheDatabasePath
     Layer.effect(LmsCacheGateway, makeLazyLmsCacheGateway(databasePath));
 
 const makeGateway = (database: Database): LmsCacheGatewayService => ({
+    findMaterialCourseId: (lmsMaterialId) =>
+        cacheWriteTry("findMaterialCourseId", () => {
+            const row = database.select({ lmsCourseId: courseMaterials.lmsCourseId }).from(courseMaterials)
+                .where(eq(courseMaterials.lmsMaterialId, lmsMaterialId))
+                .orderBy(desc(courseMaterials.retrievalId)).limit(1).get();
+            return row === undefined ? undefined : LmsCourseId(row.lmsCourseId);
+        }),
     listCourses: cacheReadTry("listCourses", () => readCourses(database)),
     listCourseMaterials: (lmsCourseId) =>
         cacheReadTry("listCourseMaterials", () => readCourseMaterials(database, lmsCourseId)),
@@ -156,8 +176,11 @@ const recordCourses = (database: Database, retrievedCourses: readonly Course[]):
 const recordCourseMaterials = (database: Database, snapshot: CourseMaterialsSnapshot): void => {
     database.transaction((transaction) => {
         const courseRetrievalId = insertCourses(transaction, snapshot.courses);
-        const coursePosition = findCoursePosition(transaction, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
-        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(transaction, courseRetrievalId, coursePosition);
+        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(
+            transaction,
+            courseRetrievalId,
+            snapshot.courseMaterials.lmsCourseId,
+        );
         insertCourseMaterials(transaction, courseMaterialRetrievalId, snapshot.courseMaterials);
     });
 };
@@ -165,8 +188,11 @@ const recordCourseMaterials = (database: Database, snapshot: CourseMaterialsSnap
 const recordMaterialResources = (database: Database, snapshot: MaterialResourcesSnapshot): void => {
     database.transaction((transaction) => {
         const courseRetrievalId = insertCourses(transaction, snapshot.courses);
-        const coursePosition = findCoursePosition(transaction, courseRetrievalId, snapshot.courseMaterials.lmsCourseId);
-        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(transaction, courseRetrievalId, coursePosition);
+        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(
+            transaction,
+            courseRetrievalId,
+            snapshot.courseMaterials.lmsCourseId,
+        );
         insertCourseMaterials(transaction, courseMaterialRetrievalId, snapshot.courseMaterials);
 
         const materialResourceRetrieval = transaction.insert(materialResourceRetrievals).values({
@@ -208,17 +234,30 @@ const insertCourses = (database: CacheConnection, retrievedCourses: readonly Cou
 const insertCourseMaterialRetrieval = (
     database: CacheConnection,
     courseRetrievalId: number,
-    coursePosition: number,
+    lmsCourseId: LmsCourseId,
 ): number => {
     const retrieval = database.insert(courseMaterialRetrievals).values({
         courseRetrievalId,
-        coursePosition,
+        coursePosition: findCoursePosition(database, courseRetrievalId, lmsCourseId),
+        lmsCourseId,
         fetchedAt: now(),
     }).returning({ id: courseMaterialRetrievals.id }).get();
     if (retrieval == null) {
         throw new LmsCacheGatewayError({ operation: "appendCourseMaterials", message: "Could not create retrieval." });
     }
     return retrieval.id;
+};
+
+const findCoursePosition = (database: CacheConnection, retrievalId: number, lmsCourseId: LmsCourseId): number => {
+    const row = database.select({ position: courses.position }).from(courses)
+        .where(and(eq(courses.retrievalId, retrievalId), eq(courses.lmsCourseId, lmsCourseId))).get();
+    if (row === undefined) {
+        throw new LmsCacheGatewayError({
+            operation: "appendCourseMaterials",
+            message: `The course ${lmsCourseId} was absent from its bundled course retrieval.`,
+        });
+    }
+    return row.position;
 };
 
 const insertCourseMaterials = (
@@ -241,6 +280,7 @@ const insertCourseMaterials = (
                 .slice(0, folderPosition)
                 .reduce((count, previousFolder) => count + previousFolder.materials.length, 0),
             lmsMaterialId: material.lmsMaterialId,
+            lmsCourseId: retrievedMaterials.lmsCourseId,
             folderPosition,
             name: material.name,
             type: material.type,
@@ -249,19 +289,6 @@ const insertCourseMaterials = (
         }))
     );
     if (materialRows.length > 0) database.insert(courseMaterials).values(materialRows).run();
-};
-
-const findCoursePosition = (database: CacheConnection, retrievalId: number, lmsCourseId: string): number => {
-    const row = database.select({ position: courses.position })
-        .from(courses)
-        .where(and(eq(courses.retrievalId, retrievalId), eq(courses.lmsCourseId, lmsCourseId))).get();
-    if (row == null) {
-        throw new LmsCacheGatewayError({
-            operation: "append",
-            message: `The course ${lmsCourseId} was absent from its bundled course retrieval.`,
-        });
-    }
-    return row.position;
 };
 
 const readCourses = (database: Database): readonly Course[] => {
@@ -281,14 +308,7 @@ const readCourses = (database: Database): readonly Course[] => {
 const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMaterials => {
     const retrieval = database.select({ id: courseMaterialRetrievals.id })
         .from(courseMaterialRetrievals)
-        .innerJoin(
-            courses,
-            and(
-                eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
-                eq(courses.position, courseMaterialRetrievals.coursePosition),
-            ),
-        )
-        .where(eq(courses.lmsCourseId, lmsCourseId))
+        .where(eq(courseMaterialRetrievals.lmsCourseId, lmsCourseId))
         .orderBy(desc(courseMaterialRetrievals.id))
         .limit(1)
         .get();
@@ -376,6 +396,7 @@ const readMaterialDetail = (database: Database, lmsMaterialId: string): Material
             and(
                 eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
                 eq(courses.position, courseMaterialRetrievals.coursePosition),
+                eq(courses.lmsCourseId, courseMaterials.lmsCourseId),
             ),
         )
         .where(eq(courseMaterials.lmsMaterialId, lmsMaterialId))

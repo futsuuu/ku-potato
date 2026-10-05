@@ -90,8 +90,13 @@ Deno.test("SQLite cache keeps material resources after a later course material s
     try {
         const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
             const cache = yield* makeLmsCacheGateway(databasePath);
+            assertEquals(yield* cache.findMaterialCourseId(materialId), undefined);
             yield* cache.appendCourses([course]);
             yield* cache.appendCourseMaterials(courseMaterials);
+            assertEquals(yield* cache.findMaterialCourseId(materialId), courseId);
+            const missingResources = yield* Effect.result(cache.getMaterialDetail(materialId));
+            assert(Result.isFailure(missingResources));
+            assertInstanceOf(missingResources.failure, LmsCacheMissError);
             yield* cache.appendMaterialResources(materialResources);
             yield* cache.appendCourseMaterials(laterCourseMaterials);
             return {

@@ -133,11 +133,17 @@ const viewMaterial = Effect.fn("Core.viewMaterial")(function* (options: ViewMate
     return yield* readWithPolicy(
         options.sync,
         cache.getMaterialDetail(options.lmsMaterialId),
-        source.withSession(options.head, (session) =>
-            session.fetchMaterialResources(options.lmsMaterialId).pipe(
-                Effect.tap((snapshot) => cache.appendMaterialResources(snapshot)),
-                Effect.andThen(cache.getMaterialDetail(options.lmsMaterialId)),
-            )),
+        Effect.gen(function* () {
+            const preferredCourseId = yield* cache.findMaterialCourseId(options.lmsMaterialId);
+            return yield* source.withSession(
+                options.head,
+                (session) =>
+                    session.fetchMaterialResources(options.lmsMaterialId, preferredCourseId).pipe(
+                        Effect.tap((snapshot) => cache.appendMaterialResources(snapshot)),
+                        Effect.andThen(cache.getMaterialDetail(options.lmsMaterialId)),
+                    ),
+            );
+        }),
     );
 });
 

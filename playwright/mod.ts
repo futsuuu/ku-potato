@@ -3,16 +3,12 @@ import {
     type HeadPolicy,
     LmsAuthenticationGateway,
     LmsAuthenticationStorageError,
-    LmsMaterialNotFoundError,
     LmsSourceGateway,
     type LmsSourceSession,
 } from "../core/out_port.ts";
-import { type CourseMaterialsSnapshot, type MaterialResourcesSnapshot } from "../domain/mod.ts";
 import { Effect, Semaphore } from "effect";
 import * as playwright from "playwright-core";
-import { openLmsHome, readCourses } from "./home.ts";
-import { readCourseMaterials } from "./course.ts";
-import { readMaterialResourcesFromCoursePage } from "./resources.ts";
+import { makeLmsSourceSession } from "./session.ts";
 import { loginToLms } from "./login.ts";
 import { errorMessage, tryPromise } from "./promise.ts";
 
@@ -94,54 +90,9 @@ function withBrowserSession<A, E, R>(
         const page = yield* tryPromise("create browser page", () => context.newPage());
         yield* loginToLms(page, allowInteraction);
         yield* saveAuthenticationState(context, storageStatePath);
-        return yield* use(makeSession(page));
+        return yield* use(makeLmsSourceSession(page));
     }));
 }
-
-const makeSession = (page: playwright.Page): LmsSourceSession => {
-    const semaphore = Semaphore.makeUnsafe(1);
-    return {
-        fetchCourses: semaphore.withPermits(1)(
-            openLmsHome(page).pipe(Effect.andThen(readCourses(page))),
-        ),
-        fetchCourseMaterials: (lmsCourseId) =>
-            semaphore.withPermits(1)(Effect.gen(function* () {
-                yield* openLmsHome(page);
-                const courses = yield* readCourses(page);
-                const courseMaterials = yield* readCourseMaterials(page, lmsCourseId);
-                return { courses, courseMaterials } satisfies CourseMaterialsSnapshot;
-            })),
-        fetchMaterialResources: (lmsMaterialId) =>
-            semaphore.withPermits(1)(Effect.gen(function* () {
-                yield* openLmsHome(page);
-                const courses = yield* readCourses(page);
-                for (const course of courses) {
-                    if (course.availability === "unavailable") continue;
-                    yield* openLmsHome(page);
-                    const courseMaterials = yield* readCourseMaterials(page, course.lmsCourseId).pipe(
-                        Effect.catchTag("LmsCourseNotFoundError", () => Effect.void),
-                    );
-                    if (courseMaterials === undefined) continue;
-                    const material = courseMaterials.folders
-                        .flatMap((folder) => folder.materials)
-                        .find((material) => material.lmsMaterialId === lmsMaterialId);
-                    if (material === undefined) continue;
-                    const resources = material.type === "material" && material.resourceAvailability === "available"
-                        ? yield* readMaterialResourcesFromCoursePage(page, lmsMaterialId)
-                        : [];
-                    return {
-                        courses,
-                        courseMaterials,
-                        materialResources: { lmsMaterialId, resources },
-                    } satisfies MaterialResourcesSnapshot;
-                }
-                return yield* new LmsMaterialNotFoundError({
-                    lmsMaterialId,
-                    message: `Cannot find the material in any available course: ${lmsMaterialId}`,
-                });
-            })),
-    };
-};
 
 const restoreAuthenticationState = Effect.fn("PlaywrightBrowser.restoreAuthenticationState")(function* (
     context: playwright.BrowserContext,

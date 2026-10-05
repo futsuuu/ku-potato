@@ -27,6 +27,7 @@ export const courses = snakeCase.table("courses", {
     availability: text().$type<Course["availability"]>().notNull(),
 }, (table) => [
     primaryKey({ columns: [table.retrievalId, table.position] }),
+    unique("courses_retrieval_position_course_id_unique").on(table.retrievalId, table.position, table.lmsCourseId),
     index("courses_lms_course_id_index").on(table.lmsCourseId),
 ]);
 
@@ -35,11 +36,12 @@ export const courseMaterialRetrievals = snakeCase.table("course_material_retriev
     id: integer().primaryKey({ autoIncrement: true }),
     courseRetrievalId: integer().notNull(),
     coursePosition: integer().notNull(),
+    lmsCourseId: text().notNull(),
     fetchedAt: integer({ mode: "timestamp_ms" }).notNull(),
 }, (table) => [
     foreignKey({
-        columns: [table.courseRetrievalId, table.coursePosition],
-        foreignColumns: [courses.retrievalId, courses.position],
+        columns: [table.courseRetrievalId, table.coursePosition, table.lmsCourseId],
+        foreignColumns: [courses.retrievalId, courses.position, courses.lmsCourseId],
         name: "course_material_retrievals_course_fk",
     }).onDelete("cascade"),
     index("course_material_retrievals_course_fetched_at_index").on(
@@ -47,6 +49,7 @@ export const courseMaterialRetrievals = snakeCase.table("course_material_retriev
         table.coursePosition,
         table.fetchedAt,
     ),
+    unique("course_material_retrievals_id_course_id_unique").on(table.id, table.lmsCourseId),
 ]);
 
 /** A folder as it appeared in one course-material retrieval. */
@@ -61,9 +64,10 @@ export const courseMaterialFolders = snakeCase.table("course_material_folders", 
 
 /** A material as it appeared in one course-material retrieval. */
 export const courseMaterials = snakeCase.table("course_materials", {
-    retrievalId: integer().notNull().references(() => courseMaterialRetrievals.id, { onDelete: "cascade" }),
+    retrievalId: integer().notNull(),
     position: integer().notNull(),
     lmsMaterialId: text().notNull(),
+    lmsCourseId: text().notNull(),
     folderPosition: integer().notNull(),
     name: text().notNull(),
     type: text().$type<MaterialType>().notNull(),
@@ -73,6 +77,12 @@ export const courseMaterials = snakeCase.table("course_materials", {
 }, (table) => [
     primaryKey({ columns: [table.retrievalId, table.position] }),
     unique("course_materials_retrieval_material_id_unique").on(table.retrievalId, table.lmsMaterialId),
+    index("course_materials_material_retrieval_index").on(table.lmsMaterialId, table.retrievalId),
+    foreignKey({
+        columns: [table.retrievalId, table.lmsCourseId],
+        foreignColumns: [courseMaterialRetrievals.id, courseMaterialRetrievals.lmsCourseId],
+        name: "course_materials_course_fk",
+    }).onDelete("cascade"),
     foreignKey({
         columns: [table.retrievalId, table.folderPosition],
         foreignColumns: [courseMaterialFolders.retrievalId, courseMaterialFolders.position],

@@ -169,47 +169,72 @@ Deno.test("material list auto discovers cached courses and fetches only missing 
     assertEquals(heads, ["false"]);
 });
 
-Deno.test("material view true fetches a fresh resource snapshot before reading its detail", async () => {
-    const material = courseMaterials.folders[0]!.materials[0]!;
-    const materialDetail: MaterialDetail = {
-        course,
-        material,
-        resources: [{ name: "week-1.pdf" }],
-    };
-    const snapshot: MaterialResourcesSnapshot = {
-        courses,
-        courseMaterials,
-        materialResources: {
-            lmsMaterialId: material.lmsMaterialId,
-            resources: materialDetail.resources,
-        },
-    };
-    let stored: MaterialDetail | undefined;
-    const cache = LmsCacheGateway.of(cacheGateway({
-        getMaterialDetail: () =>
-            Effect.suspend(() =>
-                stored === undefined ? Effect.fail(cacheMiss("getMaterialDetail")) : Effect.succeed(stored)
+for (const sync of ["true", "auto"] as const) {
+    for (const preferredCourseId of [courseId, undefined]) {
+        Deno.test(`material view ${sync} fetches resources with course hint ${preferredCourseId}`, async () => {
+            const material = courseMaterials.folders[0]!.materials[0]!;
+            const materialDetail: MaterialDetail = {
+                course,
+                material,
+                resources: [{ name: "week-1.pdf" }],
+            };
+            const snapshot: MaterialResourcesSnapshot = {
+                courses,
+                courseMaterials,
+                materialResources: {
+                    lmsMaterialId: material.lmsMaterialId,
+                    resources: materialDetail.resources,
+                },
+            };
+            let stored: MaterialDetail | undefined;
+            const cache = LmsCacheGateway.of(cacheGateway({
+                findMaterialCourseId: () => Effect.succeed(preferredCourseId),
+                getMaterialDetail: () =>
+                    Effect.suspend(() =>
+                        stored === undefined ? Effect.fail(cacheMiss("getMaterialDetail")) : Effect.succeed(stored)
+                    ),
+                appendMaterialResources: () =>
+                    Effect.sync(() => {
+                        stored = materialDetail;
+                    }),
+            }));
+            const heads: string[] = [];
+            const source = LmsSourceGateway.of(sourceGateway({
+                fetchMaterialResources: (lmsMaterialId, actualCourseId) => {
+                    assertEquals(lmsMaterialId, material.lmsMaterialId);
+                    assertEquals(actualCourseId, preferredCourseId);
+                    return Effect.succeed(snapshot);
+                },
+            }, heads));
+
+            const result = await Effect.runPromise(
+                Application.use((app) =>
+                    app.viewMaterial.execute({ lmsMaterialId: material.lmsMaterialId, sync, head: "true" })
+                ).pipe(
+                    Effect.provide(testApplicationLayer(cache, source)),
+                ),
+            );
+
+            assertEquals(result, materialDetail);
+            assertEquals(heads, ["true"]);
+        });
+    }
+}
+
+Deno.test("material view uses a complete cache without looking up a course hint or opening the LMS", async () => {
+    const detail: MaterialDetail = { course, material: courseMaterials.folders[0]!.materials[0]!, resources: [] };
+    const cache = LmsCacheGateway.of(cacheGateway({ getMaterialDetail: () => Effect.succeed(detail) }));
+    const source = LmsSourceGateway.of({ withSession: () => Effect.die("unexpected LMS session") });
+    for (const sync of ["auto", "false"] as const) {
+        assertEquals(
+            await Effect.runPromise(
+                Application.use((app) =>
+                    app.viewMaterial.execute({ lmsMaterialId: detail.material.lmsMaterialId, sync, head: "false" })
+                ).pipe(Effect.provide(testApplicationLayer(cache, source))),
             ),
-        appendMaterialResources: () =>
-            Effect.sync(() => {
-                stored = materialDetail;
-            }),
-    }));
-    const heads: string[] = [];
-    const source = LmsSourceGateway.of(sourceGateway({
-        fetchMaterialResources: () => Effect.succeed(snapshot),
-    }, heads));
-
-    const result = await Effect.runPromise(
-        Application.use((app) =>
-            app.viewMaterial.execute({ lmsMaterialId: material.lmsMaterialId, sync: "true", head: "true" })
-        ).pipe(
-            Effect.provide(testApplicationLayer(cache, source)),
-        ),
-    );
-
-    assertEquals(result, materialDetail);
-    assertEquals(heads, ["true"]);
+            detail,
+        );
+    }
 });
 
 const testApplicationLayer = (
@@ -229,6 +254,7 @@ const testApplicationLayer = (
 )));
 
 const cacheGateway = (overrides: Partial<LmsCacheGatewayService>): LmsCacheGatewayService => ({
+    findMaterialCourseId: () => Effect.die("unexpected findMaterialCourseId"),
     listCourses: Effect.die("unexpected listCourses"),
     listCourseMaterials: () => Effect.die("unexpected listCourseMaterials"),
     listMaterialResources: () => Effect.die("unexpected listMaterialResources"),

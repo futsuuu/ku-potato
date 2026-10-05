@@ -23,6 +23,7 @@ export interface LmsSourceSession {
     ) => Effect.Effect<CourseMaterialsSnapshot, LmsSourceGatewayError | LmsCourseNotFoundError>;
     readonly fetchMaterialResources: (
         lmsMaterialId: LmsMaterialId,
+        preferredCourseId?: LmsCourseId,
     ) => Effect.Effect<MaterialResourcesSnapshot, LmsSourceGatewayError | LmsMaterialNotFoundError>;
 }
 
@@ -52,6 +53,10 @@ export interface LmsAuthenticationGatewayService {
 
 /** The persistent cache, implemented by the SQLite adapter. */
 export interface LmsCacheGatewayService {
+    /** Latest known course, even when the material's resources have never been fetched. */
+    readonly findMaterialCourseId: (
+        lmsMaterialId: LmsMaterialId,
+    ) => Effect.Effect<LmsCourseId | undefined, LmsCacheGatewayError>;
     readonly listCourses: Effect.Effect<readonly Course[], LmsCacheGatewayError | LmsCacheMissError>;
     readonly listCourseMaterials: (
         lmsCourseId: LmsCourseId,
