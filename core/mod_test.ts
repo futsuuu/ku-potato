@@ -274,6 +274,7 @@ const sourceGateway = (
         fetchCourses: Effect.die("unexpected fetchCourses"),
         fetchCourseMaterials: () => Effect.die("unexpected fetchCourseMaterials"),
         fetchMaterialResources: () => Effect.die("unexpected fetchMaterialResources"),
+        downloadResource: () => Effect.die("unexpected downloadResource"),
         ...overrides,
     };
     return {
@@ -286,3 +287,47 @@ const sourceGateway = (
 };
 
 const cacheMiss = (operation: string): LmsCacheMissError => new LmsCacheMissError({ operation, message: "missing" });
+
+for (const preferredCourseId of [courseId, undefined]) {
+    Deno.test(`resource download uses an authenticated session with course hint ${preferredCourseId} without writing cache`, async () => {
+        const heads: string[] = [];
+        const cache = cacheGateway({ findMaterialCourseId: () => Effect.succeed(preferredCourseId) });
+        const source = sourceGateway({
+            downloadResource: (materialId, position, courseHint) => {
+                assertEquals(materialId, LmsMaterialId("SRY1"));
+                assertEquals(position, 2);
+                assertEquals(courseHint, preferredCourseId);
+                return Effect.succeed({ type: "external", url: "https://example.com/shared" });
+            },
+        }, heads);
+        const result = await Effect.runPromise(
+            Application.use((app) =>
+                app.downloadResource.execute({
+                    lmsMaterialId: LmsMaterialId("SRY1"),
+                    position: 2,
+                    head: "false",
+                })
+            ).pipe(Effect.provide(testApplicationLayer(cache, source))),
+        );
+        assertEquals(result, { type: "external", url: "https://example.com/shared" });
+        assertEquals(heads, ["false"]);
+    });
+}
+
+Deno.test("invalid resource positions fail before cache lookup or authentication", async () => {
+    for (const position of [-1, 0.5, NaN, Infinity]) {
+        const result = await Effect.runPromise(Effect.result(
+            Application.use((app) =>
+                app.downloadResource.execute({
+                    lmsMaterialId: LmsMaterialId("SRY1"),
+                    position,
+                    head: "auto",
+                })
+            ).pipe(Effect.provide(testApplicationLayer(cacheGateway({}), {
+                withSession: () => Effect.die("unexpected session"),
+            }))),
+        ));
+        assert(Result.isFailure(result));
+        assertEquals(result.failure.reason, "invalid-position");
+    }
+});

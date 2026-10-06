@@ -1,6 +1,13 @@
 /** Application inbound ports, implemented by the application layer. */
 
-import type { Course, CourseMaterials, LmsCourseId, LmsMaterialId, MaterialDetail } from "../domain/mod.ts";
+import type {
+    Course,
+    CourseMaterials,
+    LmsCourseId,
+    LmsMaterialId,
+    MaterialDetail,
+    ResourceDownload,
+} from "../domain/mod.ts";
 import { Context, type Effect, Schema } from "effect";
 import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
 
@@ -15,6 +22,7 @@ export class ApplicationError extends Schema.TaggedError<ApplicationError>()("Ap
         "cache",
         "cache-miss",
         "material-not-found",
+        "invalid-position",
     ]),
     message: Schema.String,
 }) {}
@@ -84,6 +92,17 @@ export interface ViewMaterial {
     ) => Effect.Effect<MaterialDetail, QueryError>;
 }
 
+export type DownloadResourceOptions = {
+    readonly lmsMaterialId: LmsMaterialId;
+    /** Zero-based index in the resource list, matching its cached DB position. */
+    readonly position: number;
+    readonly head: HeadPolicy;
+};
+
+export interface DownloadResource {
+    readonly execute: (options: DownloadResourceOptions) => Effect.Effect<ResourceDownload, ApplicationError>;
+}
+
 /** Application features supplied to inbound adapters. */
 export class Application extends Context.Service<Application, {
     readonly login: Login;
@@ -93,4 +112,5 @@ export class Application extends Context.Service<Application, {
     readonly listCourses: ListCourses;
     readonly listMaterials: ListMaterials;
     readonly viewMaterial: ViewMaterial;
+    readonly downloadResource: DownloadResource;
 }>()("ku-potato/core/Application") {}

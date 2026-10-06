@@ -60,6 +60,11 @@ export type Resource = {
     readonly name: string;
 };
 
+/** The result of retrieving a resource; downloaded files outlive the LMS session. */
+export type ResourceDownload =
+    | { readonly type: "file"; readonly path: string }
+    | { readonly type: "external"; readonly url: string };
+
 /** All resources retrieved for one material. */
 export type MaterialResources = {
     readonly lmsMaterialId: LmsMaterialId;

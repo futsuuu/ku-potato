@@ -9,6 +9,7 @@ import type {
     MaterialDetail,
     MaterialResources,
     MaterialResourcesSnapshot,
+    ResourceDownload,
 } from "../domain/mod.ts";
 import { Context, type Effect, Schema } from "effect";
 import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
@@ -25,6 +26,11 @@ export interface LmsSourceSession {
         lmsMaterialId: LmsMaterialId,
         preferredCourseId?: LmsCourseId,
     ) => Effect.Effect<MaterialResourcesSnapshot, LmsSourceGatewayError | LmsMaterialNotFoundError>;
+    readonly downloadResource: (
+        lmsMaterialId: LmsMaterialId,
+        position: number,
+        preferredCourseId?: LmsCourseId,
+    ) => Effect.Effect<ResourceDownload, LmsSourceGatewayError | LmsMaterialNotFoundError>;
 }
 
 /** Opens an authenticated LMS session for the duration of one operation. */

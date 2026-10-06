@@ -1,6 +1,7 @@
 import {
     Application,
     ApplicationError,
+    DownloadResourceOptions,
     ListMaterialsOptions,
     MaterialListFailure,
     QueryOptions,
@@ -20,7 +21,7 @@ import {
     type LmsSourceSession,
 } from "./out_port.ts";
 import type { Course, CourseMaterials, LmsCourseId } from "../domain/mod.ts";
-import { Effect, Layer, Result } from "effect";
+import { Effect, Layer, Result, Schema } from "effect";
 
 type OutboundServices = LmsAuthenticationGateway | LmsCacheGateway | LmsSourceGateway;
 type GatewayError =
@@ -162,6 +163,16 @@ const fetchAndCacheCourseMaterials = Effect.fn("Core.fetchAndCacheCourseMaterial
     return yield* cache.listCourseMaterials(lmsCourseId);
 });
 
+const downloadResource = Effect.fn("Core.downloadResource")(function* (options: DownloadResourceOptions) {
+    const cache = yield* LmsCacheGateway;
+    const source = yield* LmsSourceGateway;
+    const preferredCourseId = yield* cache.findMaterialCourseId(options.lmsMaterialId);
+    return yield* source.withSession(
+        options.head,
+        (session) => session.downloadResource(options.lmsMaterialId, options.position, preferredCourseId),
+    );
+});
+
 const readWithPolicy = <A, CacheError, FetchError, R>(
     sync: SyncPolicy,
     cached: Effect.Effect<A, CacheError | LmsCacheMissError>,
@@ -197,6 +208,18 @@ export const ApplicationLive = Layer.effect(
             listCourses: { execute: (options) => bind(listCourses(options)) },
             listMaterials: { execute: (options) => bind(listMaterials(options)) },
             viewMaterial: { execute: (options) => bind(viewMaterial(options)) },
+            downloadResource: {
+                execute: (options) =>
+                    Schema.decodeEffect(Schema.Natural)(options.position).pipe(
+                        Effect.mapError(() =>
+                            new ApplicationError({
+                                reason: "invalid-position",
+                                message: "資料のpositionには0以上の整数を指定してください。",
+                            })
+                        ),
+                        Effect.flatMap(() => bind(downloadResource(options))),
+                    ),
+            },
         });
     }),
 );
