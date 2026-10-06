@@ -1,4 +1,4 @@
-import type {} from "./bindings.d.ts";
+import type {} from "./deno_desktop.d.ts";
 import { Loading } from "solid-js";
 import { paths, Router } from "./router.ts";
 import "virtual:uno.css";

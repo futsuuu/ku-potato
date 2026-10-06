@@ -16,7 +16,7 @@ export default defineConfig({
         }),
         fileRoutes({
             dir: "desktop/client/routes",
-            types: "desktop/client/file-routes.d.ts",
+            types: "desktop/client/file_routes.d.ts",
         }),
         denoDesktop({
             server: "desktop/server.ts",

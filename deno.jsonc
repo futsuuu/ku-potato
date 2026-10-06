@@ -78,13 +78,13 @@
     },
     "exclude": ["types", "dist", ".tmp"],
     "lint": {
-        "exclude": ["desktop/client/file-routes.d.ts"],
+        "exclude": ["desktop/client/file_routes.d.ts"],
         "rules": {
             "exclude": ["no-slow-types"]
         }
     },
     "fmt": {
-        "exclude": ["domain/docs", "sqlite/drizzle", "desktop/client/file-routes.d.ts"],
+        "exclude": ["domain/docs", "sqlite/drizzle", "desktop/client/file_routes.d.ts"],
         "lineWidth": 120
     }
 }
