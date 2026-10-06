@@ -8,12 +8,12 @@ import { tryPromise } from "./promise.ts";
 export const loginToLms = Effect.fn("PlaywrightBrowser.loginToLms")(function* (
     page: Page,
     allowInteraction: boolean,
-    fidoUsername?: string,
+    portalUsername?: string,
 ): Effect.fn.Return<void, LmsSourceGatewayError | LmsAuthenticationRequiredError> {
     yield* openLoginPage(page);
     yield* submitLogin(page);
-    if (fidoUsername && !isLmsHomeUrl(new URL(page.url()))) {
-        yield* authenticateWithFido(page, fidoUsername).pipe(
+    if (portalUsername && !isLmsHomeUrl(new URL(page.url()))) {
+        yield* authenticateWithWebAuthn(page, portalUsername).pipe(
             Effect.catchTag("LmsAuthenticationRequiredError", () => Effect.void),
         );
     }
@@ -39,7 +39,7 @@ export const loginToLms = Effect.fn("PlaywrightBrowser.loginToLms")(function* (
     yield* verifyLmsHome(page);
 });
 
-const authenticateWithFido = Effect.fn("PlaywrightBrowser.authenticateWithFido")(function* (
+const authenticateWithWebAuthn = Effect.fn("PlaywrightBrowser.authenticateWithWebAuthn")(function* (
     page: Page,
     username: string,
 ) {
@@ -47,43 +47,49 @@ const authenticateWithFido = Effect.fn("PlaywrightBrowser.authenticateWithFido")
     yield* Effect.gen(function* () {
         if (portalLogin) {
             yield* tryPromise(
-                "authenticate with FIDO",
+                "authenticate with WebAuthn",
                 () => page.goto("https://slink.secioss.com/user/?tenant=kogakuin.ac.jp"),
             );
         }
         if (new URL(page.url()).hostname !== "slink.secioss.com") return;
-        yield* tryPromise("authenticate with FIDO", () => page.waitForLoadState("load"));
+        yield* tryPromise("authenticate with WebAuthn", () => page.waitForLoadState("load"));
         const input = page.locator("#username_input[type='text']");
-        if (yield* tryPromise("authenticate with FIDO", () => input.isVisible())) {
+        if (yield* tryPromise("authenticate with WebAuthn", () => input.isVisible())) {
             // The tenant is supplied by KU-LMS; Secioss expects the local part here.
-            yield* tryPromise("authenticate with FIDO", () => input.fill(username.split("@")[0]));
-            yield* tryPromise("authenticate with FIDO", () => input.blur());
-            yield* tryPromise("authenticate with FIDO", () => page.locator("#login_button").click({ timeout: 15_000 }));
-            yield* tryPromise("authenticate with FIDO", () => page.waitForLoadState("load"));
+            yield* tryPromise("authenticate with WebAuthn", () => input.fill(username.split("@")[0]));
+            yield* tryPromise("authenticate with WebAuthn", () => input.blur());
+            yield* tryPromise(
+                "authenticate with WebAuthn",
+                () => page.locator("#login_button").click({ timeout: 15_000 }),
+            );
+            yield* tryPromise("authenticate with WebAuthn", () => page.waitForLoadState("load"));
         }
         if (
             yield* tryPromise(
-                "authenticate with FIDO",
+                "authenticate with WebAuthn",
                 () => page.locator("#password_input[type='password']").isVisible(),
             )
         ) {
-            yield* tryPromise("authenticate with FIDO", () => page.locator("#back_link_select").click());
-            yield* tryPromise("authenticate with FIDO", () => page.waitForLoadState("load"));
+            yield* tryPromise("authenticate with WebAuthn", () => page.locator("#back_link_select").click());
+            yield* tryPromise("authenticate with WebAuthn", () => page.waitForLoadState("load"));
         }
+        // Secioss retains the u2flogin value for its WebAuthn authentication option.
         const selection = page.locator("select[name='auth']");
-        if (yield* tryPromise("authenticate with FIDO", () => selection.isVisible())) {
-            yield* tryPromise("authenticate with FIDO", () => selection.selectOption("u2flogin"));
-            yield* tryPromise("authenticate with FIDO", () => page.locator("#choice_button").click());
+        if (yield* tryPromise("authenticate with WebAuthn", () => selection.isVisible())) {
+            yield* tryPromise("authenticate with WebAuthn", () => selection.selectOption("u2flogin"));
+            yield* tryPromise("authenticate with WebAuthn", () => page.locator("#choice_button").click());
         }
         // Secioss invokes WebAuthn automatically when the FIDO page loads.
-        yield* tryPromise("authenticate with FIDO", () =>
+        yield* tryPromise("authenticate with WebAuthn", () =>
             page.waitForURL((url) =>
                 isLmsHomeUrl(url) ||
                 (portalLogin && url.hostname === "slink.secioss.com" &&
                     ["/user", "/user/", "/user/index.php"].includes(url.pathname)), { timeout: 30_000 }));
     }).pipe(
         Effect.mapError(() =>
-            new LmsAuthenticationRequiredError({ message: "保存済みのFIDO認証器でログインできませんでした。" })
+            new LmsAuthenticationRequiredError({
+                message: "保存済みのWebAuthnクレデンシャルでログインできませんでした。",
+            })
         ),
     );
     if (portalLogin) {

@@ -24,25 +24,28 @@ export const writeAuthenticationFile = Effect.fn("PlaywrightBrowser.writeAuthent
     contents: string,
 ) {
     yield* authenticationStorageTry(
-        "save FIDO credentials",
+        "save credential sources",
         () => Deno.mkdir(parentDirectory(path), { recursive: true }),
     );
     return yield* Effect.acquireUseRelease(
         authenticationStorageTry(
-            "save FIDO credentials",
+            "save credential sources",
             () => Deno.makeTempFile({ dir: parentDirectory(path), prefix: ".auth-" }),
         ),
         (temporaryPath) =>
             Effect.gen(function* () {
-                yield* authenticationStorageTry("save FIDO credentials", () =>
+                yield* authenticationStorageTry("save credential sources", () =>
                     Deno.writeTextFile(temporaryPath, contents, { mode: 0o600 }));
-                yield* authenticationStorageTry("save FIDO credentials", () =>
+                yield* authenticationStorageTry("save credential sources", () =>
                     Deno.rename(temporaryPath, path));
             }),
         (temporaryPath) =>
-            authenticationStorageTry("save FIDO credentials", () =>
-                Deno.remove(temporaryPath).catch((cause) => {
-                    if (!(cause instanceof Deno.errors.NotFound)) throw cause;
-                })),
+            authenticationStorageTry(
+                "save credential sources",
+                () =>
+                    Deno.remove(temporaryPath).catch((cause) => {
+                        if (!(cause instanceof Deno.errors.NotFound)) throw cause;
+                    }),
+            ),
     );
 });

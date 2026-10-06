@@ -11,7 +11,12 @@ import { makeLmsSourceSession } from "./session.ts";
 import { loginToLms } from "./login.ts";
 import { tryPromise } from "./promise.ts";
 import { authenticationStorageTry, parentDirectory } from "./authentication_storage.ts";
-import { createVirtualAuthenticator, fidoStoragePath, readFidoState, registerFido } from "./fido.ts";
+import {
+    createVirtualAuthenticator,
+    credentialSourcesStoragePath,
+    readStoredCredentialSources,
+    registerWebAuthnCredential,
+} from "./webauthn.ts";
 
 export { parseLmsCourseId } from "./home.ts";
 export { parseLmsDate, parseLmsMaterialId, parseMaterialType, parsePublicationDeadline } from "./parsing.ts";
@@ -45,23 +50,26 @@ export const makeLmsGateways = (storageStatePath = defaultAuthenticationStorageP
         authentication: LmsAuthenticationGateway.of({
             login: (headPolicy) =>
                 browserPermit.withPermits(1)(withAuthenticatedSession(storageStatePath, headPolicy, () => Effect.void)),
-            registerFido: (headPolicy) =>
+            registerWebAuthnCredential: (headPolicy) =>
                 browserPermit.withPermits(1)(Effect.gen(function* () {
-                    const path = fidoStoragePath(storageStatePath);
-                    if (yield* readFidoState(path)) {
+                    const path = credentialSourcesStoragePath(storageStatePath);
+                    if (yield* readStoredCredentialSources(path)) {
                         return yield* new LmsAuthenticationStorageError({
-                            operation: "register FIDO device",
-                            message: "仮想FIDO認証器は保存済みです。auth loginでログインできます。",
+                            operation: "register WebAuthn credential",
+                            message: "WebAuthnクレデンシャルソースは保存済みです。auth loginでログインできます。",
                         });
                     }
                     yield* withAuthenticatedSession(storageStatePath, headPolicy, (page) =>
                         Effect.gen(function* () {
                             const authenticator = yield* createVirtualAuthenticator(page);
-                            yield* registerFido(page, path, authenticator);
+                            yield* registerWebAuthnCredential(page, path, authenticator);
                         }));
                 })),
             logout: browserPermit.withPermits(1)(
-                Effect.forEach([storageStatePath, fidoStoragePath(storageStatePath)], removeAuthenticationState).pipe(
+                Effect.forEach(
+                    [storageStatePath, credentialSourcesStoragePath(storageStatePath)],
+                    removeAuthenticationState,
+                ).pipe(
                     Effect.asVoid,
                 ),
             ),
@@ -111,24 +119,29 @@ function withBrowserSession<A, E, R>(
         );
         yield* restoreAuthenticationState(context, storageStatePath);
         const page = yield* tryPromise("create browser page", () => context.newPage());
-        const fidoPath = fidoStoragePath(storageStatePath);
-        const fidoState = yield* readFidoState(fidoPath);
+        const credentialSourcesPath = credentialSourcesStoragePath(storageStatePath);
+        const storedCredentialSources = yield* readStoredCredentialSources(credentialSourcesPath);
         let completed = false;
-        const authenticator = fidoState
+        const authenticator = storedCredentialSources
             ? yield* Effect.acquireRelease(
-                createVirtualAuthenticator(page, fidoState),
+                createVirtualAuthenticator(page, storedCredentialSources),
                 (authenticator) =>
-                    completed ? Effect.void : authenticator.save(fidoPath, fidoState.username).pipe(Effect.orDie),
+                    completed
+                        ? Effect.void
+                        : authenticator.saveCredentialSources(credentialSourcesPath, storedCredentialSources.username)
+                            .pipe(
+                                Effect.orDie,
+                            ),
             )
             : undefined;
         const result = yield* Effect.result(Effect.gen(function* () {
-            yield* loginToLms(page, allowInteraction, fidoState?.username);
+            yield* loginToLms(page, allowInteraction, storedCredentialSources?.username);
             yield* saveAuthenticationState(context, storageStatePath);
             return yield* use(page);
         }));
         completed = true;
-        if (authenticator && fidoState) {
-            yield* authenticator.save(fidoPath, fidoState.username);
+        if (authenticator && storedCredentialSources) {
+            yield* authenticator.saveCredentialSources(credentialSourcesPath, storedCredentialSources.username);
         }
         return yield* Effect.fromResult(result);
     }));

@@ -2,7 +2,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { Effect } from "effect";
 import { type BrowserContext, chromium } from "playwright-core";
 import { LmsAuthenticationStorageError } from "../core/out_port.ts";
-import { createVirtualAuthenticator, readFidoState, registerFido } from "./fido.ts";
+import { createVirtualAuthenticator, readStoredCredentialSources, registerWebAuthnCredential } from "./webauthn.ts";
 
 const origin = "https://slink.secioss.com";
 const username = "test@kogakuin.ac.jp";
@@ -16,16 +16,16 @@ const createOptions = {
     },
 };
 
-Deno.test("Virtual FIDO keys survive a browser restart and preserve increasing signature counters", async () => {
+Deno.test("Virtual WebAuthn credential sources survive a browser restart with discoverability and signature counters", async () => {
     const directory = await Deno.makeTempDir();
-    const path = `${directory}/fido.json`;
+    const path = `${directory}/webauthn-credential-sources.json`;
     try {
         const browser = await chromium.launch({ channel: "chrome", headless: true });
         try {
             const context = await browser.newContext();
             await context.route(
                 `${origin}/**`,
-                (route) => route.fulfill({ body: "<!doctype html><title>FIDO test</title>" }),
+                (route) => route.fulfill({ body: "<!doctype html><title>WebAuthn test</title>" }),
             );
             const page = await context.newPage();
             const authenticator = await Effect.runPromise(createVirtualAuthenticator(page));
@@ -41,49 +41,72 @@ Deno.test("Virtual FIDO keys survive a browser restart and preserve increasing s
                     },
                 });
             }, createOptions);
-            await Effect.runPromise(authenticator.save(path, username));
+            await Effect.runPromise(authenticator.saveCredentialSources(path, username));
         } finally {
             await browser.close();
         }
-        const state = await Effect.runPromise(readFidoState(path));
-        assert(state);
+        const storedCredentialSources = await Effect.runPromise(readStoredCredentialSources(path));
+        assert(storedCredentialSources);
+        assertEquals(storedCredentialSources.username, username);
+        assertEquals(storedCredentialSources.credentials.length, 1);
+        const credentialSource = storedCredentialSources.credentials[0];
+        assertEquals(credentialSource.isResidentCredential, true);
+        assertEquals(credentialSource.rpId, createOptions.publicKey.rp.id);
+        assertEquals(
+            Array.from(Uint8Array.from(atob(credentialSource.userHandle!), (char) => char.charCodeAt(0))),
+            createOptions.publicKey.user.id,
+        );
         const restarted = await chromium.launch({ channel: "chrome", headless: true });
         try {
             const context = await restarted.newContext();
             await context.route(
                 `${origin}/**`,
-                (route) => route.fulfill({ body: "<!doctype html><title>FIDO test</title>" }),
+                (route) => route.fulfill({ body: "<!doctype html><title>WebAuthn test</title>" }),
             );
             const page = await context.newPage();
-            const authenticator = await Effect.runPromise(createVirtualAuthenticator(page, state));
+            const authenticator = await Effect.runPromise(createVirtualAuthenticator(page, storedCredentialSources));
             await page.goto(origin);
-            const assertion = await page.evaluate(async (credentialId) => {
-                const credential = await navigator.credentials.get({
-                    publicKey: {
-                        challenge: crypto.getRandomValues(new Uint8Array(32)),
-                        rpId: "slink.secioss.com",
-                        allowCredentials: [{
-                            type: "public-key",
-                            id: Uint8Array.from(atob(credentialId), (char) => char.charCodeAt(0)),
-                        }],
-                        userVerification: "required",
-                    },
-                }) as PublicKeyCredential;
-                const data = new Uint8Array((credential.response as AuthenticatorAssertionResponse).authenticatorData);
-                return { id: credential.id, flags: data[32], signCount: new DataView(data.buffer).getUint32(33) };
-            }, state.credentials[0].credentialId);
-            assert(assertion.flags & 1, "User presence must be verified.");
-            assert(assertion.flags & 4, "User verification must succeed.");
-            assertEquals(
-                assertion.id,
-                state.credentials[0].credentialId.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
-            );
-            assert(assertion.signCount > state.credentials[0].signCount);
-            await Effect.runPromise(authenticator.save(path, username));
-            const updated = await Effect.runPromise(readFidoState(path));
-            assert(updated);
-            assertEquals(updated.credentials[0].privateKey, state.credentials[0].privateKey);
-            assertEquals(updated.credentials[0].signCount, assertion.signCount);
+            // A discoverable credential also works without an allowCredentials list.
+            let signatureCounter = credentialSource.signCount;
+            for (const credentialId of [credentialSource.credentialId, undefined]) {
+                const authenticationResult = await page.evaluate(async (credentialId) => {
+                    const credential = await navigator.credentials.get({
+                        publicKey: {
+                            challenge: crypto.getRandomValues(new Uint8Array(32)),
+                            rpId: "slink.secioss.com",
+                            allowCredentials: credentialId
+                                ? [{
+                                    type: "public-key",
+                                    id: Uint8Array.from(atob(credentialId), (char) => char.charCodeAt(0)),
+                                }]
+                                : [],
+                            userVerification: "required",
+                        },
+                    }) as PublicKeyCredential;
+                    const response = credential.response as AuthenticatorAssertionResponse;
+                    const data = new Uint8Array(response.authenticatorData);
+                    return {
+                        id: credential.id,
+                        userHandle: Array.from(new Uint8Array(response.userHandle!)),
+                        flags: data[32],
+                        signCount: new DataView(data.buffer).getUint32(33),
+                    };
+                }, credentialId);
+                assert(authenticationResult.flags & 1, "The UP flag must indicate simulated user presence.");
+                assert(authenticationResult.flags & 4, "The UV flag must indicate simulated user verification.");
+                assertEquals(authenticationResult.userHandle, createOptions.publicKey.user.id);
+                assertEquals(
+                    authenticationResult.id,
+                    credentialSource.credentialId.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
+                );
+                assert(authenticationResult.signCount > signatureCounter);
+                signatureCounter = authenticationResult.signCount;
+                await Effect.runPromise(authenticator.saveCredentialSources(path, username));
+                const updated = await Effect.runPromise(readStoredCredentialSources(path));
+                assert(updated);
+                assertEquals(updated.credentials[0].privateKey, credentialSource.privateKey);
+                assertEquals(updated.credentials[0].signCount, authenticationResult.signCount);
+            }
         } finally {
             await restarted.close();
         }
@@ -92,11 +115,11 @@ Deno.test("Virtual FIDO keys survive a browser restart and preserve increasing s
     }
 });
 
-Deno.test("Invalid FIDO state reports a storage error without exposing secret values", async () => {
+Deno.test("Invalid stored WebAuthn credential sources report a storage error without exposing secret values", async () => {
     const directory = await Deno.makeTempDir();
-    const path = `${directory}/fido.json`;
+    const path = `${directory}/webauthn-credential-sources.json`;
     try {
-        assertEquals(await Effect.runPromise(readFidoState(path)), undefined);
+        assertEquals(await Effect.runPromise(readStoredCredentialSources(path)), undefined);
         for (
             const contents of [
                 "not JSON",
@@ -106,7 +129,7 @@ Deno.test("Invalid FIDO state reports a storage error without exposing secret va
         ) {
             await Deno.writeTextFile(path, contents);
             const error = await assertRejects(
-                () => Effect.runPromise(readFidoState(path)),
+                () => Effect.runPromise(readStoredCredentialSources(path)),
                 LmsAuthenticationStorageError,
             );
             assert(!error.message.includes("DO_NOT_EXPOSE"));
@@ -124,14 +147,14 @@ async function fixture(context: BrowserContext, path: string) {
     await context.route(settingsUrl, async (route) => {
         const data = new URLSearchParams(route.request().postData() ?? "");
         if (data.get("operation") === "register") {
-            // The key must already be durable when the server receives the registration.
-            const state = await Effect.runPromise(readFidoState(path));
-            assert(state);
-            assertEquals(state.username, username);
+            // The credential source must already be durable when the RP receives the registration response.
+            const storedCredentialSources = await Effect.runPromise(readStoredCredentialSources(path));
+            assert(storedCredentialSources);
+            assertEquals(storedCredentialSources.username, username);
             registered = true;
         }
         if (data.get("operation") === "update") {
-            assertEquals(data.get("id"), "new-device");
+            assertEquals(data.get("id"), "new-registration");
             label = data.get("label") ?? "";
         }
         await route.fulfill({
@@ -143,17 +166,17 @@ async function fixture(context: BrowserContext, path: string) {
                 <input name="id" id="id" type="hidden">
                 <input name="label" id="label" type="hidden">
                 <table id="datatable"><tbody>
-                    <tr><td>Existing device<input name="ids[]" value="" type="hidden"><input id="id_0" value="existing-device" type="hidden"></td></tr>
+                    <tr><td>Existing registration<input name="ids[]" value="" type="hidden"><input id="id_0" value="existing-registration" type="hidden"></td></tr>
                     ${
                 registered
-                    ? `<tr><td><span>${label}</span><input name="ids[]" value="" type="hidden"><input id="id_1" value="new-device" type="hidden">
+                    ? `<tr><td><span>${label}</span><input name="ids[]" value="" type="hidden"><input id="id_1" value="new-registration" type="hidden">
                     <button class="js-u2f-edit" type="button" onclick="document.getElementById('dialog').hidden=false">Edit</button></td></tr>`
                     : ""
             }
                 </tbody></table>
                 <button id="create_button" type="button">登録</button>
             </form>
-            <div id="dialog" hidden><input id="prompt"><button type="button" onclick="document.getElementById('operation').value='update';document.getElementById('id').value='new-device';document.getElementById('label').value=document.getElementById('prompt').value;document.getElementById('register').submit()">更新</button></div>
+            <div id="dialog" hidden><input id="prompt"><button type="button" onclick="document.getElementById('operation').value='update';document.getElementById('id').value='new-registration';document.getElementById('label').value=document.getElementById('prompt').value;document.getElementById('register').submit()">更新</button></div>
             <script>
                 document.getElementById('create_button').onclick = async () => {
                     const options = ${JSON.stringify(createOptions)};
@@ -169,25 +192,25 @@ async function fixture(context: BrowserContext, path: string) {
     return () => ({ registered, label });
 }
 
-Deno.test("FIDO registration persists the key before submission and labels only the new device", async () => {
+Deno.test("WebAuthn registration persists the credential source before submission and labels only the new registration", async () => {
     const directory = await Deno.makeTempDir();
-    const path = `${directory}/fido.json`;
+    const path = `${directory}/webauthn-credential-sources.json`;
     const browser = await chromium.launch({ channel: "chrome", headless: true });
     try {
         const context = await browser.newContext();
         const result = await fixture(context, path);
         const page = await context.newPage();
         const authenticator = await Effect.runPromise(createVirtualAuthenticator(page));
-        await Effect.runPromise(registerFido(page, path, authenticator));
+        await Effect.runPromise(registerWebAuthnCredential(page, path, authenticator));
         assertEquals(result(), { registered: true, label: "KU-POTATO (Playwright)" });
-        assertEquals(await page.locator("#datatable tbody tr").first().innerText(), "Existing device");
+        assertEquals(await page.locator("#datatable tbody tr").first().innerText(), "Existing registration");
     } finally {
         await browser.close();
         await Deno.remove(directory, { recursive: true });
     }
 });
 
-Deno.test("FIDO registration aborts the server submission if its private key cannot be saved", async () => {
+Deno.test("WebAuthn registration aborts the server submission if its credential source cannot be saved", async () => {
     const directory = await Deno.makeTempDir();
     const path = `${directory}/unwritable.json`;
     await Deno.mkdir(path);
@@ -199,10 +222,10 @@ Deno.test("FIDO registration aborts the server submission if its private key can
         page.setDefaultTimeout(1500);
         const authenticator = await Effect.runPromise(createVirtualAuthenticator(page));
         const error = await assertRejects(
-            () => Effect.runPromise(registerFido(page, path, authenticator)),
+            () => Effect.runPromise(registerWebAuthnCredential(page, path, authenticator)),
             LmsAuthenticationStorageError,
         );
-        assertEquals(error.operation, "save FIDO credentials");
+        assertEquals(error.operation, "save credential sources");
         assertEquals(result().registered, false);
     } finally {
         await browser.close();

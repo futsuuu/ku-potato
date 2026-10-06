@@ -58,9 +58,9 @@ const logout = Effect.gen(function* () {
     return yield* authentication.logout;
 });
 
-const registerFido = Effect.fn("Core.registerFido")(function* (head: QueryOptions["head"]) {
+const registerWebAuthnCredential = Effect.fn("Core.registerWebAuthnCredential")(function* (head: QueryOptions["head"]) {
     const authentication = yield* LmsAuthenticationGateway;
-    return yield* authentication.registerFido(head);
+    return yield* authentication.registerWebAuthnCredential(head);
 });
 
 const getAuthenticationStatus = Effect.gen(function* () {
@@ -191,7 +191,7 @@ export const ApplicationLive = Layer.effect(
 
         return Application.of({
             login: { execute: (head) => bind(login(head)) },
-            registerFido: { execute: (head) => bind(registerFido(head)) },
+            registerWebAuthnCredential: { execute: (head) => bind(registerWebAuthnCredential(head)) },
             logout: { execute: bind(logout) },
             getAuthenticationStatus: { execute: bind(getAuthenticationStatus) },
             listCourses: { execute: (options) => bind(listCourses(options)) },

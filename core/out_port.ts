@@ -41,7 +41,8 @@ export interface LmsSourceGatewayService {
 
 /** Authentication-state operations, implemented by the browser adapter. */
 export interface LmsAuthenticationGatewayService {
-    readonly registerFido: (
+    /** Creates a credential source in a virtual authenticator and registers its public key with the SSO provider. */
+    readonly registerWebAuthnCredential: (
         headPolicy: HeadPolicy,
     ) => Effect.Effect<void, LmsSourceGatewayError | LmsAuthenticationRequiredError | LmsAuthenticationStorageError>;
     readonly login: (

@@ -2,7 +2,7 @@ import { assertEquals } from "@std/assert";
 import { Effect } from "effect";
 import { chromium } from "playwright-core";
 import { loginToLms } from "./login.ts";
-import { hasAuthenticationState, hasFidoState, withAuthenticatedPage } from "./testing.ts";
+import { hasAuthenticationState, hasStoredCredentialSources, withAuthenticatedPage } from "./testing.ts";
 
 Deno.test({
     name: "KU-LMS login reaches the verified home page using the application's saved authentication",
@@ -25,7 +25,7 @@ Deno.test({
     },
 });
 
-Deno.test("Automatic FIDO login handles username entry, remembered password selection, and SSO timeout", async (t) => {
+Deno.test("Automatic WebAuthn login handles username entry, remembered password selection, and SSO timeout", async (t) => {
     const browser = await chromium.launch({ channel: "chrome", headless: true });
     const origin = "https://slink.secioss.com";
     const home = "https://study.ns.kogakuin.ac.jp/lms/homeHoml/doIndex";
@@ -91,8 +91,8 @@ Deno.test("Automatic FIDO login handles username entry, remembered password sele
 });
 
 Deno.test({
-    name: "KU-LMS login succeeds using registered FIDO credentials without saved cookies",
-    ignore: !hasFidoState,
+    name: "KU-LMS login succeeds using registered WebAuthn credentials without saved cookies",
+    ignore: !hasStoredCredentialSources,
     async fn() {
         await withAuthenticatedPage(async (page) => {
             assertEquals(new URL(page.url()).hostname, "study.ns.kogakuin.ac.jp");

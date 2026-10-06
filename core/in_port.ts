@@ -39,7 +39,8 @@ export interface Logout {
     readonly execute: Effect.Effect<void, ApplicationError>;
 }
 
-export interface RegisterFido {
+/** Registers a public key credential using a virtual WebAuthn authenticator. */
+export interface RegisterWebAuthnCredential {
     readonly execute: (head: HeadPolicy) => Effect.Effect<void, ApplicationError>;
 }
 
@@ -86,7 +87,7 @@ export interface ViewMaterial {
 /** Application features supplied to inbound adapters. */
 export class Application extends Context.Service<Application, {
     readonly login: Login;
-    readonly registerFido: RegisterFido;
+    readonly registerWebAuthnCredential: RegisterWebAuthnCredential;
     readonly logout: Logout;
     readonly getAuthenticationStatus: GetAuthenticationStatus;
     readonly listCourses: ListCourses;

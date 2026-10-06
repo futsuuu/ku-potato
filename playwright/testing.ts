@@ -2,7 +2,7 @@ import { chromium, type Page } from "playwright-core";
 import { Effect } from "effect";
 import { defaultAuthenticationStoragePath } from "./mod.ts";
 import { loginToLms } from "./login.ts";
-import { createVirtualAuthenticator, fidoStoragePath, readFidoState } from "./fido.ts";
+import { createVirtualAuthenticator, credentialSourcesStoragePath, readStoredCredentialSources } from "./webauthn.ts";
 
 export const storageStatePath = defaultAuthenticationStoragePath();
 export const hasAuthenticationState = await Deno.stat(storageStatePath).then(
@@ -10,12 +10,12 @@ export const hasAuthenticationState = await Deno.stat(storageStatePath).then(
     (cause) => cause instanceof Deno.errors.NotFound ? false : Promise.reject(cause),
 );
 
-export const hasFidoState = await Deno.stat(fidoStoragePath(storageStatePath)).then(
+export const hasStoredCredentialSources = await Deno.stat(credentialSourcesStoragePath(storageStatePath)).then(
     () => true,
     (cause) => cause instanceof Deno.errors.NotFound ? false : Promise.reject(cause),
 );
 
-/** Leaves cookies unchanged, but persists FIDO counters. */
+/** Leaves cookies unchanged, but persists credential signature counters. */
 export function withAuthenticatedPage<A>(use: (page: Page) => Promise<A>, restoreCookies = true): Promise<A> {
     return Effect.runPromise(Effect.scoped(Effect.gen(function* () {
         const browser = yield* Effect.acquireRelease(
@@ -32,15 +32,16 @@ export function withAuthenticatedPage<A>(use: (page: Page) => Promise<A>, restor
             browser.newContext(restoreCookies ? { storageState: storageStatePath } : {})
         );
         const page = yield* Effect.promise(() => context.newPage());
-        const path = fidoStoragePath(storageStatePath);
-        const state = yield* readFidoState(path);
-        if (state) {
+        const path = credentialSourcesStoragePath(storageStatePath);
+        const storedCredentialSources = yield* readStoredCredentialSources(path);
+        if (storedCredentialSources) {
             yield* Effect.acquireRelease(
-                createVirtualAuthenticator(page, state),
-                (authenticator) => authenticator.save(path, state.username).pipe(Effect.orDie),
+                createVirtualAuthenticator(page, storedCredentialSources),
+                (authenticator) =>
+                    authenticator.saveCredentialSources(path, storedCredentialSources.username).pipe(Effect.orDie),
             );
         }
-        yield* loginToLms(page, false, state?.username);
+        yield* loginToLms(page, false, storedCredentialSources?.username);
         return yield* Effect.promise(() => use(page));
     })));
 }
