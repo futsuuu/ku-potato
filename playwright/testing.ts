@@ -17,26 +17,30 @@ export const hasFidoState = await Deno.stat(fidoStoragePath(storageStatePath)).t
 
 /** Leaves cookies unchanged, but persists FIDO counters. */
 export function withAuthenticatedPage<A>(use: (page: Page) => Promise<A>, restoreCookies = true): Promise<A> {
-    return Effect.runPromise(Effect.promise(async () => {
-        const browser = await chromium.launch({
-            channel: "chrome",
-            headless: true,
-            args: ["--disable-blink-features=AutomationControlled"],
-        });
-        try {
-            const context = await browser.newContext(restoreCookies ? { storageState: storageStatePath } : {});
-            const page = await context.newPage();
-            const path = fidoStoragePath(storageStatePath);
-            const state = await Effect.runPromise(readFidoState(path));
-            const authenticator = state ? await createVirtualAuthenticator(page, state) : undefined;
-            try {
-                await Effect.runPromise(loginToLms(page, false, state?.username));
-                return await use(page);
-            } finally {
-                if (authenticator && state) await authenticator.save(path, state.username);
-            }
-        } finally {
-            await browser.close();
+    return Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+        const browser = yield* Effect.acquireRelease(
+            Effect.promise(() =>
+                chromium.launch({
+                    channel: "chrome",
+                    headless: true,
+                    args: ["--disable-blink-features=AutomationControlled"],
+                })
+            ),
+            (browser) => Effect.promise(() => browser.close()),
+        );
+        const context = yield* Effect.promise(() =>
+            browser.newContext(restoreCookies ? { storageState: storageStatePath } : {})
+        );
+        const page = yield* Effect.promise(() => context.newPage());
+        const path = fidoStoragePath(storageStatePath);
+        const state = yield* readFidoState(path);
+        if (state) {
+            yield* Effect.acquireRelease(
+                createVirtualAuthenticator(page, state),
+                (authenticator) => authenticator.save(path, state.username).pipe(Effect.orDie),
+            );
         }
-    }));
+        yield* loginToLms(page, false, state?.username);
+        return yield* Effect.promise(() => use(page));
+    })));
 }

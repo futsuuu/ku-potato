@@ -19,15 +19,30 @@ export const readOptionalFile = (path: string) =>
     Deno.readTextFile(path).catch((cause) => cause instanceof Deno.errors.NotFound ? undefined : Promise.reject(cause));
 
 /** Replace the complete secret file, so interruption cannot leave partial JSON. */
-export async function writeAuthenticationFile(path: string, contents: string) {
-    await Deno.mkdir(parentDirectory(path), { recursive: true });
-    const temporaryPath = await Deno.makeTempFile({ dir: parentDirectory(path), prefix: ".auth-" });
-    try {
-        await Deno.writeTextFile(temporaryPath, contents, { mode: 0o600 });
-        await Deno.rename(temporaryPath, path);
-    } finally {
-        await Deno.remove(temporaryPath).catch((cause) => {
-            if (!(cause instanceof Deno.errors.NotFound)) throw cause;
-        });
-    }
-}
+export const writeAuthenticationFile = Effect.fn("PlaywrightBrowser.writeAuthenticationFile")(function* (
+    path: string,
+    contents: string,
+) {
+    yield* authenticationStorageTry(
+        "save FIDO credentials",
+        () => Deno.mkdir(parentDirectory(path), { recursive: true }),
+    );
+    return yield* Effect.acquireUseRelease(
+        authenticationStorageTry(
+            "save FIDO credentials",
+            () => Deno.makeTempFile({ dir: parentDirectory(path), prefix: ".auth-" }),
+        ),
+        (temporaryPath) =>
+            Effect.gen(function* () {
+                yield* authenticationStorageTry("save FIDO credentials", () =>
+                    Deno.writeTextFile(temporaryPath, contents, { mode: 0o600 }));
+                yield* authenticationStorageTry("save FIDO credentials", () =>
+                    Deno.rename(temporaryPath, path));
+            }),
+        (temporaryPath) =>
+            authenticationStorageTry("save FIDO credentials", () =>
+                Deno.remove(temporaryPath).catch((cause) => {
+                    if (!(cause instanceof Deno.errors.NotFound)) throw cause;
+                })),
+    );
+});

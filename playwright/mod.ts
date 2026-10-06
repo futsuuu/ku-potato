@@ -56,10 +56,7 @@ export const makeLmsGateways = (storageStatePath = defaultAuthenticationStorageP
                     }
                     yield* withAuthenticatedSession(storageStatePath, headPolicy, (page) =>
                         Effect.gen(function* () {
-                            const authenticator = yield* tryPromise(
-                                "create registration authenticator",
-                                () => createVirtualAuthenticator(page),
-                            );
+                            const authenticator = yield* createVirtualAuthenticator(page);
                             yield* registerFido(page, path, authenticator);
                         }));
                 })),
@@ -119,12 +116,9 @@ function withBrowserSession<A, E, R>(
         let completed = false;
         const authenticator = fidoState
             ? yield* Effect.acquireRelease(
-                tryPromise("restore virtual FIDO authenticator", () => createVirtualAuthenticator(page, fidoState)),
+                createVirtualAuthenticator(page, fidoState),
                 (authenticator) =>
-                    completed ? Effect.void : authenticationStorageTry(
-                        "save FIDO credentials",
-                        () => authenticator.save(fidoPath, fidoState.username),
-                    ).pipe(Effect.orDie),
+                    completed ? Effect.void : authenticator.save(fidoPath, fidoState.username).pipe(Effect.orDie),
             )
             : undefined;
         const result = yield* Effect.result(Effect.gen(function* () {
@@ -134,10 +128,7 @@ function withBrowserSession<A, E, R>(
         }));
         completed = true;
         if (authenticator && fidoState) {
-            yield* authenticationStorageTry(
-                "save FIDO credentials",
-                () => authenticator.save(fidoPath, fidoState.username),
-            );
+            yield* authenticator.save(fidoPath, fidoState.username);
         }
         return yield* Effect.fromResult(result);
     }));

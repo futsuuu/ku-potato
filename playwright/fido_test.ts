@@ -28,7 +28,7 @@ Deno.test("Virtual FIDO keys survive a browser restart and preserve increasing s
                 (route) => route.fulfill({ body: "<!doctype html><title>FIDO test</title>" }),
             );
             const page = await context.newPage();
-            const authenticator = await createVirtualAuthenticator(page);
+            const authenticator = await Effect.runPromise(createVirtualAuthenticator(page));
             await page.goto(origin);
             await page.evaluate(async (options) => {
                 await navigator.credentials.create({
@@ -41,7 +41,7 @@ Deno.test("Virtual FIDO keys survive a browser restart and preserve increasing s
                     },
                 });
             }, createOptions);
-            await authenticator.save(path, username);
+            await Effect.runPromise(authenticator.save(path, username));
         } finally {
             await browser.close();
         }
@@ -55,7 +55,7 @@ Deno.test("Virtual FIDO keys survive a browser restart and preserve increasing s
                 (route) => route.fulfill({ body: "<!doctype html><title>FIDO test</title>" }),
             );
             const page = await context.newPage();
-            const authenticator = await createVirtualAuthenticator(page, state);
+            const authenticator = await Effect.runPromise(createVirtualAuthenticator(page, state));
             await page.goto(origin);
             const assertion = await page.evaluate(async (credentialId) => {
                 const credential = await navigator.credentials.get({
@@ -79,7 +79,7 @@ Deno.test("Virtual FIDO keys survive a browser restart and preserve increasing s
                 state.credentials[0].credentialId.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
             );
             assert(assertion.signCount > state.credentials[0].signCount);
-            await authenticator.save(path, username);
+            await Effect.runPromise(authenticator.save(path, username));
             const updated = await Effect.runPromise(readFidoState(path));
             assert(updated);
             assertEquals(updated.credentials[0].privateKey, state.credentials[0].privateKey);
@@ -177,7 +177,7 @@ Deno.test("FIDO registration persists the key before submission and labels only 
         const context = await browser.newContext();
         const result = await fixture(context, path);
         const page = await context.newPage();
-        const authenticator = await createVirtualAuthenticator(page);
+        const authenticator = await Effect.runPromise(createVirtualAuthenticator(page));
         await Effect.runPromise(registerFido(page, path, authenticator));
         assertEquals(result(), { registered: true, label: "KU-POTATO (Playwright)" });
         assertEquals(await page.locator("#datatable tbody tr").first().innerText(), "Existing device");
@@ -197,7 +197,7 @@ Deno.test("FIDO registration aborts the server submission if its private key can
         const result = await fixture(context, path);
         const page = await context.newPage();
         page.setDefaultTimeout(1500);
-        const authenticator = await createVirtualAuthenticator(page);
+        const authenticator = await Effect.runPromise(createVirtualAuthenticator(page));
         const error = await assertRejects(
             () => Effect.runPromise(registerFido(page, path, authenticator)),
             LmsAuthenticationStorageError,

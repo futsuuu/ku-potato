@@ -44,37 +44,48 @@ const authenticateWithFido = Effect.fn("PlaywrightBrowser.authenticateWithFido")
     username: string,
 ) {
     const portalLogin = new URL(page.url()).pathname === "/sso/timeout.cgi";
-    yield* Effect.tryPromise({
-        try: async () => {
-            if (portalLogin) await page.goto("https://slink.secioss.com/user/?tenant=kogakuin.ac.jp");
-            if (new URL(page.url()).hostname !== "slink.secioss.com") return;
-            await page.waitForLoadState("load");
-            const input = page.locator("#username_input[type='text']");
-            if (await input.isVisible()) {
-                // The tenant is supplied by KU-LMS; Secioss expects the local part here.
-                await input.fill(username.split("@")[0]);
-                await input.blur();
-                await page.locator("#login_button").click({ timeout: 15_000 });
-                await page.waitForLoadState("load");
-            }
-            if (await page.locator("#password_input[type='password']").isVisible()) {
-                await page.locator("#back_link_select").click();
-                await page.waitForLoadState("load");
-            }
-            const selection = page.locator("select[name='auth']");
-            if (await selection.isVisible()) {
-                await selection.selectOption("u2flogin");
-                await page.locator("#choice_button").click();
-            }
-            // Secioss invokes WebAuthn automatically when the FIDO page loads.
-            await page.waitForURL((url) =>
+    yield* Effect.gen(function* () {
+        if (portalLogin) {
+            yield* tryPromise(
+                "authenticate with FIDO",
+                () => page.goto("https://slink.secioss.com/user/?tenant=kogakuin.ac.jp"),
+            );
+        }
+        if (new URL(page.url()).hostname !== "slink.secioss.com") return;
+        yield* tryPromise("authenticate with FIDO", () => page.waitForLoadState("load"));
+        const input = page.locator("#username_input[type='text']");
+        if (yield* tryPromise("authenticate with FIDO", () => input.isVisible())) {
+            // The tenant is supplied by KU-LMS; Secioss expects the local part here.
+            yield* tryPromise("authenticate with FIDO", () => input.fill(username.split("@")[0]));
+            yield* tryPromise("authenticate with FIDO", () => input.blur());
+            yield* tryPromise("authenticate with FIDO", () => page.locator("#login_button").click({ timeout: 15_000 }));
+            yield* tryPromise("authenticate with FIDO", () => page.waitForLoadState("load"));
+        }
+        if (
+            yield* tryPromise(
+                "authenticate with FIDO",
+                () => page.locator("#password_input[type='password']").isVisible(),
+            )
+        ) {
+            yield* tryPromise("authenticate with FIDO", () => page.locator("#back_link_select").click());
+            yield* tryPromise("authenticate with FIDO", () => page.waitForLoadState("load"));
+        }
+        const selection = page.locator("select[name='auth']");
+        if (yield* tryPromise("authenticate with FIDO", () => selection.isVisible())) {
+            yield* tryPromise("authenticate with FIDO", () => selection.selectOption("u2flogin"));
+            yield* tryPromise("authenticate with FIDO", () => page.locator("#choice_button").click());
+        }
+        // Secioss invokes WebAuthn automatically when the FIDO page loads.
+        yield* tryPromise("authenticate with FIDO", () =>
+            page.waitForURL((url) =>
                 isLmsHomeUrl(url) ||
                 (portalLogin && url.hostname === "slink.secioss.com" &&
-                    ["/user", "/user/", "/user/index.php"].includes(url.pathname)), { timeout: 30_000 });
-        },
-        catch: () =>
-            new LmsAuthenticationRequiredError({ message: "保存済みのFIDO認証器でログインできませんでした。" }),
-    });
+                    ["/user", "/user/", "/user/index.php"].includes(url.pathname)), { timeout: 30_000 }));
+    }).pipe(
+        Effect.mapError(() =>
+            new LmsAuthenticationRequiredError({ message: "保存済みのFIDO認証器でログインできませんでした。" })
+        ),
+    );
     if (portalLogin) {
         yield* openLoginPage(page);
         yield* submitLogin(page);
