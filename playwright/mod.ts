@@ -35,19 +35,18 @@ export const makeLmsAuthenticationGateway = (storageStatePath = defaultAuthentic
 /** Creates gateways that serialize browser use and persistent authentication updates. */
 export const makeLmsGateways = (storageStatePath = defaultAuthenticationStoragePath()) => {
     const browserPermit = Semaphore.makeUnsafe(1);
-    const exclusively = <A, E, R>(operation: Effect.Effect<A, E, R>) => browserPermit.withPermits(1)(operation);
     return {
         source: LmsSourceGateway.of({
             withSession: (headPolicy, use) =>
-                exclusively(
+                browserPermit.withPermits(1)(
                     withAuthenticatedSession(storageStatePath, headPolicy, (page) => use(makeLmsSourceSession(page))),
                 ),
         }),
         authentication: LmsAuthenticationGateway.of({
             login: (headPolicy) =>
-                exclusively(withAuthenticatedSession(storageStatePath, headPolicy, () => Effect.void)),
+                browserPermit.withPermits(1)(withAuthenticatedSession(storageStatePath, headPolicy, () => Effect.void)),
             registerFido: (headPolicy) =>
-                exclusively(Effect.gen(function* () {
+                browserPermit.withPermits(1)(Effect.gen(function* () {
                     const path = fidoStoragePath(storageStatePath);
                     if (yield* readFidoState(path)) {
                         return yield* new LmsAuthenticationStorageError({
@@ -64,15 +63,16 @@ export const makeLmsGateways = (storageStatePath = defaultAuthenticationStorageP
                             yield* registerFido(page, path, authenticator);
                         }));
                 })),
-            logout: exclusively(
+            logout: browserPermit.withPermits(1)(
                 Effect.forEach([storageStatePath, fidoStoragePath(storageStatePath)], removeAuthenticationState).pipe(
                     Effect.asVoid,
                 ),
             ),
-            status: exclusively(withBrowserSession(storageStatePath, true, false, () => Effect.void)).pipe(
-                Effect.as("authenticated" as const),
-                Effect.catchTag("LmsAuthenticationRequiredError", () => Effect.succeed("unauthenticated" as const)),
-            ),
+            status: browserPermit.withPermits(1)(withBrowserSession(storageStatePath, true, false, () => Effect.void))
+                .pipe(
+                    Effect.as("authenticated" as const),
+                    Effect.catchTag("LmsAuthenticationRequiredError", () => Effect.succeed("unauthenticated" as const)),
+                ),
         }),
     };
 };
