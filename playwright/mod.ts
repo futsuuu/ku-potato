@@ -10,7 +10,7 @@ import * as playwright from "playwright-core";
 import { makeLmsSourceSession } from "./session.ts";
 import { loginToLms } from "./login.ts";
 import { tryPromise } from "./promise.ts";
-import { authenticationStorageTry, parentDirectory, withAuthenticationLock } from "./authentication_storage.ts";
+import { authenticationStorageTry, parentDirectory } from "./authentication_storage.ts";
 import { createVirtualAuthenticator, fidoStoragePath, readFidoState, registerFido } from "./fido.ts";
 
 export { parseLmsCourseId } from "./home.ts";
@@ -35,8 +35,7 @@ export const makeLmsAuthenticationGateway = (storageStatePath = defaultAuthentic
 /** Creates gateways that serialize browser use and persistent authentication updates. */
 export const makeLmsGateways = (storageStatePath = defaultAuthenticationStoragePath()) => {
     const browserPermit = Semaphore.makeUnsafe(1);
-    const exclusively = <A, E, R>(operation: Effect.Effect<A, E, R>) =>
-        browserPermit.withPermits(1)(withAuthenticationLock(storageStatePath, operation));
+    const exclusively = <A, E, R>(operation: Effect.Effect<A, E, R>) => browserPermit.withPermits(1)(operation);
     return {
         source: LmsSourceGateway.of({
             withSession: (headPolicy, use) =>
