@@ -127,7 +127,8 @@ export const makeLmsCacheGatewayLayer = (databasePath = defaultCacheDatabasePath
 const makeGateway = (database: Database): LmsCacheGatewayService => ({
     findMaterialCourseId: (lmsMaterialId) =>
         cacheWriteTry("findMaterialCourseId", () => {
-            const row = database.select({ lmsCourseId: courseMaterials.lmsCourseId }).from(courseMaterials)
+            const row = database.select({ lmsCourseId: courseMaterialRetrievals.lmsCourseId }).from(courseMaterials)
+                .innerJoin(courseMaterialRetrievals, eq(courseMaterialRetrievals.id, courseMaterials.retrievalId))
                 .where(eq(courseMaterials.lmsMaterialId, lmsMaterialId))
                 .orderBy(desc(courseMaterials.retrievalId)).limit(1).get();
             return row === undefined ? undefined : LmsCourseId(row.lmsCourseId);
@@ -280,7 +281,6 @@ const insertCourseMaterials = (
                 .slice(0, folderPosition)
                 .reduce((count, previousFolder) => count + previousFolder.materials.length, 0),
             lmsMaterialId: material.lmsMaterialId,
-            lmsCourseId: retrievedMaterials.lmsCourseId,
             folderPosition,
             name: material.name,
             type: material.type,
@@ -396,7 +396,7 @@ const readMaterialDetail = (database: Database, lmsMaterialId: string): Material
             and(
                 eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
                 eq(courses.position, courseMaterialRetrievals.coursePosition),
-                eq(courses.lmsCourseId, courseMaterials.lmsCourseId),
+                eq(courses.lmsCourseId, courseMaterialRetrievals.lmsCourseId),
             ),
         )
         .where(eq(courseMaterials.lmsMaterialId, lmsMaterialId))
