@@ -41,6 +41,9 @@ export interface LmsSourceGatewayService {
 
 /** Authentication-state operations, implemented by the browser adapter. */
 export interface LmsAuthenticationGatewayService {
+    readonly registerFido: (
+        headPolicy: HeadPolicy,
+    ) => Effect.Effect<void, LmsSourceGatewayError | LmsAuthenticationRequiredError | LmsAuthenticationStorageError>;
     readonly login: (
         headPolicy: HeadPolicy,
     ) => Effect.Effect<void, LmsSourceGatewayError | LmsAuthenticationRequiredError | LmsAuthenticationStorageError>;

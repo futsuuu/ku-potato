@@ -39,6 +39,10 @@ export interface Logout {
     readonly execute: Effect.Effect<void, ApplicationError>;
 }
 
+export interface RegisterFido {
+    readonly execute: (head: HeadPolicy) => Effect.Effect<void, ApplicationError>;
+}
+
 export interface GetAuthenticationStatus {
     readonly execute: Effect.Effect<LmsAuthenticationStatus, ApplicationError>;
 }
@@ -82,6 +86,7 @@ export interface ViewMaterial {
 /** Application features supplied to inbound adapters. */
 export class Application extends Context.Service<Application, {
     readonly login: Login;
+    readonly registerFido: RegisterFido;
     readonly logout: Logout;
     readonly getAuthenticationStatus: GetAuthenticationStatus;
     readonly listCourses: ListCourses;

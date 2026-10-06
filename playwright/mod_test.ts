@@ -8,6 +8,7 @@ import {
     parseMaterialType,
     parsePublicationDeadline,
 } from "./mod.ts";
+import { fidoStoragePath } from "./fido.ts";
 
 Deno.test("Extracts LMS course IDs from course click handlers", () => {
     assertEquals(Effect.runSync(parseLmsCourseId("formSubmit('KOG0000000066101')")), "KOG0000000066101");
@@ -54,9 +55,11 @@ Deno.test("Logout removes isolated authentication state and succeeds when it is 
     const statePath = `${directory}/storage-state.json`;
     try {
         await Deno.writeTextFile(statePath, "{}");
+        await Deno.writeTextFile(fidoStoragePath(statePath), "{}");
         const authentication = makeLmsAuthenticationGateway(statePath);
         await Effect.runPromise(authentication.logout);
         await assertRejects(() => Deno.stat(statePath), Deno.errors.NotFound);
+        await assertRejects(() => Deno.stat(fidoStoragePath(statePath)), Deno.errors.NotFound);
         await Effect.runPromise(authentication.logout);
     } finally {
         await Deno.remove(directory, { recursive: true });

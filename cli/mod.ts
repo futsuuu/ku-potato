@@ -40,7 +40,8 @@ const syncArgument = {
 export const main = Effect.fn("CliInboundAdapter.run")(function* (
     commandArgs: readonly string[],
 ) {
-    const { login, logout, getAuthenticationStatus, listCourses, listMaterials, viewMaterial } = yield* Application;
+    const { login, registerFido, logout, getAuthenticationStatus, listCourses, listMaterials, viewMaterial } =
+        yield* Application;
     const context = yield* Effect.context<Terminal.Terminal>();
     let exitCode = 0;
     const markFailure = Effect.sync(() => {
@@ -113,6 +114,17 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
                             name: "auth",
                             description: "KU-LMSの認証状態を管理する",
                             subCommands: {
+                                "register-fido": gunshi.define({
+                                    name: "register-fido",
+                                    description: "自動ログイン用の仮想FIDO認証器を登録する",
+                                    args: { head: headArgument },
+                                    run: (command) =>
+                                        run(
+                                            registerFido.execute(command.values.head).pipe(
+                                                Effect.andThen(display("仮想FIDO認証器を登録しました。")),
+                                            ),
+                                        ),
+                                }),
                                 login: gunshi.define({
                                     name: "login",
                                     description: "KU-LMSへログインする",

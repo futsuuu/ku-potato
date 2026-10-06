@@ -5,6 +5,7 @@ import type {
     ListMaterials,
     Login,
     Logout,
+    RegisterFido,
     ViewMaterial,
 } from "../core/in_port.ts";
 import { Application, ApplicationError } from "../core/in_port.ts";
@@ -123,6 +124,20 @@ Deno.test("階層化したコマンドはポリシーとIDを対応する入力�
     ]);
 });
 
+Deno.test("FIDO登録コマンドは入力ポートへブラウザ表示ポリシーを渡す", async () => {
+    const heads: string[] = [];
+    const output: string[] = [];
+    const registerFido: RegisterFido = {
+        execute: (head) =>
+            Effect.sync(() => {
+                heads.push(head);
+            }),
+    };
+    assertEquals(await runCli(["auth", "register-fido", "--head", "false"], ports({ registerFido }), output), 0);
+    assertEquals(heads, ["false"]);
+    assertEquals(output, ["仮想FIDO認証器を登録しました。\n"]);
+});
+
 Deno.test("コマンドの失敗はTerminalに表示して終了コード1を返す", async () => {
     const output: string[] = [];
     const login: Login = {
@@ -159,6 +174,7 @@ Deno.test("不明なコマンドはTerminalに表示して終了コード1を返
 
 type Ports = {
     readonly login: Login;
+    readonly registerFido: RegisterFido;
     readonly logout: Logout;
     readonly status: GetAuthenticationStatus;
     readonly listCourses: ListCourses;
@@ -168,6 +184,7 @@ type Ports = {
 
 const ports = (overrides: Partial<Ports>): Ports => ({
     login: { execute: () => Effect.die("unexpected auth login") },
+    registerFido: { execute: () => Effect.die("unexpected FIDO registration") },
     logout: { execute: Effect.die("unexpected auth logout") },
     status: { execute: Effect.die("unexpected auth status") },
     listCourses: { execute: () => Effect.die("unexpected course list") },
@@ -183,6 +200,7 @@ const runCli = (commandArgs: readonly string[], inputPorts: Ports, output: strin
                 Application,
                 Application.of({
                     login: inputPorts.login,
+                    registerFido: inputPorts.registerFido,
                     logout: inputPorts.logout,
                     getAuthenticationStatus: inputPorts.status,
                     listCourses: inputPorts.listCourses,

@@ -245,6 +245,7 @@ const testApplicationLayer = (
         LmsAuthenticationGateway,
         LmsAuthenticationGateway.of({
             login: () => Effect.die("unexpected login"),
+            registerFido: () => Effect.die("unexpected FIDO registration"),
             logout: Effect.die("unexpected logout"),
             status: Effect.die("unexpected status"),
         }),

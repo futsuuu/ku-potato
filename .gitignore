@@ -5,3 +5,4 @@
 /.tmp
 /deno.node-modules.jsonc
 /types
+/.ku-potato

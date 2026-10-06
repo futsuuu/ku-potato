@@ -4,13 +4,14 @@ import {
     LmsAuthenticationGateway,
     LmsAuthenticationStorageError,
     LmsSourceGateway,
-    type LmsSourceSession,
 } from "../core/out_port.ts";
 import { Effect, Semaphore } from "effect";
 import * as playwright from "playwright-core";
 import { makeLmsSourceSession } from "./session.ts";
 import { loginToLms } from "./login.ts";
-import { errorMessage, tryPromise } from "./promise.ts";
+import { tryPromise } from "./promise.ts";
+import { authenticationStorageTry, parentDirectory, withAuthenticationLock } from "./authentication_storage.ts";
+import { createVirtualAuthenticator, fidoStoragePath, readFidoState, registerFido } from "./fido.ts";
 
 export { parseLmsCourseId } from "./home.ts";
 export { parseLmsDate, parseLmsMaterialId, parseMaterialType, parsePublicationDeadline } from "./parsing.ts";
@@ -31,18 +32,44 @@ export const makeLmsSourceGateway = (storageStatePath = defaultAuthenticationSto
 export const makeLmsAuthenticationGateway = (storageStatePath = defaultAuthenticationStoragePath()) =>
     makeLmsGateways(storageStatePath).authentication;
 
-/** Creates source and authentication gateways that share one process-local browser permit. */
+/** Creates gateways that serialize browser use and persistent authentication updates. */
 export const makeLmsGateways = (storageStatePath = defaultAuthenticationStoragePath()) => {
     const browserPermit = Semaphore.makeUnsafe(1);
-    const exclusively = browserPermit.withPermits(1);
+    const exclusively = <A, E, R>(operation: Effect.Effect<A, E, R>) =>
+        browserPermit.withPermits(1)(withAuthenticationLock(storageStatePath, operation));
     return {
         source: LmsSourceGateway.of({
-            withSession: (headPolicy, use) => exclusively(withAuthenticatedSession(storageStatePath, headPolicy, use)),
+            withSession: (headPolicy, use) =>
+                exclusively(
+                    withAuthenticatedSession(storageStatePath, headPolicy, (page) => use(makeLmsSourceSession(page))),
+                ),
         }),
         authentication: LmsAuthenticationGateway.of({
             login: (headPolicy) =>
                 exclusively(withAuthenticatedSession(storageStatePath, headPolicy, () => Effect.void)),
-            logout: exclusively(removeAuthenticationState(storageStatePath)),
+            registerFido: (headPolicy) =>
+                exclusively(Effect.gen(function* () {
+                    const path = fidoStoragePath(storageStatePath);
+                    if (yield* readFidoState(path)) {
+                        return yield* new LmsAuthenticationStorageError({
+                            operation: "register FIDO device",
+                            message: "仮想FIDO認証器は保存済みです。auth loginでログインできます。",
+                        });
+                    }
+                    yield* withAuthenticatedSession(storageStatePath, headPolicy, (page) =>
+                        Effect.gen(function* () {
+                            const authenticator = yield* tryPromise(
+                                "create registration authenticator",
+                                () => createVirtualAuthenticator(page),
+                            );
+                            yield* registerFido(page, path, authenticator);
+                        }));
+                })),
+            logout: exclusively(
+                Effect.forEach([storageStatePath, fidoStoragePath(storageStatePath)], removeAuthenticationState).pipe(
+                    Effect.asVoid,
+                ),
+            ),
             status: exclusively(withBrowserSession(storageStatePath, true, false, () => Effect.void)).pipe(
                 Effect.as("authenticated" as const),
                 Effect.catchTag("LmsAuthenticationRequiredError", () => Effect.succeed("unauthenticated" as const)),
@@ -54,7 +81,7 @@ export const makeLmsGateways = (storageStatePath = defaultAuthenticationStorageP
 function withAuthenticatedSession<A, E, R>(
     storageStatePath: string,
     headPolicy: HeadPolicy,
-    use: (session: LmsSourceSession) => Effect.Effect<A, E, R>,
+    use: (page: playwright.Page) => Effect.Effect<A, E, R>,
 ) {
     switch (headPolicy) {
         case "true":
@@ -75,7 +102,7 @@ function withBrowserSession<A, E, R>(
     storageStatePath: string,
     headless: boolean,
     allowInteraction: boolean,
-    use: (session: LmsSourceSession) => Effect.Effect<A, E, R>,
+    use: (page: playwright.Page) => Effect.Effect<A, E, R>,
 ) {
     return Effect.scoped(Effect.gen(function* () {
         const browser = yield* Effect.acquireRelease(
@@ -88,9 +115,32 @@ function withBrowserSession<A, E, R>(
         );
         yield* restoreAuthenticationState(context, storageStatePath);
         const page = yield* tryPromise("create browser page", () => context.newPage());
-        yield* loginToLms(page, allowInteraction);
-        yield* saveAuthenticationState(context, storageStatePath);
-        return yield* use(makeLmsSourceSession(page));
+        const fidoPath = fidoStoragePath(storageStatePath);
+        const fidoState = yield* readFidoState(fidoPath);
+        let completed = false;
+        const authenticator = fidoState
+            ? yield* Effect.acquireRelease(
+                tryPromise("restore virtual FIDO authenticator", () => createVirtualAuthenticator(page, fidoState)),
+                (authenticator) =>
+                    completed ? Effect.void : authenticationStorageTry(
+                        "save FIDO credentials",
+                        () => authenticator.save(fidoPath, fidoState.username),
+                    ).pipe(Effect.orDie),
+            )
+            : undefined;
+        const result = yield* Effect.result(Effect.gen(function* () {
+            yield* loginToLms(page, allowInteraction, fidoState?.username);
+            yield* saveAuthenticationState(context, storageStatePath);
+            return yield* use(page);
+        }));
+        completed = true;
+        if (authenticator && fidoState) {
+            yield* authenticationStorageTry(
+                "save FIDO credentials",
+                () => authenticator.save(fidoPath, fidoState.username),
+            );
+        }
+        return yield* Effect.fromResult(result);
     }));
 }
 
@@ -135,13 +185,6 @@ function removeAuthenticationState(storageStatePath: string) {
     );
 }
 
-function authenticationStorageTry<A>(operation: string, evaluate: () => PromiseLike<A>) {
-    return Effect.tryPromise({
-        try: evaluate,
-        catch: (cause) => new LmsAuthenticationStorageError({ operation, message: errorMessage(cause) }),
-    });
-}
-
 function launchBrowser(opts: { headless: boolean }) {
     return playwright.chromium.launch({
         channel: "chrome",
@@ -149,9 +192,3 @@ function launchBrowser(opts: { headless: boolean }) {
         args: ["--disable-blink-features=AutomationControlled"],
     });
 }
-
-const parentDirectory = (path: string): string => {
-    const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-    if (separatorIndex === -1) return ".";
-    return separatorIndex === 2 && path[1] === ":" ? path.slice(0, separatorIndex + 1) : path.slice(0, separatorIndex);
-};
