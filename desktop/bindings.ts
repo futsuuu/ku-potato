@@ -1,5 +1,5 @@
 import type { QueryError, SyncPolicy } from "../core/in_port.ts";
-import type { AvailableCourse, Course, Material, Resource } from "../domain/mod.ts";
+import type { AvailableCourse, Course, Material, Resource, ResourceDownload } from "../domain/mod.ts";
 
 export type DesktopQueryResult<A> =
     | { readonly status: "success"; readonly data: A }
@@ -33,4 +33,5 @@ export interface DesktopBindings {
     listCourses(sync: SyncPolicy): Promise<CourseListResult>;
     listMaterials(courseId: string, sync: SyncPolicy): Promise<CourseMaterialsResult>;
     viewMaterial(materialId: string, sync: SyncPolicy): Promise<MaterialDetailResult>;
+    downloadResource(materialId: string, position: number): Promise<DesktopQueryResult<ResourceDownload>>;
 }

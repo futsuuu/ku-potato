@@ -63,4 +63,16 @@ const viewMaterial = Effect.fn("DesktopInboundAdapter.viewMaterial")(function* (
     return { ...detail, material: serializeMaterial(detail.material) };
 }, toDesktopResult);
 
-export const DesktopInboundAdapter = { listCourses, listMaterials, viewMaterial };
+const downloadResource = Effect.fn("DesktopInboundAdapter.downloadResource")(function* (
+    materialId: string,
+    position: number,
+) {
+    const application = yield* Application;
+    return yield* application.downloadResource.execute({
+        lmsMaterialId: LmsMaterialId(materialId),
+        position,
+        head: "auto",
+    });
+}, toDesktopResult);
+
+export const DesktopInboundAdapter = { listCourses, listMaterials, viewMaterial, downloadResource };

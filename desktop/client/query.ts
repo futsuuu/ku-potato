@@ -9,6 +9,7 @@ const messages: Record<QueryError["reason"], string> = {
     cache: "保存済みのデータを読み込めませんでした。",
     "cache-miss": "データが見つかりません。再取得をお試しください。",
     "material-not-found": "教材が見つかりません。公開が終了した可能性があります。",
+    "invalid-position": "資料の位置が正しくありません。",
 };
 
 export function createDesktopQuery<A>(

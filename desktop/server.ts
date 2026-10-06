@@ -24,6 +24,10 @@ win.bind(
     "viewMaterial",
     (materialId, sync) => runtime.runPromise(DesktopInboundAdapter.viewMaterial(materialId, sync)),
 );
+win.bind(
+    "downloadResource",
+    (materialId, position) => runtime.runPromise(DesktopInboundAdapter.downloadResource(materialId, position)),
+);
 win.addEventListener("close", () => void runtime.dispose());
 
 const devServerUrl = Deno.env.get("VITE_DEV_SERVER_URL");

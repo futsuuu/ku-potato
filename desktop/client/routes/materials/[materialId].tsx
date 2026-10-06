@@ -1,10 +1,49 @@
 import { Title } from "@solidjs/meta";
 import { useParams } from "@solidjs/router";
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
+import type { ResourceDownload } from "../../../../domain/mod.ts";
 import MaterialInfo from "../../components/MaterialInfo.tsx";
 import QueryStatus from "../../components/QueryStatus.tsx";
 import { createDesktopQuery } from "../../query.ts";
 import { paths } from "../../router.ts";
+
+function ResourceRow(props: { materialId: string; position: number; name: string }) {
+    const [pending, setPending] = createSignal(false);
+    const [error, setError] = createSignal("");
+    const [result, setResult] = createSignal<ResourceDownload | undefined>(undefined);
+    const download = () => {
+        if (pending()) return;
+        setPending(true);
+        setError("");
+        setResult(undefined);
+        void Promise.resolve().then(() => bindings.downloadResource(props.materialId, props.position)).then(
+            (response) => {
+                if (response.status === "success") setResult(response.data);
+                else setError(response.error.message);
+            },
+            () => setError("取得に失敗しました。もう一度お試しください。"),
+        ).finally(() => setPending(false));
+    };
+    return (
+        <li class="app-row">
+            <span>{props.name}</span>
+            <button class="app-button" type="button" disabled={pending()} onClick={download}>
+                {pending() ? "取得中…" : "取得"}
+            </button>
+            <Show when={result()}>
+                {(value) => {
+                    const retrieved = value();
+                    return retrieved.type === "file"
+                        ? <p>保存先: {retrieved.path}</p>
+                        : <a href={retrieved.url} target="_blank" rel="noopener noreferrer">外部資料を開く</a>;
+                }}
+            </Show>
+            <Show when={error()}>
+                <p role="alert">{error()}</p>
+            </Show>
+        </li>
+    );
+}
 
 export default function Resources() {
     const params = useParams(paths.materials);
@@ -31,7 +70,13 @@ export default function Resources() {
                         <p>{detail().resources.length}件の資料</p>
                         <ul class="app-list">
                             <For each={detail().resources} fallback={<li class="app-row">資料がありません。</li>}>
-                                {(resource) => <li class="app-row">{resource.name}</li>}
+                                {(resource, position) => (
+                                    <ResourceRow
+                                        materialId={detail().material.lmsMaterialId}
+                                        position={position()}
+                                        name={resource.name}
+                                    />
+                                )}
                             </For>
                         </ul>
                     </>
