@@ -48,6 +48,7 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
         listCourses,
         listMaterials,
         viewMaterial,
+        downloadResource,
     } = yield* Application;
     const context = yield* Effect.context<Terminal.Terminal>();
     let exitCode = 0;
@@ -103,6 +104,13 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
             Effect.asVoid,
         ),
     );
+    const runResourceDownload = (materialId: string, position: string, head: HeadPolicy) =>
+        run(
+            downloadResource.execute({ lmsMaterialId: LmsMaterialId(materialId), position: Number(position), head })
+                .pipe(
+                    Effect.flatMap((result) => display(result.type === "file" ? result.path : result.url)),
+                ),
+        );
 
     yield* Effect.tryPromise({
         try: () =>
@@ -208,6 +216,31 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
                                 }),
                             },
                         }),
+                        resource: gunshi.define({
+                            name: "resource",
+                            description: "資料を取得する",
+                            subCommands: {
+                                download: gunshi.define({
+                                    name: "download",
+                                    description: "ファイル資料を一時保存し、外部資料はリンクを取得する",
+                                    args: {
+                                        materialId: { type: "positional", required: true, description: "LMS教材ID" },
+                                        position: {
+                                            type: "positional",
+                                            required: true,
+                                            description: "資料の位置（0から開始）",
+                                        },
+                                        head: headArgument,
+                                    },
+                                    run: (command) =>
+                                        runResourceDownload(
+                                            command.values.materialId,
+                                            command.values.position,
+                                            command.values.head,
+                                        ),
+                                }),
+                            },
+                        }),
                     },
                 },
             ),
@@ -266,7 +299,9 @@ export const printMaterialDetail = Effect.fn("CliInboundAdapter.printMaterialDet
         yield* display("資料: （なし）");
         return;
     }
-    for (const resource of detail.resources) yield* display(`資料: ${resource.name}`);
+    for (const [position, resource] of detail.resources.entries()) {
+        yield* display(`資料[${position}]: ${resource.name}`);
+    }
 });
 
 const printMaterial = Effect.fn("CliInboundAdapter.printMaterial")(function* (

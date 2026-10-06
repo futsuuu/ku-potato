@@ -187,6 +187,7 @@ type Ports = {
     readonly listCourses: ListCourses;
     readonly listMaterials: ListMaterials;
     readonly viewMaterial: ViewMaterial;
+    readonly downloadResource: Application["Service"]["downloadResource"];
 };
 
 const ports = (overrides: Partial<Ports>): Ports => ({
@@ -197,6 +198,7 @@ const ports = (overrides: Partial<Ports>): Ports => ({
     listCourses: { execute: () => Effect.die("unexpected course list") },
     listMaterials: { execute: () => Effect.die("unexpected material list") },
     viewMaterial: { execute: () => Effect.die("unexpected material view") },
+    downloadResource: { execute: () => Effect.die("unexpected resource download") },
     ...overrides,
 });
 
@@ -213,6 +215,7 @@ const runCli = (commandArgs: readonly string[], inputPorts: Ports, output: strin
                     listCourses: inputPorts.listCourses,
                     listMaterials: inputPorts.listMaterials,
                     viewMaterial: inputPorts.viewMaterial,
+                    downloadResource: inputPorts.downloadResource,
                 }),
             ),
             Effect.provideService(
@@ -230,3 +233,41 @@ const runCli = (commandArgs: readonly string[], inputPorts: Ports, output: strin
             ),
         ),
     );
+
+Deno.test("resource download prints only the downloaded path or external URL", async () => {
+    for (
+        const result of [
+            { type: "file", path: "C:\\Temp\\handout.pdf" },
+            { type: "external", url: "https://example.com/shared" },
+        ] as const
+    ) {
+        const output: string[] = [];
+        const input = ports({
+            downloadResource: {
+                execute: (options) => {
+                    assertEquals(options, { lmsMaterialId: "SRY1", position: 1, head: "false" });
+                    return Effect.succeed(result);
+                },
+            },
+        });
+        assertEquals(await runCli(["resource", "download", "SRY1", "1", "--head", "false"], input, output), 0);
+        assertEquals(output, [`${result.type === "file" ? result.path : result.url}\n`]);
+    }
+});
+
+Deno.test("resource download failures return exit code 1", async () => {
+    const output: string[] = [];
+    const input = ports({
+        downloadResource: {
+            execute: () =>
+                Effect.fail(
+                    new ApplicationError({
+                        reason: "source",
+                        message: "資料が見つかりません。",
+                    }),
+                ),
+        },
+    });
+    assertEquals(await runCli(["resource", "download", "SRY1", "0"], input, output), 1);
+    assertEquals(output, ["資料が見つかりません。\n"]);
+});
