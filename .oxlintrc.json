@@ -14,6 +14,12 @@
             "rules": {
                 "effecttsgo/async-function": "off"
             }
+        },
+        {
+            "files": ["vite.config.ts"],
+            "rules": {
+                "effecttsgo/node-builtin-import": "off"
+            }
         }
     ]
 }
