@@ -9,19 +9,21 @@ export default function Courses() {
     return (
         <>
             <Title>講義一覧 | KU-POTATO</Title>
-            <header>
+            <header class="app-header">
                 <h1>講義一覧</h1>
-                <button type="button" disabled={query.pending()} onClick={query.refresh}>再取得</button>
+                <button class="app-button" type="button" disabled={query.pending()} onClick={query.refresh}>
+                    再取得
+                </button>
             </header>
             <QueryStatus pending={query.pending()} error={query.error()} />
             <Show when={query.data()}>
                 {(courses) => (
                     <>
                         <p>{courses().length}件の講義</p>
-                        <ul>
-                            <For each={courses()} fallback={<li>講義がありません。</li>}>
+                        <ul class="app-list">
+                            <For each={courses()} fallback={<li class="app-row">講義がありません。</li>}>
                                 {(course) => (
-                                    <li>
+                                    <li class="app-row">
                                         {course.availability === "available"
                                             ? (
                                                 <a href={paths.courses(course.lmsCourseId)}>
@@ -31,7 +33,7 @@ export default function Courses() {
                                             : (
                                                 <>
                                                     <span>{course.name}</span>
-                                                    <small>利用不可</small>
+                                                    <small class="app-meta">利用不可</small>
                                                 </>
                                             )}
                                     </li>

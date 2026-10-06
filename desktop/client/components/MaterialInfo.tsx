@@ -24,5 +24,9 @@ const deadline = (value: string) => {
 };
 
 export default function MaterialInfo(props: { material: DesktopMaterial }) {
-    return <small>{types[props.material.type]} · 公開期限: {deadline(props.material.publicationDeadline)}</small>;
+    return (
+        <small class="app-meta">
+            {types[props.material.type]} · 公開期限: {deadline(props.material.publicationDeadline)}
+        </small>
+    );
 }

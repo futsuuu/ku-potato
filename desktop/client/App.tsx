@@ -1,14 +1,14 @@
 import type {} from "./bindings.d.ts";
 import { Loading } from "solid-js";
 import { paths, Router } from "./router.ts";
-import "./style.css";
+import "virtual:uno.css";
 
 export default function App() {
     return (
         <Router>
             {(props) => (
-                <main>
-                    <nav aria-label="ナビゲーション">
+                <main class="app-page">
+                    <nav class="mb-lg" aria-label="ナビゲーション">
                         <a href={paths()}>講義一覧</a>
                     </nav>
                     <Loading on={props.location.pathname} fallback={<p role="status">ページを読み込み中…</p>}>

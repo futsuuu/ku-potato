@@ -12,9 +12,11 @@ export default function Resources() {
     return (
         <>
             <Title>{query.data()?.material.name ?? "資料一覧"} | KU-POTATO</Title>
-            <header>
+            <header class="app-header">
                 <h1>{query.data()?.material.name ?? "教材"}</h1>
-                <button type="button" disabled={query.pending()} onClick={query.refresh}>再取得</button>
+                <button class="app-button" type="button" disabled={query.pending()} onClick={query.refresh}>
+                    再取得
+                </button>
             </header>
             <QueryStatus pending={query.pending()} error={query.error()} />
             <Show when={query.data()}>
@@ -27,9 +29,9 @@ export default function Resources() {
                         </p>
                         <MaterialInfo material={detail().material} />
                         <p>{detail().resources.length}件の資料</p>
-                        <ul>
-                            <For each={detail().resources} fallback={<li>資料がありません。</li>}>
-                                {(resource) => <li>{resource.name}</li>}
+                        <ul class="app-list">
+                            <For each={detail().resources} fallback={<li class="app-row">資料がありません。</li>}>
+                                {(resource) => <li class="app-row">{resource.name}</li>}
                             </For>
                         </ul>
                     </>

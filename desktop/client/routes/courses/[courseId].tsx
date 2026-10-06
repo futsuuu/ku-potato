@@ -12,9 +12,11 @@ export default function Materials() {
     return (
         <>
             <Title>{query.data()?.courseName ?? "教材一覧"} | KU-POTATO</Title>
-            <header>
+            <header class="app-header">
                 <h1>{query.data()?.courseName ?? "講義"}</h1>
-                <button type="button" disabled={query.pending()} onClick={query.refresh}>再取得</button>
+                <button class="app-button" type="button" disabled={query.pending()} onClick={query.refresh}>
+                    再取得
+                </button>
             </header>
             <QueryStatus pending={query.pending()} error={query.error()} />
             <Show when={query.data()}>
@@ -30,13 +32,13 @@ export default function Materials() {
                                     <Show when={folder.classDate}>
                                         {(date) => <p>授業日: {formatDate(date())}</p>}
                                     </Show>
-                                    <ul>
+                                    <ul class="app-list">
                                         <For
                                             each={folder.materials}
-                                            fallback={<li>このフォルダに教材はありません。</li>}
+                                            fallback={<li class="app-row">このフォルダに教材はありません。</li>}
                                         >
                                             {(material) => (
-                                                <li>
+                                                <li class="app-row">
                                                     {material.type === "material" &&
                                                             material.resourceAvailability === "available"
                                                         ? (
@@ -50,7 +52,7 @@ export default function Materials() {
                                                         when={material.type === "material" &&
                                                             material.resourceAvailability === "unavailable"}
                                                     >
-                                                        <small>資料未公開</small>
+                                                        <small class="app-meta">資料未公開</small>
                                                     </Show>
                                                 </li>
                                             )}

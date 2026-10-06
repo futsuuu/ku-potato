@@ -3,9 +3,11 @@ import * as path from "node:path";
 import solid from "@solidjs/vite-plugin";
 import { fileRoutes } from "filesystem-routing/vite";
 import { defineConfig, type Plugin } from "vite";
+import UnoCSS from "unocss/vite";
 
 export default defineConfig({
     plugins: [
+        UnoCSS(),
         solid({
             start: {
                 app: "desktop/client/App.tsx",
