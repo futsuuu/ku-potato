@@ -114,7 +114,10 @@ function withBrowserSession<A, E, R>(
             (browser) => tryPromise("close browser", () => browser.close()).pipe(Effect.catch(Effect.logError)),
         );
         const context = yield* Effect.acquireRelease(
-            tryPromise("create browser context", () => browser.newContext()),
+            tryPromise(
+                "create browser context",
+                () => browser.newContext({ acceptDownloads: true }),
+            ),
             (context) => tryPromise("close browser context", () => context.close()).pipe(Effect.catch(Effect.logError)),
         );
         yield* restoreAuthenticationState(context, storageStatePath);
