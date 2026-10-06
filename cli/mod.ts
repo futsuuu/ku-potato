@@ -102,11 +102,11 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
             gunshi.cli(
                 [...commandArgs],
                 gunshi.define({
-                    name: "ku-potato",
+                    name: "KU-POTATO",
                     description: "Command-Line Interface for KU-PORT and KU-LMS",
                 }),
                 {
-                    name: "ku-potato",
+                    name: "KU-POTATO",
                     version: "0.0.0",
                     description: "Command-Line Interface for KU-PORT and KU-LMS",
                     subCommands: {

@@ -1,4 +1,4 @@
-# ku-potato
+# KU-POTATO
 
 ## License
 

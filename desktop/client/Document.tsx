@@ -7,7 +7,7 @@ export default function Document(props: ParentProps) {
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>ku-potato</title>
+                <title>KU-POTATO</title>
                 <HydrationScript />
             </head>
             <body>{props.children}</body>

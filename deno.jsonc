@@ -63,7 +63,7 @@
     },
     "desktop": {
         "app": {
-            "name": "ku-potato"
+            "name": "KU-POTATO"
         },
         "output": {
             "windows": "./dist/desktop/ku-potato",
