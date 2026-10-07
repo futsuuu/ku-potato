@@ -39,8 +39,7 @@ export default function Materials() {
                                         >
                                             {(material) => (
                                                 <li class="app-row">
-                                                    {material.type === "material" &&
-                                                            material.resourceAvailability === "available"
+                                                    {material.canViewResources
                                                         ? (
                                                             <a href={paths.materials(material.lmsMaterialId)}>
                                                                 {material.name}

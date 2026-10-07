@@ -120,6 +120,64 @@ Deno.test("SQLite cache keeps material resources after a later course material s
     }
 });
 
+Deno.test.each([
+    { resources: [] },
+    { resources: [{ name: "handout.pdf" }] },
+])("SQLite cache retains $resources.length resources after a material becomes unavailable", async ({ resources }) => {
+    const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
+    const course = {
+        lmsCourseId: LmsCourseId("course-1"),
+        name: "Programming",
+        availability: "available",
+    } as const;
+    const material = {
+        lmsMaterialId: LmsMaterialId("material-1"),
+        name: "Handout",
+        type: "material",
+        publicationDeadline: "no-deadline",
+        resourceAvailability: "available",
+    } as const;
+    const expiredMaterial = {
+        ...material,
+        publicationDeadline: "unavailable",
+        resourceAvailability: "unavailable",
+    } as const;
+    const expiredSnapshot: CourseMaterialsSnapshot = {
+        courses: [course],
+        courseMaterials: {
+            lmsCourseId: course.lmsCourseId,
+            folders: [{ name: "Week 1", materials: [expiredMaterial] }],
+        },
+    };
+
+    try {
+        await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+            const cache = yield* makeLmsCacheGateway(temporaryDatabasePath(directory));
+            yield* cache.appendCourseMaterials(expiredSnapshot);
+            const missingResources = yield* Effect.result(cache.getMaterialDetail(material.lmsMaterialId));
+            assert(Result.isFailure(missingResources));
+            assertInstanceOf(missingResources.failure, LmsCacheMissError);
+
+            yield* cache.appendMaterialResources({
+                courses: [course],
+                courseMaterials: {
+                    lmsCourseId: course.lmsCourseId,
+                    folders: [{ name: "Week 1", materials: [material] }],
+                },
+                materialResources: { lmsMaterialId: material.lmsMaterialId, resources },
+            });
+            yield* cache.appendCourseMaterials(expiredSnapshot);
+            assertEquals(yield* cache.getMaterialDetail(material.lmsMaterialId), {
+                course,
+                material: expiredMaterial,
+                resources,
+            });
+        })));
+    } finally {
+        await Deno.remove(directory, { recursive: true });
+    }
+});
+
 Deno.test("SQLite cache rolls back every failed snapshot write", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const courseId = LmsCourseId("course-1");

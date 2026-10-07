@@ -19,6 +19,27 @@ const serializeMaterial = (material: Material): DesktopMaterial => ({
         : material.publicationDeadline,
 });
 
+const serializeListedMaterial = Effect.fn("DesktopInboundAdapter.serializeListedMaterial")(function* (
+    material: Material,
+) {
+    let canViewResources = false;
+    if (material.type === "material") {
+        if (material.resourceAvailability === "available") canViewResources = true;
+        else {
+            const application = yield* Application;
+            canViewResources = yield* application.viewMaterial.execute({
+                lmsMaterialId: material.lmsMaterialId,
+                sync: "false",
+                head: "auto",
+            }).pipe(
+                Effect.as(true),
+                Effect.catchIf((error) => error.reason === "cache-miss", () => Effect.succeed(false)),
+            );
+        }
+    }
+    return { ...serializeMaterial(material), canViewResources };
+});
+
 /** Queries the application and returns a serializable result for the webview. */
 const listCourses = Effect.fn("DesktopInboundAdapter.listCourses")(function* (sync: SyncPolicy) {
     const application = yield* Application;
@@ -74,11 +95,14 @@ const listMaterials = Effect.fn("DesktopInboundAdapter.listMaterials")(function*
     const course = courses.find((course) => course.availability === "available" && course.lmsCourseId === lmsCourseId);
     return {
         courseName: course?.name ?? "講義",
-        folders: materials.folders.map((folder) => ({
-            name: folder.name,
-            classDate: folder.classDate?.toISOString(),
-            materials: folder.materials.map(serializeMaterial),
-        })),
+        folders: yield* Effect.forEach(materials.folders, (folder) =>
+            Effect.gen(function* () {
+                return {
+                    name: folder.name,
+                    classDate: folder.classDate?.toISOString(),
+                    materials: yield* Effect.forEach(folder.materials, serializeListedMaterial),
+                };
+            })),
     };
 }, toDesktopResult);
 

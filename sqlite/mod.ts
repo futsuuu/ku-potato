@@ -409,9 +409,7 @@ const readMaterialDetail = (database: Database, lmsMaterialId: string): Material
         });
     }
     const material = decodeMaterial(row);
-    const resources = material.type === "material" && material.resourceAvailability === "available"
-        ? readMaterialResources(database, lmsMaterialId).resources
-        : [];
+    const resources = material.type === "material" ? readMaterialResources(database, lmsMaterialId).resources : [];
     return {
         course: {
             lmsCourseId: LmsCourseId(row.courseLmsCourseId),

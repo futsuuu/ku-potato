@@ -14,7 +14,7 @@ export type DesktopCourseMaterials = {
     readonly folders: readonly {
         readonly name: string;
         readonly classDate?: string;
-        readonly materials: readonly DesktopMaterial[];
+        readonly materials: readonly (DesktopMaterial & { readonly canViewResources: boolean })[];
     }[];
 };
 

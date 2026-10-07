@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { DateTime, Effect } from "effect";
 import { Application, ApplicationError, type ListMaterials } from "../core/in_port.ts";
-import { LmsCourseId, LmsMaterialId, type Material } from "../domain/mod.ts";
+import { LmsCourseId, LmsMaterialId, type Material, type MaterialDetail } from "../domain/mod.ts";
 import { upcomingAssignments } from "./client/assignments.ts";
 import { DesktopInboundAdapter } from "./mod.ts";
 
@@ -10,7 +10,7 @@ const otherCourseId = LmsCourseId("course-2");
 const failedCourseId = LmsCourseId("course-failed");
 const now = DateTime.toEpochMillis(DateTime.makeUnsafe("2026-10-04T12:00:00+09:00"));
 
-const material = (
+const assignmentMaterial = (
     id: string,
     type: Material["type"],
     deadline: number | "no-deadline" | "unavailable",
@@ -25,7 +25,7 @@ const material = (
     return type === "material" ? { ...common, type, resourceAvailability: "available" } : { ...common, type };
 };
 
-const application = (listMaterials: ListMaterials) =>
+const assignmentApplication = (listMaterials: ListMaterials) =>
     Application.of({
         login: { execute: () => Effect.die("unexpected login") },
         registerWebAuthnCredential: { execute: () => Effect.die("unexpected WebAuthn registration") },
@@ -43,7 +43,7 @@ Deno.test("desktop aggregates assignments across courses and keeps partial failu
         DesktopInboundAdapter.listAssignments([courseId, otherCourseId, failedCourseId], "true").pipe(
             Effect.provideService(
                 Application,
-                application({
+                assignmentApplication({
                     execute: (options) => {
                         requested.push(options);
                         return Effect.succeed({
@@ -52,25 +52,25 @@ Deno.test("desktop aggregates assignments across courses and keeps partial failu
                                 folders: [{
                                     name: "Week 1",
                                     materials: [
-                                        material("no-deadline", "report", "no-deadline"),
-                                        material("later", "e-learning", now + 2000),
-                                        material("expired", "test", now - 1),
-                                        material("exact-deadline", "report", now),
-                                        material("closed", "e-learning", "unavailable"),
-                                        material("handout", "material", now + 1),
-                                        material("survey", "questionnaire", now + 1750),
-                                        material("survey-no-deadline", "questionnaire", "no-deadline"),
-                                        material("survey-expired", "questionnaire", now - 1),
+                                        assignmentMaterial("no-deadline", "report", "no-deadline"),
+                                        assignmentMaterial("later", "e-learning", now + 2000),
+                                        assignmentMaterial("expired", "test", now - 1),
+                                        assignmentMaterial("exact-deadline", "report", now),
+                                        assignmentMaterial("closed", "e-learning", "unavailable"),
+                                        assignmentMaterial("handout", "material", now + 1),
+                                        assignmentMaterial("survey", "questionnaire", now + 1750),
+                                        assignmentMaterial("survey-no-deadline", "questionnaire", "no-deadline"),
+                                        assignmentMaterial("survey-expired", "questionnaire", now - 1),
                                     ],
                                 }, {
                                     name: "Week 2",
-                                    materials: [material("soon", "test", now + 1000)],
+                                    materials: [assignmentMaterial("soon", "test", now + 1000)],
                                 }],
                             }, {
                                 lmsCourseId: otherCourseId,
                                 folders: [{
                                     name: "Homework",
-                                    materials: [material("other-course", "report", now + 1500)],
+                                    materials: [assignmentMaterial("other-course", "report", now + 1500)],
                                 }],
                             }],
                             failures: [{
@@ -107,7 +107,7 @@ Deno.test("desktop does not discover all courses when no courses are available",
         DesktopInboundAdapter.listAssignments([], "auto").pipe(
             Effect.provideService(
                 Application,
-                application({
+                assignmentApplication({
                     execute: () => Effect.die("unexpected material list"),
                 }),
             ),
@@ -121,7 +121,7 @@ Deno.test("desktop surfaces assignment query failures", async () => {
         DesktopInboundAdapter.listAssignments([courseId], "auto").pipe(
             Effect.provideService(
                 Application,
-                application({
+                assignmentApplication({
                     execute: () =>
                         Effect.fail(
                             new ApplicationError({ reason: "authentication-required", message: "Login required" }),
@@ -134,4 +134,109 @@ Deno.test("desktop surfaces assignment query failures", async () => {
         status: "error",
         error: { reason: "authentication-required", message: "Login required" },
     });
+});
+
+const course = { lmsCourseId: LmsCourseId("course-1"), name: "Programming", availability: "available" } as const;
+const material = {
+    lmsMaterialId: LmsMaterialId("material-1"),
+    name: "Handout",
+    type: "material",
+    publicationDeadline: "unavailable",
+    resourceAvailability: "unavailable",
+} as const;
+
+const application = (viewMaterial: Application["Service"]["viewMaterial"]): Application["Service"] => ({
+    login: { execute: () => Effect.die("unexpected login") },
+    logout: { execute: Effect.die("unexpected logout") },
+    registerWebAuthnCredential: { execute: () => Effect.die("unexpected credential registration") },
+    getAuthenticationStatus: { execute: Effect.die("unexpected authentication status") },
+    listCourses: { execute: () => Effect.succeed([course]) },
+    listMaterials: {
+        execute: () =>
+            Effect.succeed({
+                courseMaterials: [{
+                    lmsCourseId: course.lmsCourseId,
+                    folders: [{
+                        name: "Week 1",
+                        materials: [
+                            material,
+                            {
+                                ...material,
+                                lmsMaterialId: LmsMaterialId("material-2"),
+                                resourceAvailability: "available",
+                            },
+                            { ...material, lmsMaterialId: LmsMaterialId("material-3"), type: "report" },
+                        ],
+                    }],
+                }],
+                failures: [],
+            }),
+    },
+    viewMaterial,
+    downloadResource: { execute: () => Effect.die("unexpected download") },
+});
+
+Deno.test.each([
+    { name: "not retrieved", resources: undefined },
+    { name: "empty list", resources: [] },
+    { name: "one resource", resources: [{ name: "handout.pdf" }] },
+])("desktop exposes unavailable material resources when cached: $name", async ({ resources }) => {
+    const calls: string[] = [];
+    const result = await Effect.runPromise(
+        DesktopInboundAdapter.listMaterials(course.lmsCourseId, "true").pipe(
+            Effect.provideService(
+                Application,
+                application({
+                    execute: (options) => {
+                        assertEquals(options, {
+                            lmsMaterialId: material.lmsMaterialId,
+                            sync: "false",
+                            head: "auto",
+                        });
+                        calls.push(options.lmsMaterialId);
+                        return resources === undefined
+                            ? Effect.fail(new ApplicationError({ reason: "cache-miss", message: "Not retrieved" }))
+                            : Effect.succeed({ course, material, resources });
+                    },
+                }),
+            ),
+        ),
+    );
+    assertEquals(calls, [material.lmsMaterialId]);
+    assertEquals(result.status, "success");
+    if (result.status === "success") {
+        assertEquals(result.data.folders[0]?.materials.map((item) => item.canViewResources), [
+            resources !== undefined,
+            true,
+            false,
+        ]);
+    }
+});
+
+Deno.test("desktop displays cached resources for an unavailable material", async () => {
+    const detail = { course, material, resources: [{ name: "handout.pdf" }] } satisfies MaterialDetail;
+    const result = await Effect.runPromise(
+        DesktopInboundAdapter.viewMaterial(material.lmsMaterialId, "auto").pipe(
+            Effect.provideService(
+                Application,
+                application({
+                    execute: (options) => {
+                        assertEquals(options, { lmsMaterialId: material.lmsMaterialId, sync: "auto", head: "auto" });
+                        return Effect.succeed(detail);
+                    },
+                }),
+            ),
+        ),
+    );
+    assertEquals(result, { status: "success", data: detail });
+});
+
+Deno.test("desktop reports cache read failures when checking unavailable materials", async () => {
+    const error = new ApplicationError({ reason: "cache", message: "Cannot read cache" });
+    const result = await Effect.runPromise(
+        DesktopInboundAdapter.listMaterials(course.lmsCourseId, "auto").pipe(
+            Effect.provideService(Application, application({ execute: () => Effect.fail(error) })),
+        ),
+    );
+    assertEquals(result, { status: "error", error: { reason: error.reason, message: error.message } });
 });
