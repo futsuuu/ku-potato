@@ -16,6 +16,10 @@ const runtime = ManagedRuntime.make(ApplicationLive.pipe(Layer.provide(outbound)
 // The first BrowserWindow adopts the window created by `deno desktop`.
 const win = new Deno.BrowserWindow<DesktopBindings>({ title: "KU-POTATO" });
 win.bind("listCourses", (sync) => runtime.runPromise(DesktopInboundAdapter.listCourses(sync)));
+win.bind(
+    "listAssignments",
+    (courseIds, sync) => runtime.runPromise(DesktopInboundAdapter.listAssignments(courseIds, sync)),
+);
 win.bind("listMaterials", (courseId, sync) => runtime.runPromise(DesktopInboundAdapter.listMaterials(courseId, sync)));
 win.bind(
     "viewMaterial",

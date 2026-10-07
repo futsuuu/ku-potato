@@ -28,9 +28,26 @@ export type CourseListResult = DesktopQueryResult<readonly Course[]>;
 export type CourseMaterialsResult = DesktopQueryResult<DesktopCourseMaterials>;
 export type MaterialDetailResult = DesktopQueryResult<DesktopMaterialDetail>;
 
+export type DesktopAssignment = {
+    readonly lmsCourseId: string;
+    readonly folderName: string;
+    readonly material: DesktopMaterial;
+};
+
+export type DesktopAssignments = {
+    readonly assignments: readonly DesktopAssignment[];
+    readonly failures: readonly {
+        readonly lmsCourseId: string;
+        readonly error: Pick<QueryError, "reason" | "message">;
+    }[];
+};
+
+export type AssignmentsResult = DesktopQueryResult<DesktopAssignments>;
+
 /** Shared contract for Deno-side handlers and the webview's bindings proxy. */
 export interface DesktopBindings {
     listCourses(sync: SyncPolicy): Promise<CourseListResult>;
+    listAssignments(courseIds: readonly string[], sync: SyncPolicy): Promise<AssignmentsResult>;
     listMaterials(courseId: string, sync: SyncPolicy): Promise<CourseMaterialsResult>;
     viewMaterial(materialId: string, sync: SyncPolicy): Promise<MaterialDetailResult>;
     downloadResource(materialId: string, position: number): Promise<DesktopQueryResult<ResourceDownload>>;

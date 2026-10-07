@@ -25,6 +25,38 @@ const listCourses = Effect.fn("DesktopInboundAdapter.listCourses")(function* (sy
     return yield* application.listCourses.execute({ sync, head: "auto" });
 }, toDesktopResult);
 
+const listAssignments = Effect.fn("DesktopInboundAdapter.listAssignments")(function* (
+    courseIds: readonly string[],
+    sync: SyncPolicy,
+) {
+    // An empty list means all courses to the application port, but none in this view.
+    if (courseIds.length === 0) return { assignments: [], failures: [] };
+    const application = yield* Application;
+    const result = yield* application.listMaterials.execute({
+        lmsCourseIds: courseIds.map((id) => LmsCourseId(id)),
+        sync,
+        head: "auto",
+    });
+    return {
+        assignments: result.courseMaterials.flatMap((course) =>
+            course.folders.flatMap((folder) =>
+                folder.materials.filter((material) =>
+                    material.type === "test" || material.type === "report" || material.type === "e-learning" ||
+                    material.type === "questionnaire"
+                ).map((material) => ({
+                    lmsCourseId: course.lmsCourseId,
+                    folderName: folder.name,
+                    material: serializeMaterial(material),
+                }))
+            )
+        ),
+        failures: result.failures.map(({ lmsCourseId, error }) => ({
+            lmsCourseId,
+            error: { reason: error.reason, message: error.message },
+        })),
+    };
+}, toDesktopResult);
+
 const listMaterials = Effect.fn("DesktopInboundAdapter.listMaterials")(function* (
     courseId: string,
     sync: SyncPolicy,
@@ -75,4 +107,4 @@ const downloadResource = Effect.fn("DesktopInboundAdapter.downloadResource")(fun
     });
 }, toDesktopResult);
 
-export const DesktopInboundAdapter = { listCourses, listMaterials, viewMaterial, downloadResource };
+export const DesktopInboundAdapter = { listCourses, listAssignments, listMaterials, viewMaterial, downloadResource };
