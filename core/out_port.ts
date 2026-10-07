@@ -15,10 +15,16 @@ import type {
     ResourceDownload,
     SavedResourceFile,
 } from "../domain/mod.ts";
-import { Context, type Effect, Schema } from "effect";
+import { Context, type Effect, type Result, Schema } from "effect";
 import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
 
 export type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
+
+/** The list used for acquisition remains available even when clicking the resource fails. */
+export interface LmsResourceRetrieval {
+    readonly snapshot: MaterialResourcesSnapshot;
+    readonly download: Result.Result<ResourceDownload, LmsSourceGatewayError>;
+}
 
 /** One exclusive, single-tab session with the external LMS. */
 export interface LmsSourceSession {
@@ -34,7 +40,7 @@ export interface LmsSourceSession {
         lmsMaterialId: LmsMaterialId,
         position: number | LmsResourceId,
         preferredCourseId?: LmsCourseId,
-    ) => Effect.Effect<ResourceDownload, LmsSourceGatewayError | LmsMaterialNotFoundError>;
+    ) => Effect.Effect<LmsResourceRetrieval, LmsSourceGatewayError | LmsMaterialNotFoundError>;
 }
 
 /** Opens an authenticated LMS session for the duration of one operation. */

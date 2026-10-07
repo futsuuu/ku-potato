@@ -8,10 +8,12 @@ import {
     LmsArchiveGateway,
     LmsArchiveGatewayError,
     LmsAuthenticationGateway,
+    LmsAuthenticationStorageError,
     LmsSourceGateway,
     LmsSourceGatewayError,
     type LmsSourceSession,
     ResourceFileGateway,
+    ResourceFileGatewayError,
 } from "../out_port.ts";
 import {
     LmsCourseId,
@@ -23,7 +25,7 @@ import {
 import { makeResourceFileGateway } from "../../filesystem/mod.ts";
 import { makeLmsArchiveGateway } from "../../sqlite/mod.ts";
 
-Deno.test("acquisition preserves the last successful file through source and DB failures and repairs damage", async () => {
+Deno.test("acquisition preserves successful files through failures and archives the actual acquired metadata", async () => {
     const root = await Deno.makeTempDir({ prefix: "ku-potato-archive-test-" });
     try {
         await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
@@ -40,6 +42,9 @@ Deno.test("acquisition preserves the last successful file through source and DB 
             let body = "first version";
             let sourceFailure = false;
             let databaseFailure = false;
+            let authenticationFailure = false;
+            let fileFailure = false;
+            let temporaryPath: string | undefined;
             let downloads = 0;
             let fetched = 0;
             const snapshot = (): MaterialResourcesSnapshot => ({
@@ -71,18 +76,47 @@ Deno.test("acquisition preserves the last successful file through source and DB 
                     Effect.gen(function* () {
                         assertEquals(selectedId, resourceId);
                         downloads++;
+                        fetched++;
+                        const latest = snapshot();
                         if (sourceFailure) {
-                            return yield* new LmsSourceGatewayError({
-                                operation: "download",
-                                message: "source unavailable",
-                            });
+                            return {
+                                snapshot: latest,
+                                download: Result.fail(
+                                    new LmsSourceGatewayError({
+                                        operation: "download",
+                                        message: "source unavailable",
+                                    }),
+                                ),
+                            };
+                        }
+                        const resource = resources.find((row) => row.lmsResourceId === selectedId);
+                        if (resource === undefined) {
+                            return {
+                                snapshot: latest,
+                                download: Result.fail(
+                                    new LmsSourceGatewayError({
+                                        operation: "download",
+                                        message: "resource unavailable",
+                                    }),
+                                ),
+                            };
+                        }
+                        if (resource.type === "external") {
+                            return {
+                                snapshot: latest,
+                                download: Result.succeed({
+                                    type: "external" as const,
+                                    url: resource.url!,
+                                }),
+                            };
                         }
                         const temporary = yield* Effect.promise(() =>
                             Deno.makeTempDir({ prefix: "ku-potato-download-test-" })
                         );
                         const path = join(temporary, "download.pdf");
+                        temporaryPath = path;
                         yield* Effect.promise(() => Deno.writeTextFile(path, body));
-                        return { type: "file", path, originalFilename: "lecture.pdf" } as const;
+                        return { snapshot: latest, download: Result.succeed({ type: "file" as const, path }) };
                     }),
             };
             const application = yield* Application.pipe(
@@ -99,8 +133,28 @@ Deno.test("acquisition preserves the last successful file through source and DB 
                                 )
                                 : archive.commitResourceAcquisition(...args),
                     }),
-                    Layer.succeed(ResourceFileGateway, files),
-                    Layer.succeed(LmsSourceGateway, { withSession: (_head, use) => use(session) }),
+                    Layer.succeed(ResourceFileGateway, {
+                        ...files,
+                        save: (...args) =>
+                            fileFailure
+                                ? Effect.fail(
+                                    new ResourceFileGatewayError({ operation: "save", message: "file unavailable" }),
+                                )
+                                : files.save(...args),
+                    }),
+                    Layer.succeed(LmsSourceGateway, {
+                        withSession: (_head, use) =>
+                            use(session).pipe(
+                                Effect.filterOrFail(
+                                    () => !authenticationFailure,
+                                    () =>
+                                        new LmsAuthenticationStorageError({
+                                            operation: "save authentication state",
+                                            message: "authentication storage unavailable",
+                                        }),
+                                ),
+                            ),
+                    }),
                     Layer.succeed(LmsAuthenticationGateway, {
                         registerWebAuthnCredential: () => Effect.die("unexpected authentication"),
                         login: () => Effect.die("unexpected login"),
@@ -144,10 +198,28 @@ Deno.test("acquisition preserves the last successful file through source and DB 
             assertEquals(Deno.readTextFileSync(firstPath), "first version");
             sourceFailure = false;
             body = "second version";
+            authenticationFailure = true;
+            assert(Result.isFailure(yield* Effect.result(acquire())));
+            assertEquals((yield* state())?.savedFile, first.savedFile);
+            assertEquals((yield* state())?.acquisition?.lastSucceededAt, successfulAt);
+            assertEquals((yield* state())?.acquisition?.lastAttempt.error, "authentication storage unavailable");
+            assertEquals(Deno.readTextFileSync(firstPath), "first version");
+            assert(temporaryPath);
+            assertEquals(yield* Effect.promise(() => Deno.stat(temporaryPath!).catch(() => "missing")), "missing");
+            authenticationFailure = false;
+            fileFailure = true;
+            assert(Result.isFailure(yield* Effect.result(acquire())));
+            assertEquals((yield* state())?.savedFile, first.savedFile);
+            assertEquals((yield* state())?.acquisition?.lastSucceededAt, successfulAt);
+            assertEquals((yield* state())?.acquisition?.lastAttempt.error, "file unavailable");
+            assertEquals(Deno.readTextFileSync(firstPath), "first version");
+            assertEquals(yield* Effect.promise(() => Deno.stat(temporaryPath!).catch(() => "missing")), "missing");
+            fileFailure = false;
             databaseFailure = true;
             const failedDb = yield* Effect.result(acquire());
             assert(Result.isFailure(failedDb));
             assertEquals((yield* state())?.savedFile, first.savedFile);
+            assertEquals((yield* state())?.acquisition?.lastSucceededAt, successfulAt);
             assertEquals((yield* state())?.acquisition?.lastAttempt.error, "database unavailable");
             assertEquals(Deno.readTextFileSync(firstPath), "first version");
             databaseFailure = false;
@@ -170,6 +242,44 @@ Deno.test("acquisition preserves the last successful file through source and DB 
             assert(repaired?.savedFile);
             assertNotEquals(repaired.savedFile.uuid, second.savedFile.uuid);
             assertEquals(Deno.readTextFileSync(files.path(resourceId, repaired.savedFile.uuid)), body);
+            // The acquired snapshot replaces the stale list, including name, kind, and URL.
+            resources = [{
+                name: "Renamed external slides",
+                lmsResourceId: resourceId,
+                type: "external",
+                sourceKind: "外部資料",
+                url: "https://example.com/new",
+            }];
+            const beforeExternalFailure = (yield* state())?.acquisition?.lastSucceededAt;
+            authenticationFailure = true;
+            assert(Result.isFailure(yield* Effect.result(acquire())));
+            const failedExternal = yield* state();
+            assertEquals(failedExternal?.name, "Renamed external slides");
+            assertEquals(failedExternal?.type, "external");
+            assertEquals(failedExternal?.url, "https://example.com/new");
+            assertEquals(failedExternal?.savedFile, repaired.savedFile);
+            assertEquals(failedExternal?.acquisition?.lastSucceededAt, beforeExternalFailure);
+            assertEquals(failedExternal?.acquisition?.lastAttempt.error, "authentication storage unavailable");
+            authenticationFailure = false;
+            assertEquals(yield* acquire(), { type: "external", url: "https://example.com/new" });
+            resources = [{ ...resources[0]!, name: "Updated URL", url: "https://example.com/newer" }];
+            sourceFailure = true;
+            assert(Result.isFailure(yield* Effect.result(acquire())));
+            assertEquals((yield* state())?.url, "https://example.com/newer");
+            assertEquals((yield* state())?.name, "Updated URL");
+            assertEquals((yield* state())?.savedFile, repaired.savedFile);
+            sourceFailure = false;
+            resources = [{
+                ...resources[0]!,
+                type: "file",
+                name: "latest.pdf",
+                url: "https://example.com/file-source",
+            }];
+            yield* acquire();
+            const latestFile = (yield* state())?.savedFile;
+            assert(latestFile);
+            assertEquals(latestFile.originalFilename, "latest.pdf");
+            assertEquals(latestFile.sourceUrl, "https://example.com/file-source");
             resources = [];
             yield* archive.appendMaterialResources(snapshot());
             const removed = yield* application.viewMaterial.execute({
@@ -178,9 +288,9 @@ Deno.test("acquisition preserves the last successful file through source and DB 
                 head: "false",
             });
             assertEquals(removed.resources[0]?.availability, "archived");
-            assertEquals(removed.resources[0]?.savedFile, repaired.savedFile);
+            assertEquals(removed.resources[0]?.savedFile, latestFile);
             assert(Result.isFailure(yield* Effect.result(acquire())));
-            assertEquals((yield* state())?.savedFile, repaired.savedFile);
+            assertEquals((yield* state())?.savedFile, latestFile);
         })));
     } finally {
         await Deno.remove(root, { recursive: true });

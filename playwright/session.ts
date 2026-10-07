@@ -79,13 +79,17 @@ export const makeLmsSourceSession = (page: Page): LmsSourceSession => {
                     : snapshot.materialResources.resources.findIndex((resource) =>
                         resource.lmsResourceId === selection
                     );
-                if (position < 0 || position >= snapshot.materialResources.resources.length) {
-                    return yield* new LmsSourceGatewayError({
-                        operation: "find resource",
-                        message: `Cannot find resource at position ${position} in material ${lmsMaterialId}.`,
-                    });
-                }
-                return yield* downloadResourceFromResourcesPage(page, selection);
+                const download = yield* Effect.result(
+                    position < 0 || position >= snapshot.materialResources.resources.length
+                        ? Effect.fail(
+                            new LmsSourceGatewayError({
+                                operation: "find resource",
+                                message: `Cannot find resource at position ${position} in material ${lmsMaterialId}.`,
+                            }),
+                        )
+                        : downloadResourceFromResourcesPage(page, selection),
+                );
+                return { snapshot, download };
             })),
     };
 };

@@ -338,7 +338,14 @@ for (const preferredCourseId of [courseId, undefined]) {
                 assertEquals(materialId, LmsMaterialId("SRY1"));
                 assertEquals(position, LmsResourceId("SRS1"));
                 assertEquals(courseHint, preferredCourseId);
-                return Effect.succeed({ type: "external", url: "https://example.com/shared" });
+                return Effect.succeed({
+                    snapshot: {
+                        courses,
+                        courseMaterials,
+                        materialResources: { lmsMaterialId: materialId, resources: [resource] },
+                    },
+                    download: Result.succeed({ type: "external" as const, url: "https://example.com/shared" }),
+                });
             },
         }, heads);
         const result = await Effect.runPromise(

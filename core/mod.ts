@@ -231,10 +231,28 @@ const downloadResource = Effect.fn("Core.downloadResource")(function* (options: 
         });
     }
     const selectedId = resourceId;
-    const attempt = source.withSession(options.head, (session) =>
-        Effect.gen(function* () {
-            const snapshot = yield* session.fetchMaterialResources(options.lmsMaterialId, preferredCourseId);
-            yield* archive.appendMaterialResources(snapshot);
+    const attempt = Effect.gen(function* () {
+        let downloadedPath: string | undefined;
+        return yield* Effect.gen(function* () {
+            const { snapshot, download } = yield* source.withSession(
+                options.head,
+                (session) =>
+                    Effect.gen(function* () {
+                        const retrieval = yield* session.downloadResource(
+                            options.lmsMaterialId,
+                            selectedId,
+                            preferredCourseId,
+                        );
+                        if (Result.isSuccess(retrieval.download) && retrieval.download.success.type === "file") {
+                            // Retain ownership if archiving or authentication finalization fails after the callback.
+                            downloadedPath = retrieval.download.success.path;
+                        }
+                        yield* archive.appendMaterialResources(retrieval.snapshot);
+                        return retrieval;
+                    }),
+            );
+            if (Result.isFailure(download)) return yield* download.failure;
+            const downloaded = download.success;
             const resource = snapshot.materialResources.resources.find((row) => row.lmsResourceId === selectedId);
             if (resource === undefined) {
                 return yield* new LmsSourceGatewayError({
@@ -242,12 +260,7 @@ const downloadResource = Effect.fn("Core.downloadResource")(function* (options: 
                     message: "資料は現在の一覧にありません。保存済み内容を参照してください。",
                 });
             }
-            const previous = yield* archive.getResourceState(options.lmsMaterialId, selectedId);
-            const downloaded = yield* session.downloadResource(
-                options.lmsMaterialId,
-                selectedId,
-                preferredCourseId,
-            );
+            // Switch durable success state only after the entire source session has succeeded.
             if (downloaded.type === "external") {
                 yield* archive.commitResourceAcquisition(
                     options.lmsMaterialId,
@@ -257,30 +270,38 @@ const downloadResource = Effect.fn("Core.downloadResource")(function* (options: 
                 );
                 return downloaded;
             }
-            return yield* Effect.gen(function* () {
-                const file = yield* files.save(
-                    selectedId,
-                    downloaded.path,
-                    downloaded.originalFilename ?? resource.name,
-                    previous?.savedFile,
-                );
-                const saved = { ...file, sourceUrl: resource.url };
-                const obsolete = yield* archive.commitResourceAcquisition(
-                    options.lmsMaterialId,
-                    selectedId,
-                    saved,
-                    DateTime.toDate(DateTime.nowUnsafe()),
-                );
-                if (obsolete && obsolete.uuid !== saved.uuid) {
-                    yield* files.remove(selectedId, obsolete.uuid).pipe(Effect.catch(Effect.logError));
-                }
-                return {
-                    ...downloaded,
-                    path: files.path(selectedId, saved.uuid),
-                    originalFilename: saved.originalFilename,
-                };
-            }).pipe(Effect.ensuring(files.discardDownload(downloaded.path).pipe(Effect.catch(Effect.logError))));
-        }));
+            const previous = yield* archive.getResourceState(options.lmsMaterialId, selectedId);
+            const file = yield* files.save(
+                selectedId,
+                downloaded.path,
+                downloaded.originalFilename ?? resource.name,
+                previous?.savedFile,
+            );
+            const saved = { ...file, sourceUrl: resource.url };
+            const obsolete = yield* archive.commitResourceAcquisition(
+                options.lmsMaterialId,
+                selectedId,
+                saved,
+                DateTime.toDate(DateTime.nowUnsafe()),
+            );
+            if (obsolete && obsolete.uuid !== saved.uuid) {
+                yield* files.remove(selectedId, obsolete.uuid).pipe(Effect.catch(Effect.logError));
+            }
+            return {
+                ...downloaded,
+                path: files.path(selectedId, saved.uuid),
+                originalFilename: saved.originalFilename,
+            };
+        }).pipe(
+            Effect.ensuring(
+                Effect.suspend(() =>
+                    downloadedPath === undefined
+                        ? Effect.void
+                        : files.discardDownload(downloadedPath).pipe(Effect.catch(Effect.logError))
+                ),
+            ),
+        );
+    });
     return yield* files.withResourceLock(selectedId, attempt).pipe(Effect.catch((error) =>
         Effect.gen(function* () {
             yield* archive.recordResourceAttempt(options.lmsMaterialId, selectedId, {

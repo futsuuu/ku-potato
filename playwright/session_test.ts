@@ -1,5 +1,5 @@
-import { assertEquals, assertRejects } from "@std/assert";
-import { Effect } from "effect";
+import { assert, assertEquals, assertRejects } from "@std/assert";
+import { Effect, Result } from "effect";
 import { chromium } from "playwright-core";
 import { LmsMaterialNotFoundError, LmsSourceGatewayError } from "../core/out_port.ts";
 import { LmsCourseId, LmsMaterialId, LmsResourceId } from "../domain/mod.ts";
@@ -19,6 +19,9 @@ Deno.test("source sessions prioritize cached ownership and safely fall back usin
         const visitedCourses: string[] = [];
         let homeVersion = 0;
         let brokenCourse = false;
+        let resourceKind = "ファイル資料";
+        const externalUrl = "https://example.com/new-slides";
+        await page.context().route(`${externalUrl}**`, (route) => route.fulfill({ body: "slides" }));
         await page.route(`${origin}/**`, (route) => {
             const url = new URL(route.request().url());
             if (url.pathname.startsWith("/lms/homeRedirect/")) {
@@ -49,8 +52,16 @@ Deno.test("source sessions prioritize cached ownership and safely fall back usin
                             : '<tr><td class="kyozaititleCell" id="REP1"><i title="レポート"></i>Report</td><td>－</td></tr><tr><td class="kyozaititleCell" id="SRY2"><i title="資料"></i>Unpublished handout</td><td>公開終了</td></tr>'
                     }</table></td></tr></tbody></table>`;
             } else {
+                const href = resourceKind === "外部資料"
+                    ? `javascript:openWindow('${origin}/lms/srcsSrcl/downloadUrl?syosaiId=SRS1&fileurl=${
+                        encodeURIComponent(externalUrl)
+                    }')`
+                    : "javascript:downloadFile('FIL1','SRS1')";
                 body =
-                    `<table><tr><th scope="col">資料名</th></tr><tr><td data-label="資料名"><i title="ファイル資料"></i><a href="javascript:downloadFile('FIL1','SRS1')">Handout.pdf</a></td></tr></table>`;
+                    `<script>function openWindow(url) { window.open(new URL(url).searchParams.get('fileurl')); }</script>
+                    <table><tr><th scope="col">資料名</th></tr><tr><td data-label="資料名"><i title="${resourceKind}"></i><a href="${href}">${
+                        resourceKind === "ファイル資料" ? "Handout.pdf" : "Updated slides"
+                    }</a></td></tr></table>`;
             }
             return route.fulfill({
                 contentType: "text/html; charset=utf-8",
@@ -103,6 +114,41 @@ Deno.test("source sessions prioritize cached ownership and safely fall back usin
             ]);
             assertEquals(resources.courseMaterials.lmsCourseId, LmsCourseId("KOG2"));
             assertEquals(materials.courseMaterials.lmsCourseId, LmsCourseId("KOG3"));
+        });
+        await t.step("acquisition returns the changed list actually used for the click", async () => {
+            const previous = await Effect.runPromise(session.fetchMaterialResources(
+                LmsMaterialId("SRY1"),
+                LmsCourseId("KOG2"),
+            ));
+            assertEquals(previous.materialResources.resources[0]?.type, "file");
+            resourceKind = "外部資料";
+            const retrieval = await Effect.runPromise(session.downloadResource(
+                LmsMaterialId("SRY1"),
+                LmsResourceId("SRS1"),
+                LmsCourseId("KOG2"),
+            ));
+            assertEquals(retrieval.snapshot.materialResources.resources[0], {
+                name: "Updated slides",
+                lmsResourceId: LmsResourceId("SRS1"),
+                type: "external",
+                sourceKind: "外部資料",
+                url: externalUrl,
+            });
+            assert(Result.isSuccess(retrieval.download));
+            assertEquals(retrieval.download.success, { type: "external", url: externalUrl });
+        });
+        await t.step("failed acquisition still returns its latest list", async () => {
+            resourceKind = "動画資料";
+            const retrieval = await Effect.runPromise(session.downloadResource(
+                LmsMaterialId("SRY1"),
+                LmsResourceId("SRS1"),
+                LmsCourseId("KOG2"),
+            ));
+            assertEquals(retrieval.snapshot.materialResources.resources[0]?.type, "unsupported");
+            assertEquals(retrieval.snapshot.materialResources.resources[0]?.name, "Updated slides");
+            assert(Result.isFailure(retrieval.download));
+            assertEquals(retrieval.download.failure.operation, "read resource kind");
+            resourceKind = "ファイル資料";
         });
         for (const id of ["REP1", "SRY2"]) {
             await t.step(`returns no resources for ${id}`, async () => {
