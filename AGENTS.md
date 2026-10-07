@@ -34,6 +34,12 @@ This repository follows the Hexagonal Architecture (Ports & Adapters).
 - Inbound port effects do not expose outbound service requirements. The application layer resolves them while
   constructing its `Layer`.
 
+## Tests
+
+- Keep module tests alongside their implementation with matching names: `xxx.ts` and `xxx_test.ts`.
+- Put integration tests that cannot be paired with a single implementation file in that subsystem's `tests` directory,
+  such as `/playwright/tests`.
+
 ## References
 
 - Effect v4: `node_modules/effect/AGENTS.md`

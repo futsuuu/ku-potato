@@ -1,12 +1,12 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { DateTime, Effect } from "effect";
 import { chromium } from "playwright-core";
-import { LmsAuthenticationRequiredError, LmsSourceGatewayError } from "../core/out_port.ts";
-import { LmsCourseId, LmsMaterialId } from "../domain/mod.ts";
-import { readCourseMaterials } from "./course.ts";
-import { readMaterialResourcesFromCoursePage } from "./resources.ts";
-import { hasAuthenticationState } from "./testing.ts";
-import { loginToLms } from "./login.ts";
+import { LmsAuthenticationRequiredError, LmsSourceGatewayError } from "../../core/out_port.ts";
+import { LmsCourseId, LmsMaterialId } from "../../domain/mod.ts";
+import { readCourseMaterials } from "../course.ts";
+import { readMaterialResourcesFromCoursePage } from "../resources.ts";
+import { hasAuthenticationState } from "../testing.ts";
+import { loginToLms } from "../login.ts";
 
 const homeUrl = "https://study.ns.kogakuin.ac.jp/lms/homeHoml/doIndex";
 const courseUrl = "https://study.ns.kogakuin.ac.jp/lms/homeHoml/doLinkKougi";

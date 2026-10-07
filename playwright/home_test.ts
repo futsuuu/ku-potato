@@ -1,8 +1,8 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import { chromium } from "playwright-core";
 import { LmsSourceGatewayError } from "../core/out_port.ts";
-import { openLmsHome, readCourses } from "./home.ts";
+import { openLmsHome, parseLmsCourseId, readCourses } from "./home.ts";
 import { loginToLms } from "./login.ts";
 import { defaultAuthenticationStoragePath } from "./mod.ts";
 
@@ -66,4 +66,9 @@ Deno.test({
             await browser.close();
         }
     },
+});
+
+Deno.test("Extracts LMS course IDs from course click handlers", () => {
+    assertEquals(Effect.runSync(parseLmsCourseId("formSubmit('KOG0000000066101')")), "KOG0000000066101");
+    assertEquals(Exit.isFailure(Effect.runSyncExit(parseLmsCourseId("openCourse('KOG1')"))), true);
 });
