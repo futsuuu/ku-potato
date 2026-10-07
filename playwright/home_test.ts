@@ -1,31 +1,14 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { Effect, Exit } from "effect";
-import { chromium } from "playwright-core";
 import { LmsSourceGatewayError } from "../core/out_port.ts";
 import { openLmsHome, parseLmsCourseId, readCourses } from "./home.ts";
-import { loginToLms } from "./login.ts";
-import { defaultAuthenticationStoragePath } from "./mod.ts";
-
-const storageStatePath = defaultAuthenticationStoragePath();
-const hasAuthenticationState = await Deno.stat(storageStatePath).then(
-    () => true,
-    (cause) => cause instanceof Deno.errors.NotFound ? false : Promise.reject(cause),
-);
+import { hasAuthenticationState, withAuthenticatedPage } from "./testing.ts";
 
 Deno.test({
     name: "KU-LMS course retrieval verifies HOME using the application's saved authentication",
     ignore: !hasAuthenticationState,
     async fn(t) {
-        const browser = await chromium.launch({
-            channel: "chrome",
-            headless: true,
-            args: ["--disable-blink-features=AutomationControlled"],
-        });
-        try {
-            const context = await browser.newContext({ storageState: storageStatePath });
-            const page = await context.newPage();
-            await Effect.runPromise(loginToLms(page, false));
-
+        await withAuthenticatedPage(async (page) => {
             await t.step("Reads every displayed course and preserves link availability", async () => {
                 await Effect.runPromise(openLmsHome(page));
                 const courses = await Effect.runPromise(readCourses(page));
@@ -62,9 +45,7 @@ Deno.test({
                     assertEquals(error.operation, "verify KU-LMS course list heading");
                 }
             });
-        } finally {
-            await browser.close();
-        }
+        });
     },
 });
 

@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import type { Page, Request } from "playwright-core";
 import { LmsSourceGatewayError } from "../core/out_port.ts";
-import type { LmsMaterialId, Resource, ResourceDownload } from "../domain/mod.ts";
+import { type LmsMaterialId, LmsResourceId, type Resource, type ResourceDownload } from "../domain/mod.ts";
 import { normalizeText } from "./parsing.ts";
 import { tryPromise } from "./promise.ts";
 import { verifyCourseMaterials } from "./course.ts";
@@ -47,19 +47,109 @@ export const readMaterialResourcesFromCoursePage = Effect.fn("PlaywrightBrowser.
             () => materialLink.evaluate((element) => (element as { click(): void }).click()),
         );
         yield* verifyMaterialResources(page);
-        return (yield* tryPromise(
-            "read resource names",
-            () => page.locator('td[data-label="資料名"]').allTextContents(),
-        ))
-            .map(normalizeText)
-            .map((name): Resource => ({ name }));
+        return yield* readMaterialResourcesFromResourcesPage(page);
     },
 );
 
-/** Uses the displayed resource kind and normal click behavior, without decoding LMS handlers. */
-export const downloadResourceFromResourcesPage = Effect.fn("PlaywrightBrowser.downloadResourceFromResourcesPage")(
-    function* (page: Page, position: number): Effect.fn.Return<ResourceDownload, LmsSourceGatewayError> {
+/** Reads stable detail IDs and URLs without opening any external resource. */
+export const readMaterialResourcesFromResourcesPage = Effect.fn(
+    "PlaywrightBrowser.readMaterialResourcesFromResourcesPage",
+)(
+    function* (page: Page): Effect.fn.Return<Resource[], LmsSourceGatewayError> {
         yield* verifyMaterialResources(page);
+        const entries = yield* tryPromise(
+            "read resource metadata",
+            () =>
+                page.locator('td[data-label="資料名"]').evaluateAll((cells) =>
+                    cells.map((cell) => ({
+                        name: cell.textContent ?? "",
+                        kind: Array.from(cell.querySelectorAll("[title], img[alt]"))
+                            .map((icon) => icon.getAttribute("title") ?? icon.getAttribute("alt"))
+                            .find((label) => label?.endsWith("資料")) ?? "unknown",
+                        handlers: Array.from(cell.querySelectorAll("a"))
+                            .flatMap((link) => [link.getAttribute("onclick"), link.getAttribute("href")])
+                            .filter((value): value is string => value !== null),
+                    }))
+                ),
+        );
+        const resources: Resource[] = [];
+        const seen = new Set<string>();
+        for (const entry of entries) {
+            let id: string | undefined;
+            let url: string | undefined;
+            for (const handler of entry.handlers) {
+                const file = /downloadFile\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]*)['"]/.exec(handler);
+                if (file !== null) id = file[1];
+                const windowUrl = /openWindow\s*\(\s*(['"])(.*?)\1/.exec(handler)?.[2];
+                const candidate = windowUrl ?? (handler.startsWith("javascript:") ? undefined : handler);
+                if (candidate !== undefined) {
+                    const parsed = yield* Effect.try({
+                        try: () => new URL(candidate, page.url()),
+                        catch: () =>
+                            new LmsSourceGatewayError({
+                                operation: "read resource metadata",
+                                message: "Invalid resource link URL.",
+                            }),
+                    });
+                    id ??= parsed.searchParams.get("syosaiId") ?? undefined;
+                    url ??= parsed.searchParams.get("fileurl") ?? undefined;
+                }
+                // Unknown kinds can still expose the same detail ID in their handler.
+                if (entry.kind !== "ファイル資料" && entry.kind !== "外部資料") {
+                    id ??= /['"](SRS\d+)['"]/.exec(handler)?.[1];
+                }
+            }
+            if (id === undefined || !/^SRS\d+$/.test(id) || seen.has(id)) {
+                return yield* new LmsSourceGatewayError({
+                    operation: "read LMS resource ID",
+                    message: `A resource has a missing, invalid, or duplicate LMS detail ID: ${id ?? "missing"}`,
+                });
+            }
+            seen.add(id);
+            if (entry.kind === "外部資料") {
+                if (url === undefined) {
+                    return yield* new LmsSourceGatewayError({
+                        operation: "read external resource URL",
+                        message: "The external resource has no source URL.",
+                    });
+                }
+                yield* Effect.try({
+                    try: () => {
+                        const parsed = new URL(url);
+                        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+                            throw new Error("Unsupported protocol");
+                        }
+                    },
+                    catch: () =>
+                        new LmsSourceGatewayError({
+                            operation: "read external resource URL",
+                            message: "The external resource URL must be HTTP(S).",
+                        }),
+                });
+            }
+            resources.push({
+                name: normalizeText(entry.name),
+                lmsResourceId: LmsResourceId(id),
+                type: entry.kind === "ファイル資料" ? "file" : entry.kind === "外部資料" ? "external" : "unsupported",
+                sourceKind: entry.kind,
+                ...(url === undefined ? {} : { url }),
+            });
+        }
+        return resources;
+    },
+);
+
+/** Resolves IDs against the current page before using normal LMS click behavior. */
+export const downloadResourceFromResourcesPage = Effect.fn("PlaywrightBrowser.downloadResourceFromResourcesPage")(
+    function* (
+        page: Page,
+        selection: number | LmsResourceId,
+    ): Effect.fn.Return<ResourceDownload, LmsSourceGatewayError> {
+        yield* verifyMaterialResources(page);
+        const resources = yield* readMaterialResourcesFromResourcesPage(page);
+        const position = typeof selection === "number"
+            ? selection
+            : resources.findIndex((resource) => resource.lmsResourceId === selection);
         yield* Schema.decodeEffect(Schema.Natural)(position).pipe(
             Effect.mapError(() =>
                 new LmsSourceGatewayError({
@@ -115,16 +205,23 @@ export const downloadResourceFromResourcesPage = Effect.fn("PlaywrightBrowser.do
             const path = `${directory}/download-${filename || "resource"}`;
             yield* tryPromise("save resource", () => download.saveAs(path));
             yield* tryPromise("delete temporary download", () => download.delete());
-            return { type: "file", path };
+            return { type: "file", path, originalFilename: download.suggestedFilename() };
         }
         const context = page.context();
         const origin = new URL(page.url()).origin;
+        const sourceUrl = resources[position].url!;
+        const targetUrl = new URL(sourceUrl);
+        // Fragments belong to the archived source URL but never appear in HTTP requests.
+        targetUrl.hash = "";
         const previousPages = new Set(context.pages());
         const capturedUrl = Effect.callback<string>((resume) => {
             const observe = (request: Request) => {
-                if (request.isNavigationRequest() && new URL(request.url()).origin !== origin) {
+                if (
+                    request.isNavigationRequest() &&
+                    (request.url() === targetUrl.href || new URL(request.url()).origin !== origin)
+                ) {
                     context.off("request", observe);
-                    resume(Effect.succeed(request.url()));
+                    resume(Effect.succeed(sourceUrl));
                 }
             };
             context.on("request", observe);

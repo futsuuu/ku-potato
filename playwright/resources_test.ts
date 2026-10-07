@@ -2,12 +2,13 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { Effect } from "effect";
 import { chromium } from "playwright-core";
 import { LmsSourceGatewayError } from "../core/out_port.ts";
-import { type LmsCourseId, LmsMaterialId, type Material } from "../domain/mod.ts";
+import { type LmsCourseId, LmsMaterialId, LmsResourceId, type Material } from "../domain/mod.ts";
 import { readCourseMaterials } from "./course.ts";
 import { openLmsHome, readCourses } from "./home.ts";
 import {
     downloadResourceFromResourcesPage,
     readMaterialResourcesFromCoursePage,
+    readMaterialResourcesFromResourcesPage,
     verifyMaterialResources,
 } from "./resources.ts";
 import { hasAuthenticationState, withAuthenticatedPage } from "./testing.ts";
@@ -155,20 +156,100 @@ Deno.test("resource retrieval saves files and captures external URLs before redi
         page.setDefaultTimeout(1000);
         const resource = (name: string, kind: string, href: string, attributes = "") =>
             `<tr><td data-label="資料名"><i title="${kind}"><a href="${href}" ${attributes}>${name}</a></i><a href="${href}" ${attributes}></a></td></tr>`;
-        const html = `<table><tr><th scope="col">資料名</th></tr>
-            ${resource("Handout", "ファイル資料", `${target}/file`)}
-            ${resource("Shared slides", "外部資料", `${origin}/redirect`, 'target="_blank"')}
-            ${resource("Other resource", "動画資料", `${target}/unknown`)}
-            ${resource("Direct URL", "外部資料", `${target}/shared`, 'target="_blank"')}
+        const externalHandler = (id: string, url: string, path: string) =>
+            `javascript:openWindow('${origin}${path}?syosaiId=${id}&fileurl=${encodeURIComponent(url)}','','')`;
+        const html = `<script>
+            function downloadFile(fileId, syosaiId) { location.href = '${target}/file'; }
+            function openWindow(url) { window.open(url); }
+            </script><table><tr><th scope="col">資料名</th></tr>
+            ${resource("Handout", "ファイル資料", "javascript:downloadFile('FIL0000000000001','SRS0000000000001')")}
+            ${
+            resource(
+                "Shared slides",
+                "外部資料",
+                externalHandler("SRS0000000000002", `${target}/shared?token=original`, "/redirect"),
+            )
+        }
+            ${resource("Other resource", "動画資料", "javascript:unsupportedHandler('SRS0000000000003')")}
+            ${resource("Direct URL", "外部資料", externalHandler("SRS0000000000004", `${target}/shared`, "/direct"))}
             </table>`;
         await context.route(
             `${origin}/**`,
             (route) =>
-                new URL(route.request().url()).pathname === "/redirect"
-                    ? route.fulfill({ status: 302, headers: { location: `${target}/shared?token=original` } })
+                ["/redirect", "/direct"].includes(new URL(route.request().url()).pathname)
+                    ? route.fulfill({
+                        status: 302,
+                        headers: { location: new URL(route.request().url()).searchParams.get("fileurl")! },
+                    })
                     : route.fulfill({ contentType: "text/html; charset=utf-8", body: html }),
         );
         await page.goto(resourcesUrl);
+
+        await t.step("listing extracts detail IDs, original URLs, and unknown kinds without navigation", async () => {
+            const requested: string[] = [];
+            const observe = (request: { url(): string }) => requested.push(request.url());
+            context.on("request", observe);
+            try {
+                const resources = await Effect.runPromise(readMaterialResourcesFromResourcesPage(page));
+                assertEquals(resources, [
+                    {
+                        name: "Handout",
+                        lmsResourceId: LmsResourceId("SRS0000000000001"),
+                        type: "file",
+                        sourceKind: "ファイル資料",
+                    },
+                    {
+                        name: "Shared slides",
+                        lmsResourceId: LmsResourceId("SRS0000000000002"),
+                        type: "external",
+                        sourceKind: "外部資料",
+                        url: `${target}/shared?token=original`,
+                    },
+                    {
+                        name: "Other resource",
+                        lmsResourceId: LmsResourceId("SRS0000000000003"),
+                        type: "unsupported",
+                        sourceKind: "動画資料",
+                    },
+                    {
+                        name: "Direct URL",
+                        lmsResourceId: LmsResourceId("SRS0000000000004"),
+                        type: "external",
+                        sourceKind: "外部資料",
+                        url: `${target}/shared`,
+                    },
+                ]);
+                assertEquals(requested, []);
+            } finally {
+                context.off("request", observe);
+            }
+        });
+
+        await t.step("missing, malformed, and duplicate detail IDs fail the whole listing", async () => {
+            const link = page.locator('td[data-label="資料名"]').nth(0).getByRole("link").first();
+            const original = await link.getAttribute("href");
+            for (
+                const handler of [
+                    "javascript:downloadFile('FIL0000000000001','')",
+                    "javascript:downloadFile('FIL0000000000001','invalid')",
+                    "javascript:downloadFile('FIL0000000000001','SRS0000000000002')",
+                ]
+            ) {
+                // Both links in the cell share the real LMS handler.
+                await page.locator('td[data-label="資料名"]').nth(0).locator("a").evaluateAll(
+                    (links, href) => links.forEach((link) => link.setAttribute("href", href)),
+                    handler,
+                );
+                await assertRejects(
+                    () => Effect.runPromise(readMaterialResourcesFromResourcesPage(page)),
+                    LmsSourceGatewayError,
+                );
+            }
+            await page.locator('td[data-label="資料名"]').nth(0).locator("a").evaluateAll(
+                (links, href) => links.forEach((link) => link.setAttribute("href", href!)),
+                original,
+            );
+        });
 
         await t.step("file contents persist after the browser context closes", async () => {
             const temporaryPath = page.waitForEvent("download").then((download) => download.path());
@@ -177,6 +258,7 @@ Deno.test("resource retrieval saves files and captures external URLs before redi
             savedPath = result.path;
             assertEquals(await Deno.readTextFile(result.path), "test document");
             assert(result.path.endsWith("download-handout.pdf"));
+            assertEquals(result.originalFilename, "handout.pdf");
             assertEquals(page.url(), resourcesUrl);
             const downloadedPath = await temporaryPath;
             assert(downloadedPath !== null);
@@ -202,6 +284,32 @@ Deno.test("resource retrieval saves files and captures external URLs before redi
                 assertEquals(context.pages().length, 1);
             });
         }
+        await t.step("resource ID retrieval follows reordered rows instead of old positions", async () => {
+            await page.locator('td[data-label="資料名"]').nth(0).evaluate((cell) =>
+                cell.parentElement!.parentElement!.append(cell.parentElement!)
+            );
+            const result = await Effect.runPromise(
+                downloadResourceFromResourcesPage(page, LmsResourceId("SRS0000000000001")),
+            );
+            assert(result.type === "file");
+            assertEquals(await Deno.readTextFile(result.path), "test document");
+            await assertRejects(
+                () => Effect.runPromise(downloadResourceFromResourcesPage(page, LmsResourceId("SRS9999999999999"))),
+                LmsSourceGatewayError,
+            );
+        });
+        await t.step("external URLs retain fragments and can share the LMS origin", async () => {
+            const source = `${origin}/shared-page#slide-2`;
+            await page.locator("tbody").evaluate(
+                (table, html) => table.insertAdjacentHTML("beforeend", html),
+                resource("Same origin", "外部資料", externalHandler("SRS0000000000005", source, "/direct")),
+            );
+            assertEquals(
+                await Effect.runPromise(downloadResourceFromResourcesPage(page, LmsResourceId("SRS0000000000005"))),
+                { type: "external", url: source },
+            );
+            assertEquals(context.pages().length, 1);
+        });
         await context.close();
         assert(savedPath !== undefined);
         assertEquals(await Deno.readTextFile(savedPath), "test document");

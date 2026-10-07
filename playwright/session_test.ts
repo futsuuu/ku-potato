@@ -2,7 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import { Effect } from "effect";
 import { chromium } from "playwright-core";
 import { LmsMaterialNotFoundError, LmsSourceGatewayError } from "../core/out_port.ts";
-import { LmsCourseId, LmsMaterialId } from "../domain/mod.ts";
+import { LmsCourseId, LmsMaterialId, LmsResourceId } from "../domain/mod.ts";
 import { makeLmsSourceSession } from "./session.ts";
 
 const origin = "https://study.ns.kogakuin.ac.jp";
@@ -50,7 +50,7 @@ Deno.test("source sessions prioritize cached ownership and safely fall back usin
                     }</table></td></tr></tbody></table>`;
             } else {
                 body =
-                    '<table><tr><th scope="col">資料名</th></tr><tr><td data-label="資料名">Handout.pdf</td></tr></table>';
+                    `<table><tr><th scope="col">資料名</th></tr><tr><td data-label="資料名"><i title="ファイル資料"></i><a href="javascript:downloadFile('FIL1','SRS1')">Handout.pdf</a></td></tr></table>`;
             }
             return route.fulfill({
                 contentType: "text/html; charset=utf-8",
@@ -76,7 +76,12 @@ Deno.test("source sessions prioritize cached ownership and safely fall back usin
                 ));
                 assertEquals(snapshot.materialResources, {
                     lmsMaterialId: LmsMaterialId("SRY1"),
-                    resources: [{ name: "Handout.pdf" }],
+                    resources: [{
+                        name: "Handout.pdf",
+                        lmsResourceId: LmsResourceId("SRS1"),
+                        type: "file",
+                        sourceKind: "ファイル資料",
+                    }],
                 });
                 assertEquals(snapshot.courseMaterials.lmsCourseId, LmsCourseId("KOG2"));
                 assertEquals(visitedCourses, [...expected]);

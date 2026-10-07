@@ -9,7 +9,7 @@ import {
     LmsSourceGatewayError,
 } from "../core/out_port.ts";
 import { type CourseMaterialsSnapshot, LmsCourseId, LmsMaterialId, type Material } from "../domain/mod.ts";
-import { hasAuthenticationState, storageStatePath } from "./testing.ts";
+import { hasAuthenticationState, storageStatePath, withAuthenticatedPage } from "./testing.ts";
 
 Deno.test("Logout removes isolated authentication state and succeeds when it is already absent", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-logout-test-" });
@@ -34,7 +34,7 @@ Deno.test({
         const directory = await Deno.makeTempDir({ prefix: "ku-potato-live-test-" });
         const copiedStatePath = `${directory}/storage-state.json`;
         try {
-            await Deno.copyFile(storageStatePath, copiedStatePath);
+            await withAuthenticatedPage((page) => page.context().storageState({ path: copiedStatePath }));
             const { authentication, source } = makeLmsGateways(copiedStatePath);
             if (
                 !await t.step("Login saves authentication and status reports authenticated", async () => {

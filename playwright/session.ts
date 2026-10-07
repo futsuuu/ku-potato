@@ -71,16 +71,21 @@ export const makeLmsSourceSession = (page: Page): LmsSourceSession => {
             })),
         fetchMaterialResources: (lmsMaterialId, preferredCourseId) =>
             semaphore.withPermits(1)(openMaterialResources(lmsMaterialId, preferredCourseId)),
-        downloadResource: (lmsMaterialId, position, preferredCourseId) =>
+        downloadResource: (lmsMaterialId, selection, preferredCourseId) =>
             semaphore.withPermits(1)(Effect.gen(function* () {
                 const snapshot = yield* openMaterialResources(lmsMaterialId, preferredCourseId);
-                if (position >= snapshot.materialResources.resources.length) {
+                const position = typeof selection === "number"
+                    ? selection
+                    : snapshot.materialResources.resources.findIndex((resource) =>
+                        resource.lmsResourceId === selection
+                    );
+                if (position < 0 || position >= snapshot.materialResources.resources.length) {
                     return yield* new LmsSourceGatewayError({
                         operation: "find resource",
                         message: `Cannot find resource at position ${position} in material ${lmsMaterialId}.`,
                     });
                 }
-                return yield* downloadResourceFromResourcesPage(page, position);
+                return yield* downloadResourceFromResourcesPage(page, selection);
             })),
     };
 };

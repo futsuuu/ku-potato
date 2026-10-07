@@ -2,7 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import { DateTime, Effect } from "effect";
 import { chromium } from "playwright-core";
 import { LmsAuthenticationRequiredError, LmsSourceGatewayError } from "../../core/out_port.ts";
-import { LmsCourseId, LmsMaterialId } from "../../domain/mod.ts";
+import { LmsCourseId, LmsMaterialId, LmsResourceId } from "../../domain/mod.ts";
 import { readCourseMaterials } from "../course.ts";
 import { readMaterialResourcesFromCoursePage } from "../resources.ts";
 import { hasAuthenticationState } from "../testing.ts";
@@ -35,7 +35,7 @@ Deno.test({
             const page = await browser.newPage();
             let courseResponse = courseHtml;
             let resourceResponse =
-                '<table><tr><th scope="col">資料名</th></tr><tr><td data-label="資料名">Handout.pdf</td></tr></table>';
+                `<table><tr><th scope="col">資料名</th></tr><tr><td data-label="資料名"><i title="ファイル資料"></i><a href="javascript:downloadFile('FIL1','SRS1')">Handout.pdf</a></td></tr></table>`;
             let loginDestination = "https://study-auth.ns.kogakuin.ac.jp/eduapi/gknsso/CoursePower/";
             let showLoginInstruction = true;
             await page.route("https://study.ns.kogakuin.ac.jp/**", (route) => {
@@ -149,7 +149,12 @@ Deno.test({
                     assertEquals(
                         await Effect.runPromise(readMaterialResourcesFromCoursePage(page, LmsMaterialId("SRY1"))),
                         [
-                            { name: "Handout.pdf" },
+                            {
+                                name: "Handout.pdf",
+                                lmsResourceId: LmsResourceId("SRS1"),
+                                type: "file",
+                                sourceKind: "ファイル資料",
+                            },
                         ],
                     );
                     resourceResponse = '<table><tr><th scope="col">資料名</th></tr></table>';
