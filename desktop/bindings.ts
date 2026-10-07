@@ -21,7 +21,14 @@ export type DesktopCourseMaterials = {
 export type DesktopMaterialDetail = {
     readonly course: AvailableCourse;
     readonly material: DesktopMaterial;
-    readonly resources: readonly Resource[];
+    readonly resources: readonly DesktopResource[];
+};
+
+export type DesktopResource = Omit<Resource, "acquisition"> & {
+    readonly acquisition?: {
+        readonly lastSucceededAt?: string;
+        readonly lastAttempt: { readonly at: string; readonly status: "success" | "failure"; readonly error?: string };
+    };
 };
 
 export type CourseListResult = DesktopQueryResult<readonly Course[]>;
@@ -50,5 +57,9 @@ export interface DesktopBindings {
     listAssignments(courseIds: readonly string[], sync: SyncPolicy): Promise<AssignmentsResult>;
     listMaterials(courseId: string, sync: SyncPolicy): Promise<CourseMaterialsResult>;
     viewMaterial(materialId: string, sync: SyncPolicy): Promise<MaterialDetailResult>;
-    downloadResource(materialId: string, position: number): Promise<DesktopQueryResult<ResourceDownload>>;
+    downloadResource(
+        materialId: string,
+        position: number,
+        resourceId?: string,
+    ): Promise<DesktopQueryResult<ResourceDownload>>;
 }

@@ -28,6 +28,7 @@ export default function MaterialInfo(props: ParentProps<{ material: DesktopMater
     return (
         <small class="app-meta">
             {types[props.material.type]} · 公開期限: {deadline(props.material.publicationDeadline)}
+            {props.material.archived ? " · 保存済み教材（現在の一覧にはありません）" : ""}
             {props.children}
         </small>
     );

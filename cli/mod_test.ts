@@ -9,7 +9,7 @@ import type {
     ViewMaterial,
 } from "../core/in_port.ts";
 import { Application, ApplicationError } from "../core/in_port.ts";
-import { LmsCourseId } from "../domain/mod.ts";
+import { LmsCourseId, LmsMaterialId } from "../domain/mod.ts";
 import { Effect, Terminal } from "effect";
 import { CliInboundAdapter } from "./mod.ts";
 
@@ -245,7 +245,7 @@ Deno.test("resource download prints only the downloaded path or external URL", a
         const input = ports({
             downloadResource: {
                 execute: (options) => {
-                    assertEquals(options, { lmsMaterialId: "SRY1", position: 1, head: "false" });
+                    assertEquals(options, { lmsMaterialId: LmsMaterialId("SRY1"), position: 1, head: "false" });
                     return Effect.succeed(result);
                 },
             },

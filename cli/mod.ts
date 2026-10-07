@@ -222,7 +222,7 @@ export const main = Effect.fn("CliInboundAdapter.run")(function* (
                             subCommands: {
                                 download: gunshi.define({
                                     name: "download",
-                                    description: "ファイル資料を一時保存し、外部資料はリンクを取得する",
+                                    description: "ファイル資料を保存し、外部資料はリンクを取得する",
                                     args: {
                                         materialId: { type: "positional", required: true, description: "LMS教材ID" },
                                         position: {
@@ -256,6 +256,7 @@ export const CliInboundAdapter = { run: main };
 
 export const printCourse = Effect.fn("CliInboundAdapter.printCourse")(function* (course: Course) {
     yield* display(`講義名: ${course.name}`);
+    if (course.archived) yield* display("  保存済み講義（現在の一覧にはありません）");
     if (course.availability === "unavailable") {
         yield* display("  利用不可");
         return;
@@ -301,6 +302,27 @@ export const printMaterialDetail = Effect.fn("CliInboundAdapter.printMaterialDet
     }
     for (const [position, resource] of detail.resources.entries()) {
         yield* display(`資料[${position}]: ${resource.name}`);
+        if (resource.availability === "archived") yield* display("  保存済み資料（現在の一覧にはありません）");
+        if (resource.lmsResourceId === undefined) {
+            yield* display("  旧形式の一覧：取得前に資料一覧を再取得してください。");
+        }
+        if (resource.savedPath) yield* display(`  保存先: ${resource.savedPath}`);
+        if (resource.savedFile) yield* display(`  元ファイル名: ${resource.savedFile.originalFilename}`);
+        if (resource.url) yield* display(`  外部URL: ${resource.url}`);
+        if (resource.savedFile?.sourceUrl && resource.savedFile.sourceUrl !== resource.url) {
+            yield* display(`  保存時のURL: ${resource.savedFile.sourceUrl}`);
+        }
+        if (resource.acquisition?.lastSucceededAt) {
+            yield* display(`  最終成功: ${resource.acquisition.lastSucceededAt.toISOString()}`);
+        }
+        if (resource.acquisition?.lastAttempt) {
+            const attempt = resource.acquisition.lastAttempt;
+            yield* display(
+                `  直近の取得: ${attempt.at.toISOString()} ${attempt.status}${
+                    attempt.error ? ` ${attempt.error}` : ""
+                }`,
+            );
+        }
     }
 });
 
@@ -309,6 +331,7 @@ const printMaterial = Effect.fn("CliInboundAdapter.printMaterial")(function* (
     indent = "",
 ) {
     yield* display(`${indent}教材: ${material.name}`);
+    if (material.archived) yield* display(`${indent}  保存済み教材（現在の一覧にはありません）`);
     yield* display(`${indent}  LMS教材ID: ${material.lmsMaterialId}`);
     yield* display(`${indent}  種類: ${material.type}`);
     yield* display(

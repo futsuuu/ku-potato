@@ -29,6 +29,9 @@ export default function Courses() {
                             <For each={courses()} fallback={<li class="app-row">講義がありません。</li>}>
                                 {(course) => (
                                     <li class="app-row">
+                                        <Show when={course.archived}>
+                                            <small class="app-meta">保存済み講義</small>
+                                        </Show>
                                         {course.availability === "available"
                                             ? (
                                                 <a href={paths.courses(course.lmsCourseId)}>

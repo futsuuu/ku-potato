@@ -10,6 +10,7 @@ const messages: Record<QueryError["reason"], string> = {
     "archive-data-missing": "データが見つかりません。再取得をお試しください。",
     "material-not-found": "教材が見つかりません。公開が終了した可能性があります。",
     "invalid-position": "資料の位置が正しくありません。",
+    "resource-storage": "資料ファイルを保存できませんでした。",
 };
 
 export const queryErrorMessage = (error: Pick<QueryError, "reason">) => messages[error.reason];
@@ -56,5 +57,6 @@ export function createDesktopQuery<A>(
         refresh: () => {
             if (!pending()) load(key(), "true");
         },
+        reloadArchive: () => load(key(), "false"),
     };
 }

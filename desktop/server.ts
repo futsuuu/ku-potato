@@ -4,12 +4,14 @@ import { fileURLToPath } from "node:url";
 import { ApplicationLive } from "../core/mod.ts";
 import { makeLmsGatewaysLayer } from "../playwright/mod.ts";
 import { makeLmsArchiveGatewayLayer } from "../sqlite/mod.ts";
+import { makeResourceFileGatewayLayer } from "../filesystem/mod.ts";
 import type { DesktopBindings } from "./bindings.ts";
 import { DesktopInboundAdapter } from "./mod.ts";
 
 const outbound = Layer.mergeAll(
     makeLmsGatewaysLayer(),
     makeLmsArchiveGatewayLayer(),
+    makeResourceFileGatewayLayer(),
 );
 const runtime = ManagedRuntime.make(ApplicationLive.pipe(Layer.provide(outbound)));
 
@@ -27,7 +29,8 @@ win.bind(
 );
 win.bind(
     "downloadResource",
-    (materialId, position) => runtime.runPromise(DesktopInboundAdapter.downloadResource(materialId, position)),
+    (materialId, position, resourceId) =>
+        runtime.runPromise(DesktopInboundAdapter.downloadResource(materialId, position, resourceId)),
 );
 win.addEventListener("close", () => void runtime.dispose());
 

@@ -1,5 +1,5 @@
 import { Application, ApplicationError, type QueryError, type SyncPolicy } from "../core/in_port.ts";
-import { LmsCourseId, LmsMaterialId, type Material } from "../domain/mod.ts";
+import { LmsCourseId, LmsMaterialId, LmsResourceId, type Material } from "../domain/mod.ts";
 import { Effect } from "effect";
 import type { DesktopMaterial, DesktopQueryResult } from "./bindings.ts";
 
@@ -119,17 +119,36 @@ const viewMaterial = Effect.fn("DesktopInboundAdapter.viewMaterial")(function* (
         sync,
         head: "auto",
     });
-    return { ...detail, material: serializeMaterial(detail.material) };
+    return {
+        ...detail,
+        material: serializeMaterial(detail.material),
+        resources: detail.resources.map((resource) => {
+            const { acquisition, ...metadata } = resource;
+            return {
+                ...metadata,
+                ...(acquisition
+                    ? {
+                        acquisition: {
+                            lastSucceededAt: acquisition.lastSucceededAt?.toISOString(),
+                            lastAttempt: { ...acquisition.lastAttempt, at: acquisition.lastAttempt.at.toISOString() },
+                        },
+                    }
+                    : {}),
+            };
+        }),
+    };
 }, toDesktopResult);
 
 const downloadResource = Effect.fn("DesktopInboundAdapter.downloadResource")(function* (
     materialId: string,
     position: number,
+    resourceId?: string,
 ) {
     const application = yield* Application;
     return yield* application.downloadResource.execute({
         lmsMaterialId: LmsMaterialId(materialId),
         position,
+        ...(resourceId ? { lmsResourceId: LmsResourceId(resourceId) } : {}),
         head: "auto",
     });
 }, toDesktopResult);
