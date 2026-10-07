@@ -171,12 +171,16 @@ Deno.test("resource retrieval saves files and captures external URLs before redi
         await page.goto(resourcesUrl);
 
         await t.step("file contents persist after the browser context closes", async () => {
+            const temporaryPath = page.waitForEvent("download").then((download) => download.path());
             const result = await Effect.runPromise(downloadResourceFromResourcesPage(page, 0));
             assert(result.type === "file");
             savedPath = result.path;
             assertEquals(await Deno.readTextFile(result.path), "test document");
             assert(result.path.endsWith("download-handout.pdf"));
             assertEquals(page.url(), resourcesUrl);
+            const downloadedPath = await temporaryPath;
+            assert(downloadedPath !== null);
+            await assertRejects(() => Deno.stat(downloadedPath), Deno.errors.NotFound);
         });
         for (const [position, expected] of [[1, `${target}/shared?token=original`], [3, `${target}/shared`]] as const) {
             await t.step(`external position ${position} returns the shared URL and closes its popup`, async () => {

@@ -114,6 +114,7 @@ export const downloadResourceFromResourcesPage = Effect.fn("PlaywrightBrowser.do
             // Prefixing also makes Windows device names safe (CON, NUL, etc.).
             const path = `${directory}/download-${filename || "resource"}`;
             yield* tryPromise("save resource", () => download.saveAs(path));
+            yield* tryPromise("delete temporary download", () => download.delete());
             return { type: "file", path };
         }
         const context = page.context();

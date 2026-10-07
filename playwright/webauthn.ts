@@ -83,6 +83,15 @@ export const createVirtualAuthenticator = Effect.fn("PlaywrightBrowser.createVir
         );
     }
     return {
+        close: tryPromise(
+            "remove virtual WebAuthn authenticator",
+            () => cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }),
+        ).pipe(
+            Effect.asVoid,
+            Effect.ensuring(
+                tryPromise("detach WebAuthn session", () => cdp.detach()).pipe(Effect.catch(Effect.logError)),
+            ),
+        ),
         saveCredentialSources: Effect.fn("PlaywrightBrowser.saveCredentialSources")(
             function* (path: string, username: string) {
                 const { credentials: credentialSources } = yield* authenticationStorageTry(

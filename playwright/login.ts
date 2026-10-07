@@ -4,6 +4,47 @@ import { LmsAuthenticationRequiredError, LmsSourceGatewayError } from "../core/o
 import { isLmsHomeUrl, verifyLmsHome } from "./home.ts";
 import { tryPromise } from "./promise.ts";
 
+/** Refreshes HOME in a retained session and logs in only if authentication has expired. */
+export const resumeLmsSession = Effect.fn("PlaywrightBrowser.resumeLmsSession")(function* (
+    page: Page,
+    allowInteraction: boolean,
+    portalUsername?: string,
+): Effect.fn.Return<void, LmsSourceGatewayError | LmsAuthenticationRequiredError> {
+    const homeLink = page.locator("a[href*='/lms/homeRedirect/']").first();
+    const homeHref = (yield* tryPromise("find retained KU-LMS HOME link", () => homeLink.count())) > 0
+        ? yield* tryPromise("read retained KU-LMS HOME link", () => homeLink.getAttribute("href"))
+        : undefined;
+    const homeUrl = homeHref
+        ? new URL(homeHref, page.url()).href
+        : isLmsHomeUrl(new URL(page.url()))
+        ? page.url()
+        : "https://study.ns.kogakuin.ac.jp/lms/homeRedirect/";
+    yield* tryPromise(
+        "resume KU-LMS HOME",
+        () => page.goto(homeUrl),
+    );
+    yield* tryPromise(
+        "wait for KU-LMS session redirect",
+        () =>
+            page.waitForURL((url) =>
+                isLmsHomeUrl(url) || isPortalAuthenticationUrl(url) ||
+                (url.protocol === "https:" && url.hostname === "study.ns.kogakuin.ac.jp" &&
+                    /^\/lms(?:\/?$|\/lginLgir(?:\/|$))/.test(url.pathname))
+            ),
+    );
+    if (
+        isLmsHomeUrl(new URL(page.url())) &&
+        !(yield* tryPromise(
+            "check KU-LMS login page",
+            () => page.getByText("統合認証アカウントでログインします", { exact: true }).isVisible(),
+        ))
+    ) {
+        yield* verifyLmsHome(page);
+    } else {
+        yield* loginToLms(page, allowInteraction, portalUsername);
+    }
+});
+
 /** Logs in only from the identified login page and verifies the resulting home page. */
 export const loginToLms = Effect.fn("PlaywrightBrowser.loginToLms")(function* (
     page: Page,
@@ -104,19 +145,22 @@ const submitLogin = Effect.fn("PlaywrightBrowser.submitLogin")(function* (page: 
     yield* tryPromise("wait for KU-LMS authentication redirect", () =>
         page.waitForURL((url) =>
             isLmsHomeUrl(url) ||
-            (url.protocol === "https:" && url.hostname === "slink.secioss.com" &&
-                [
-                    "/sso/timeout.cgi",
-                    "/pub/prelogin.cgi",
-                    "/pub/login.cgi",
-                    "/pub/u2flogin.cgi",
-                    "/user/authselect.php",
-                    "/user",
-                    "/user/",
-                    "/user/index.php",
-                ].includes(url.pathname))
+            isPortalAuthenticationUrl(url)
         ));
 });
+
+const isPortalAuthenticationUrl = (url: URL): boolean =>
+    url.protocol === "https:" && url.hostname === "slink.secioss.com" &&
+    [
+        "/sso/timeout.cgi",
+        "/pub/prelogin.cgi",
+        "/pub/login.cgi",
+        "/pub/u2flogin.cgi",
+        "/user/authselect.php",
+        "/user",
+        "/user/",
+        "/user/index.php",
+    ].includes(url.pathname);
 
 const openLoginPage = Effect.fn("PlaywrightBrowser.openLoginPage")(function* (page: Page) {
     yield* tryPromise("open KU-LMS", () => page.goto("https://study.ns.kogakuin.ac.jp/lms"));

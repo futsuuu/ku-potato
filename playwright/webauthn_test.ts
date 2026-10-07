@@ -16,7 +16,7 @@ const createOptions = {
     },
 };
 
-Deno.test("Virtual WebAuthn credential sources survive a browser restart with discoverability and signature counters", async () => {
+Deno.test("Virtual WebAuthn credential sources survive browser restart and page reuse with signature counters", async () => {
     const directory = await Deno.makeTempDir();
     const path = `${directory}/webauthn-credential-sources.json`;
     try {
@@ -42,6 +42,7 @@ Deno.test("Virtual WebAuthn credential sources survive a browser restart with di
                 });
             }, createOptions);
             await Effect.runPromise(authenticator.saveCredentialSources(path, username));
+            await Effect.runPromise(authenticator.close);
         } finally {
             await browser.close();
         }
@@ -64,7 +65,7 @@ Deno.test("Virtual WebAuthn credential sources survive a browser restart with di
                 (route) => route.fulfill({ body: "<!doctype html><title>WebAuthn test</title>" }),
             );
             const page = await context.newPage();
-            const authenticator = await Effect.runPromise(createVirtualAuthenticator(page, storedCredentialSources));
+            let authenticator = await Effect.runPromise(createVirtualAuthenticator(page, storedCredentialSources));
             await page.goto(origin);
             // A discoverable credential also works without an allowCredentials list.
             let signatureCounter = credentialSource.signCount;
@@ -106,7 +107,10 @@ Deno.test("Virtual WebAuthn credential sources survive a browser restart with di
                 assert(updated);
                 assertEquals(updated.credentials[0].privateKey, credentialSource.privateKey);
                 assertEquals(updated.credentials[0].signCount, authenticationResult.signCount);
+                await Effect.runPromise(authenticator.close);
+                authenticator = await Effect.runPromise(createVirtualAuthenticator(page, updated));
             }
+            await Effect.runPromise(authenticator.close);
         } finally {
             await restarted.close();
         }
