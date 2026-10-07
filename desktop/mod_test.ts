@@ -98,7 +98,7 @@ Deno.test("desktop aggregates assignments across courses and keeps partial failu
         lmsCourseId: failedCourseId,
         error: { reason: "source", message: "LMS unavailable" },
     }]);
-    // The same cached results stop showing assignments as their deadlines arrive.
+    // The same archived results stop showing assignments as their deadlines arrive.
     assertEquals(upcomingAssignments(result.data.assignments, now + 2000), []);
 });
 
@@ -180,7 +180,7 @@ Deno.test.each([
     { name: "not retrieved", resources: undefined },
     { name: "empty list", resources: [] },
     { name: "one resource", resources: [{ name: "handout.pdf" }] },
-])("desktop exposes unavailable material resources when cached: $name", async ({ resources }) => {
+])("desktop exposes unavailable material resources when archived: $name", async ({ resources }) => {
     const calls: string[] = [];
     const result = await Effect.runPromise(
         DesktopInboundAdapter.listMaterials(course.lmsCourseId, "true").pipe(
@@ -195,7 +195,9 @@ Deno.test.each([
                         });
                         calls.push(options.lmsMaterialId);
                         return resources === undefined
-                            ? Effect.fail(new ApplicationError({ reason: "cache-miss", message: "Not retrieved" }))
+                            ? Effect.fail(
+                                new ApplicationError({ reason: "archive-data-missing", message: "Not retrieved" }),
+                            )
                             : Effect.succeed({ course, material, resources });
                     },
                 }),
@@ -213,7 +215,7 @@ Deno.test.each([
     }
 });
 
-Deno.test("desktop displays cached resources for an unavailable material", async () => {
+Deno.test("desktop displays archived resources for an unavailable material", async () => {
     const detail = { course, material, resources: [{ name: "handout.pdf" }] } satisfies MaterialDetail;
     const result = await Effect.runPromise(
         DesktopInboundAdapter.viewMaterial(material.lmsMaterialId, "auto").pipe(
@@ -231,8 +233,8 @@ Deno.test("desktop displays cached resources for an unavailable material", async
     assertEquals(result, { status: "success", data: detail });
 });
 
-Deno.test("desktop reports cache read failures when checking unavailable materials", async () => {
-    const error = new ApplicationError({ reason: "cache", message: "Cannot read cache" });
+Deno.test("desktop reports archive read failures when checking unavailable materials", async () => {
+    const error = new ApplicationError({ reason: "archive", message: "Cannot read archive" });
     const result = await Effect.runPromise(
         DesktopInboundAdapter.listMaterials(course.lmsCourseId, "auto").pipe(
             Effect.provideService(Application, application({ execute: () => Effect.fail(error) })),

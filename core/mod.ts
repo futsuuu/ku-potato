@@ -9,12 +9,12 @@ import {
     ViewMaterialOptions,
 } from "./in_port.ts";
 import {
+    type LmsArchiveDataMissingError,
+    LmsArchiveGateway,
+    type LmsArchiveGatewayError,
     LmsAuthenticationGateway,
     type LmsAuthenticationRequiredError,
     type LmsAuthenticationStorageError,
-    LmsCacheGateway,
-    type LmsCacheGatewayError,
-    type LmsCacheMissError,
     type LmsMaterialNotFoundError,
     LmsSourceGateway,
     type LmsSourceGatewayError,
@@ -23,13 +23,13 @@ import {
 import type { Course, CourseMaterials, LmsCourseId } from "../domain/mod.ts";
 import { Effect, Layer, Result, Schema } from "effect";
 
-type OutboundServices = LmsAuthenticationGateway | LmsCacheGateway | LmsSourceGateway;
+type OutboundServices = LmsAuthenticationGateway | LmsArchiveGateway | LmsSourceGateway;
 type GatewayError =
     | LmsSourceGatewayError
     | LmsAuthenticationRequiredError
     | LmsAuthenticationStorageError
-    | LmsCacheGatewayError
-    | LmsCacheMissError
+    | LmsArchiveGatewayError
+    | LmsArchiveDataMissingError
     | LmsMaterialNotFoundError;
 
 const toApplicationError = (error: GatewayError): ApplicationError => {
@@ -40,10 +40,10 @@ const toApplicationError = (error: GatewayError): ApplicationError => {
             return new ApplicationError({ reason: "authentication-required", message: error.message });
         case "LmsAuthenticationStorageError":
             return new ApplicationError({ reason: "authentication-storage", message: error.message });
-        case "LmsCacheGatewayError":
-            return new ApplicationError({ reason: "cache", message: error.message });
-        case "LmsCacheMissError":
-            return new ApplicationError({ reason: "cache-miss", message: error.message });
+        case "LmsArchiveGatewayError":
+            return new ApplicationError({ reason: "archive", message: error.message });
+        case "LmsArchiveDataMissingError":
+            return new ApplicationError({ reason: "archive-data-missing", message: error.message });
         case "LmsMaterialNotFoundError":
             return new ApplicationError({ reason: "material-not-found", message: error.message });
     }
@@ -70,14 +70,14 @@ const getAuthenticationStatus = Effect.gen(function* () {
 });
 
 const listCourses = Effect.fn("Core.listCourses")(function* (options: QueryOptions) {
-    const cache = yield* LmsCacheGateway;
+    const archive = yield* LmsArchiveGateway;
     const source = yield* LmsSourceGateway;
     return yield* readWithPolicy(
         options.sync,
-        cache.listCourses,
+        archive.listCourses,
         source.withSession(options.head, (session) =>
             session.fetchCourses.pipe(
-                Effect.tap((courses) => cache.appendCourses(courses)),
+                Effect.tap((courses) => archive.appendCourses(courses)),
             )),
     );
 });
@@ -85,7 +85,7 @@ const listCourses = Effect.fn("Core.listCourses")(function* (options: QueryOptio
 const listMaterials = Effect.fn("Core.listMaterials")(function* (
     options: ListMaterialsOptions,
 ) {
-    const cache = yield* LmsCacheGateway;
+    const archive = yield* LmsArchiveGateway;
     const source = yield* LmsSourceGateway;
     const requestedCourseIds = deduplicateCourseIds(options.lmsCourseIds);
     const courseIds = requestedCourseIds.length > 0
@@ -99,13 +99,13 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
         courseIdsToFetch.push(...courseIds);
     } else {
         for (const lmsCourseId of courseIds) {
-            const cached = yield* Effect.result(cache.listCourseMaterials(lmsCourseId));
-            if (Result.isSuccess(cached)) {
-                materialsByCourseId.set(lmsCourseId, cached.success);
-            } else if (cached.failure._tag === "LmsCacheMissError" && options.sync === "auto") {
+            const archived = yield* Effect.result(archive.listCourseMaterials(lmsCourseId));
+            if (Result.isSuccess(archived)) {
+                materialsByCourseId.set(lmsCourseId, archived.success);
+            } else if (archived.failure._tag === "LmsArchiveDataMissingError" && options.sync === "auto") {
                 courseIdsToFetch.push(lmsCourseId);
             } else {
-                failures.push({ lmsCourseId, error: toApplicationError(cached.failure) });
+                failures.push({ lmsCourseId, error: toApplicationError(archived.failure) });
             }
         }
     }
@@ -114,7 +114,7 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
         yield* source.withSession(options.head, (session) =>
             Effect.gen(function* () {
                 for (const lmsCourseId of courseIdsToFetch) {
-                    const fetched = yield* Effect.result(fetchAndCacheCourseMaterials(session, cache, lmsCourseId));
+                    const fetched = yield* Effect.result(fetchAndArchiveCourseMaterials(session, archive, lmsCourseId));
                     if (Result.isSuccess(fetched)) {
                         materialsByCourseId.set(lmsCourseId, fetched.success);
                     } else if (fetched.failure._tag !== "LmsCourseNotFoundError") {
@@ -134,53 +134,53 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
 });
 
 const viewMaterial = Effect.fn("Core.viewMaterial")(function* (options: ViewMaterialOptions) {
-    const cache = yield* LmsCacheGateway;
+    const archive = yield* LmsArchiveGateway;
     const source = yield* LmsSourceGateway;
     return yield* readWithPolicy(
         options.sync,
-        cache.getMaterialDetail(options.lmsMaterialId),
+        archive.getMaterialDetail(options.lmsMaterialId),
         Effect.gen(function* () {
-            const preferredCourseId = yield* cache.findMaterialCourseId(options.lmsMaterialId);
+            const preferredCourseId = yield* archive.findMaterialCourseId(options.lmsMaterialId);
             return yield* source.withSession(
                 options.head,
                 (session) =>
                     session.fetchMaterialResources(options.lmsMaterialId, preferredCourseId).pipe(
-                        Effect.tap((snapshot) => cache.appendMaterialResources(snapshot)),
-                        Effect.andThen(cache.getMaterialDetail(options.lmsMaterialId)),
+                        Effect.tap((snapshot) => archive.appendMaterialResources(snapshot)),
+                        Effect.andThen(archive.getMaterialDetail(options.lmsMaterialId)),
                     ),
             );
         }),
     );
 });
 
-const fetchAndCacheCourseMaterials = Effect.fn("Core.fetchAndCacheCourseMaterials")(function* (
+const fetchAndArchiveCourseMaterials = Effect.fn("Core.fetchAndArchiveCourseMaterials")(function* (
     session: LmsSourceSession,
-    cache: LmsCacheGateway["Service"],
+    archive: LmsArchiveGateway["Service"],
     lmsCourseId: LmsCourseId,
 ) {
     const snapshot = yield* session.fetchCourseMaterials(lmsCourseId);
-    yield* cache.appendCourseMaterials(snapshot);
-    return yield* cache.listCourseMaterials(lmsCourseId);
+    yield* archive.appendCourseMaterials(snapshot);
+    return yield* archive.listCourseMaterials(lmsCourseId);
 });
 
 const downloadResource = Effect.fn("Core.downloadResource")(function* (options: DownloadResourceOptions) {
-    const cache = yield* LmsCacheGateway;
+    const archive = yield* LmsArchiveGateway;
     const source = yield* LmsSourceGateway;
-    const preferredCourseId = yield* cache.findMaterialCourseId(options.lmsMaterialId);
+    const preferredCourseId = yield* archive.findMaterialCourseId(options.lmsMaterialId);
     return yield* source.withSession(
         options.head,
         (session) => session.downloadResource(options.lmsMaterialId, options.position, preferredCourseId),
     );
 });
 
-const readWithPolicy = <A, CacheError, FetchError, R>(
+const readWithPolicy = <A, ArchiveError, FetchError, R>(
     sync: SyncPolicy,
-    cached: Effect.Effect<A, CacheError | LmsCacheMissError>,
+    archived: Effect.Effect<A, ArchiveError | LmsArchiveDataMissingError>,
     fetched: Effect.Effect<A, FetchError, R>,
-): Effect.Effect<A, CacheError | LmsCacheMissError | FetchError, R> => {
+): Effect.Effect<A, ArchiveError | LmsArchiveDataMissingError | FetchError, R> => {
     if (sync === "true") return fetched;
-    if (sync === "false") return cached;
-    return cached.pipe(Effect.catchTag("LmsCacheMissError", () => fetched));
+    if (sync === "false") return archived;
+    return archived.pipe(Effect.catchTag("LmsArchiveDataMissingError", () => fetched));
 };
 
 const deduplicateCourseIds = (courseIds: readonly LmsCourseId[]): readonly LmsCourseId[] => [

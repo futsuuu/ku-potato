@@ -1,4 +1,4 @@
-/** Persistent cache schema. */
+/** Persistent archive schema. */
 
 import type { Course, Material } from "../domain/mod.ts";
 import { foreignKey, index, integer, primaryKey, snakeCase, text, unique } from "drizzle-orm/sqlite-core";

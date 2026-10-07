@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertInstanceOf } from "@std/assert";
-import { LmsCacheGateway, LmsCacheGatewayError, LmsCacheMissError } from "../core/out_port.ts";
+import { LmsArchiveDataMissingError, LmsArchiveGateway, LmsArchiveGatewayError } from "../core/out_port.ts";
 import {
     type CourseMaterialsSnapshot,
     LmsCourseId,
@@ -7,15 +7,15 @@ import {
     type MaterialResourcesSnapshot,
 } from "../domain/mod.ts";
 import { DateTime, Effect, Result } from "effect";
-import { makeLazyLmsCacheGateway, makeLmsCacheGateway, makeLmsCacheGatewayLayer } from "./mod.ts";
+import { makeLazyLmsArchiveGateway, makeLmsArchiveGateway, makeLmsArchiveGatewayLayer } from "./mod.ts";
 
-Deno.test("lazy SQLite cache does not open the database until it is used", async () => {
+Deno.test("lazy SQLite archive does not open the database until it is used", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const databasePath = temporaryDatabasePath(directory);
 
     try {
         const existsBeforeUse = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-            yield* makeLazyLmsCacheGateway(databasePath);
+            yield* makeLazyLmsArchiveGateway(databasePath);
             return yield* fileExists(databasePath);
         })));
 
@@ -25,31 +25,31 @@ Deno.test("lazy SQLite cache does not open the database until it is used", async
     }
 });
 
-Deno.test("SQLite Layer opens the database only for a cache operation and closes it with the scope", async () => {
+Deno.test("SQLite Layer opens the database only for an archive operation and closes it with the scope", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const databasePath = temporaryDatabasePath(directory);
 
     try {
         const result = await Effect.runPromise(
             Effect.gen(function* () {
-                const cache = yield* LmsCacheGateway;
+                const archive = yield* LmsArchiveGateway;
                 const beforeUse = yield* fileExists(databasePath);
-                const firstRead = yield* Effect.result(cache.listCourses);
+                const firstRead = yield* Effect.result(archive.listCourses);
                 const afterUse = yield* fileExists(databasePath);
                 return { beforeUse, firstRead, afterUse };
-            }).pipe(Effect.provide(makeLmsCacheGatewayLayer(databasePath))),
+            }).pipe(Effect.provide(makeLmsArchiveGatewayLayer(databasePath))),
         );
 
         assertEquals(result.beforeUse, false);
         assert(Result.isFailure(result.firstRead));
-        assertInstanceOf(result.firstRead.failure, LmsCacheMissError);
+        assertInstanceOf(result.firstRead.failure, LmsArchiveDataMissingError);
         assertEquals(result.afterUse, true);
     } finally {
         await Deno.remove(directory, { recursive: true });
     }
 });
 
-Deno.test("SQLite cache keeps material resources after a later course material snapshot", async () => {
+Deno.test("SQLite archive keeps material resources after a later course material snapshot", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const databasePath = temporaryDatabasePath(directory);
     const courseId = LmsCourseId("course-1");
@@ -89,21 +89,21 @@ Deno.test("SQLite cache keeps material resources after a later course material s
 
     try {
         const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-            const cache = yield* makeLmsCacheGateway(databasePath);
-            assertEquals(yield* cache.findMaterialCourseId(materialId), undefined);
-            yield* cache.appendCourses([course]);
-            yield* cache.appendCourseMaterials(courseMaterials);
-            assertEquals(yield* cache.findMaterialCourseId(materialId), courseId);
-            const missingResources = yield* Effect.result(cache.getMaterialDetail(materialId));
+            const archive = yield* makeLmsArchiveGateway(databasePath);
+            assertEquals(yield* archive.findMaterialCourseId(materialId), undefined);
+            yield* archive.appendCourses([course]);
+            yield* archive.appendCourseMaterials(courseMaterials);
+            assertEquals(yield* archive.findMaterialCourseId(materialId), courseId);
+            const missingResources = yield* Effect.result(archive.getMaterialDetail(materialId));
             assert(Result.isFailure(missingResources));
-            assertInstanceOf(missingResources.failure, LmsCacheMissError);
-            yield* cache.appendMaterialResources(materialResources);
-            yield* cache.appendCourseMaterials(laterCourseMaterials);
+            assertInstanceOf(missingResources.failure, LmsArchiveDataMissingError);
+            yield* archive.appendMaterialResources(materialResources);
+            yield* archive.appendCourseMaterials(laterCourseMaterials);
             return {
-                courses: yield* cache.listCourses,
-                materials: yield* cache.listCourseMaterials(courseId),
-                resources: yield* cache.listMaterialResources(materialId),
-                detail: yield* cache.getMaterialDetail(materialId),
+                courses: yield* archive.listCourses,
+                materials: yield* archive.listCourseMaterials(courseId),
+                resources: yield* archive.listMaterialResources(materialId),
+                detail: yield* archive.getMaterialDetail(materialId),
             };
         })));
 
@@ -123,7 +123,7 @@ Deno.test("SQLite cache keeps material resources after a later course material s
 Deno.test.each([
     { resources: [] },
     { resources: [{ name: "handout.pdf" }] },
-])("SQLite cache retains $resources.length resources after a material becomes unavailable", async ({ resources }) => {
+])("SQLite archive retains $resources.length resources after a material becomes unavailable", async ({ resources }) => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const course = {
         lmsCourseId: LmsCourseId("course-1"),
@@ -152,13 +152,13 @@ Deno.test.each([
 
     try {
         await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-            const cache = yield* makeLmsCacheGateway(temporaryDatabasePath(directory));
-            yield* cache.appendCourseMaterials(expiredSnapshot);
-            const missingResources = yield* Effect.result(cache.getMaterialDetail(material.lmsMaterialId));
+            const archive = yield* makeLmsArchiveGateway(temporaryDatabasePath(directory));
+            yield* archive.appendCourseMaterials(expiredSnapshot);
+            const missingResources = yield* Effect.result(archive.getMaterialDetail(material.lmsMaterialId));
             assert(Result.isFailure(missingResources));
-            assertInstanceOf(missingResources.failure, LmsCacheMissError);
+            assertInstanceOf(missingResources.failure, LmsArchiveDataMissingError);
 
-            yield* cache.appendMaterialResources({
+            yield* archive.appendMaterialResources({
                 courses: [course],
                 courseMaterials: {
                     lmsCourseId: course.lmsCourseId,
@@ -166,8 +166,8 @@ Deno.test.each([
                 },
                 materialResources: { lmsMaterialId: material.lmsMaterialId, resources },
             });
-            yield* cache.appendCourseMaterials(expiredSnapshot);
-            assertEquals(yield* cache.getMaterialDetail(material.lmsMaterialId), {
+            yield* archive.appendCourseMaterials(expiredSnapshot);
+            assertEquals(yield* archive.getMaterialDetail(material.lmsMaterialId), {
                 course,
                 material: expiredMaterial,
                 resources,
@@ -178,7 +178,7 @@ Deno.test.each([
     }
 });
 
-Deno.test("SQLite cache rolls back every failed snapshot write", async () => {
+Deno.test("SQLite archive rolls back every failed snapshot write", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const courseId = LmsCourseId("course-1");
     const materialId = LmsMaterialId("material-1");
@@ -206,18 +206,18 @@ Deno.test("SQLite cache rolls back every failed snapshot write", async () => {
 
     try {
         await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-            const cache = yield* makeLmsCacheGateway(temporaryDatabasePath(directory));
-            yield* cache.appendMaterialResources(original);
+            const archive = yield* makeLmsArchiveGateway(temporaryDatabasePath(directory));
+            yield* archive.appendMaterialResources(original);
 
-            const badCourses = yield* Effect.result(cache.appendCourses([
+            const badCourses = yield* Effect.result(archive.appendCourses([
                 changedCourse,
                 { ...course, name: null as unknown as string },
             ]));
             assert(Result.isFailure(badCourses));
-            assertInstanceOf(badCourses.failure, LmsCacheGatewayError);
-            assertEquals(yield* cache.listCourses, original.courses);
+            assertInstanceOf(badCourses.failure, LmsArchiveGatewayError);
+            assertEquals(yield* archive.listCourses, original.courses);
 
-            const badMaterials = yield* Effect.result(cache.appendCourseMaterials({
+            const badMaterials = yield* Effect.result(archive.appendCourseMaterials({
                 courses: [changedCourse],
                 courseMaterials: {
                     lmsCourseId: courseId,
@@ -225,11 +225,11 @@ Deno.test("SQLite cache rolls back every failed snapshot write", async () => {
                 },
             }));
             assert(Result.isFailure(badMaterials));
-            assertInstanceOf(badMaterials.failure, LmsCacheGatewayError);
-            assertEquals(yield* cache.listCourses, original.courses);
-            assertEquals(yield* cache.listCourseMaterials(courseId), original.courseMaterials);
+            assertInstanceOf(badMaterials.failure, LmsArchiveGatewayError);
+            assertEquals(yield* archive.listCourses, original.courses);
+            assertEquals(yield* archive.listCourseMaterials(courseId), original.courseMaterials);
 
-            const badResources = yield* Effect.result(cache.appendMaterialResources({
+            const badResources = yield* Effect.result(archive.appendMaterialResources({
                 courses: [changedCourse],
                 courseMaterials: changedMaterials,
                 materialResources: {
@@ -238,10 +238,10 @@ Deno.test("SQLite cache rolls back every failed snapshot write", async () => {
                 },
             }));
             assert(Result.isFailure(badResources));
-            assertInstanceOf(badResources.failure, LmsCacheGatewayError);
-            assertEquals(yield* cache.listCourses, original.courses);
-            assertEquals(yield* cache.listCourseMaterials(courseId), original.courseMaterials);
-            assertEquals(yield* cache.listMaterialResources(materialId), original.materialResources);
+            assertInstanceOf(badResources.failure, LmsArchiveGatewayError);
+            assertEquals(yield* archive.listCourses, original.courses);
+            assertEquals(yield* archive.listCourseMaterials(courseId), original.courseMaterials);
+            assertEquals(yield* archive.listMaterialResources(materialId), original.materialResources);
         })));
     } finally {
         await Deno.remove(directory, { recursive: true });
@@ -249,7 +249,7 @@ Deno.test("SQLite cache rolls back every failed snapshot write", async () => {
 });
 
 const temporaryDatabasePath = (directory: string): string =>
-    `${directory}${directory.includes("\\") ? "\\" : "/"}cache.sqlite3`;
+    `${directory}${directory.includes("\\") ? "\\" : "/"}lms-archive.sqlite3`;
 
 const fileExists = (path: string): Effect.Effect<boolean> =>
     Effect.promise(async () => {
@@ -262,15 +262,15 @@ const fileExists = (path: string): Effect.Effect<boolean> =>
         }
     });
 
-Deno.test("SQLite cache describes an unseeded value as a cache miss", async () => {
+Deno.test("SQLite archive reports missing data for an unseeded value", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     try {
         const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-            const cache = yield* makeLmsCacheGateway(temporaryDatabasePath(directory));
-            return yield* Effect.result(cache.listCourses);
+            const archive = yield* makeLmsArchiveGateway(temporaryDatabasePath(directory));
+            return yield* Effect.result(archive.listCourses);
         })));
         assert(Result.isFailure(result));
-        assertInstanceOf(result.failure, LmsCacheMissError);
+        assertInstanceOf(result.failure, LmsArchiveDataMissingError);
     } finally {
         await Deno.remove(directory, { recursive: true });
     }

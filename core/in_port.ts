@@ -19,15 +19,15 @@ export class ApplicationError extends Schema.TaggedError<ApplicationError>()("Ap
         "source",
         "authentication-required",
         "authentication-storage",
-        "cache",
-        "cache-miss",
+        "archive",
+        "archive-data-missing",
         "material-not-found",
         "invalid-position",
     ]),
     message: Schema.String,
 }) {}
 
-/** Whether a query may synchronize its cache from KU-LMS. */
+/** Whether a query may synchronize its archive from KU-LMS. */
 export type SyncPolicy = "auto" | "true" | "false";
 
 export type QueryOptions = {
@@ -94,7 +94,7 @@ export interface ViewMaterial {
 
 export type DownloadResourceOptions = {
     readonly lmsMaterialId: LmsMaterialId;
-    /** Zero-based index in the resource list, matching its cached DB position. */
+    /** Zero-based index in the resource list, matching its archived DB position. */
     readonly position: number;
     readonly head: HeadPolicy;
 };

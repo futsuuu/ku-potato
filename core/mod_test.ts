@@ -1,10 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
 import { Application } from "./in_port.ts";
 import {
+    LmsArchiveDataMissingError,
+    LmsArchiveGateway,
+    type LmsArchiveGatewayService,
     LmsAuthenticationGateway,
-    LmsCacheGateway,
-    type LmsCacheGatewayService,
-    LmsCacheMissError,
     LmsCourseNotFoundError,
     LmsSourceGateway,
     LmsSourceGatewayError,
@@ -46,28 +46,30 @@ const courseMaterials: CourseMaterials = {
     }],
 };
 
-Deno.test("course list auto reads a complete cache without opening an LMS session", async () => {
-    const cache = LmsCacheGateway.of(cacheGateway({ listCourses: Effect.succeed(courses) }));
+Deno.test("course list auto reads a complete archive without opening an LMS session", async () => {
+    const archive = LmsArchiveGateway.of(archiveGateway({ listCourses: Effect.succeed(courses) }));
     const source = LmsSourceGateway.of({ withSession: () => Effect.die("unexpected LMS session") });
 
     const result = await Effect.runPromise(
         Application.use((app) => app.listCourses.execute({ sync: "auto", head: "auto" })).pipe(
-            Effect.provide(testApplicationLayer(cache, source)),
+            Effect.provide(testApplicationLayer(archive, source)),
         ),
     );
 
     assertEquals(result, courses);
 });
 
-Deno.test("course list auto fetches and caches a missing course snapshot", async () => {
-    let cachedCourses: readonly Course[] | undefined;
-    const cache = LmsCacheGateway.of(cacheGateway({
+Deno.test("course list auto fetches and archives a missing course snapshot", async () => {
+    let archivedCourses: readonly Course[] | undefined;
+    const archive = LmsArchiveGateway.of(archiveGateway({
         listCourses: Effect.suspend(() =>
-            cachedCourses === undefined ? Effect.fail(cacheMiss("listCourses")) : Effect.succeed(cachedCourses)
+            archivedCourses === undefined
+                ? Effect.fail(archiveDataMissing("listCourses"))
+                : Effect.succeed(archivedCourses)
         ),
         appendCourses: (retrievedCourses) =>
             Effect.sync(() => {
-                cachedCourses = retrievedCourses;
+                archivedCourses = retrievedCourses;
             }),
     }));
     const heads: string[] = [];
@@ -75,7 +77,7 @@ Deno.test("course list auto fetches and caches a missing course snapshot", async
 
     const result = await Effect.runPromise(
         Application.use((app) => app.listCourses.execute({ sync: "auto", head: "false" })).pipe(
-            Effect.provide(testApplicationLayer(cache, source)),
+            Effect.provide(testApplicationLayer(archive, source)),
         ),
     );
 
@@ -84,14 +86,14 @@ Deno.test("course list auto fetches and caches a missing course snapshot", async
 });
 
 Deno.test("application translates source failures before returning them to the inbound adapter", async () => {
-    const cache = LmsCacheGateway.of(cacheGateway({}));
+    const archive = LmsArchiveGateway.of(archiveGateway({}));
     const source = LmsSourceGateway.of(sourceGateway({
         fetchCourses: Effect.fail(new LmsSourceGatewayError({ operation: "fetch", message: "LMS unavailable" })),
     }));
 
     const result = await Effect.runPromise(Effect.result(
         Application.use((app) => app.listCourses.execute({ sync: "true", head: "false" })).pipe(
-            Effect.provide(testApplicationLayer(cache, source)),
+            Effect.provide(testApplicationLayer(archive, source)),
         ),
     ));
 
@@ -103,14 +105,14 @@ Deno.test("application translates source failures before returning them to the i
 
 Deno.test("material list ignores missing courses and retains internal failures", async () => {
     const stored = new Map<string, CourseMaterials>();
-    const cache = LmsCacheGateway.of(cacheGateway({
+    const archive = LmsArchiveGateway.of(archiveGateway({
         appendCourseMaterials: (snapshot) =>
             Effect.sync(() => {
                 stored.set(snapshot.courseMaterials.lmsCourseId, snapshot.courseMaterials);
             }),
         listCourseMaterials: (lmsCourseId) => {
             const value = stored.get(lmsCourseId);
-            return value === undefined ? Effect.fail(cacheMiss("listCourseMaterials")) : Effect.succeed(value);
+            return value === undefined ? Effect.fail(archiveDataMissing("listCourseMaterials")) : Effect.succeed(value);
         },
     }));
     const snapshot: CourseMaterialsSnapshot = { courses, courseMaterials };
@@ -132,7 +134,7 @@ Deno.test("material list ignores missing courses and retains internal failures",
                 head: "auto",
             })
         ).pipe(
-            Effect.provide(testApplicationLayer(cache, source)),
+            Effect.provide(testApplicationLayer(archive, source)),
         ),
     );
 
@@ -143,12 +145,12 @@ Deno.test("material list ignores missing courses and retains internal failures",
     assertEquals(result.failures[0]?.error.reason, "source");
 });
 
-Deno.test("material list auto discovers cached courses and fetches only missing materials", async () => {
+Deno.test("material list auto discovers archived courses and fetches only missing materials", async () => {
     let stored: CourseMaterials | undefined;
-    const cache = LmsCacheGateway.of(cacheGateway({
+    const archive = LmsArchiveGateway.of(archiveGateway({
         listCourses: Effect.succeed(courses),
         listCourseMaterials: () =>
-            stored === undefined ? Effect.fail(cacheMiss("listCourseMaterials")) : Effect.succeed(stored),
+            stored === undefined ? Effect.fail(archiveDataMissing("listCourseMaterials")) : Effect.succeed(stored),
         appendCourseMaterials: (snapshot) =>
             Effect.sync(() => {
                 stored = snapshot.courseMaterials;
@@ -161,7 +163,7 @@ Deno.test("material list auto discovers cached courses and fetches only missing 
 
     const result = await Effect.runPromise(
         Application.use((app) => app.listMaterials.execute({ lmsCourseIds: [], sync: "auto", head: "false" })).pipe(
-            Effect.provide(testApplicationLayer(cache, source)),
+            Effect.provide(testApplicationLayer(archive, source)),
         ),
     );
 
@@ -187,11 +189,13 @@ for (const sync of ["true", "auto"] as const) {
                 },
             };
             let stored: MaterialDetail | undefined;
-            const cache = LmsCacheGateway.of(cacheGateway({
+            const archive = LmsArchiveGateway.of(archiveGateway({
                 findMaterialCourseId: () => Effect.succeed(preferredCourseId),
                 getMaterialDetail: () =>
                     Effect.suspend(() =>
-                        stored === undefined ? Effect.fail(cacheMiss("getMaterialDetail")) : Effect.succeed(stored)
+                        stored === undefined
+                            ? Effect.fail(archiveDataMissing("getMaterialDetail"))
+                            : Effect.succeed(stored)
                     ),
                 appendMaterialResources: () =>
                     Effect.sync(() => {
@@ -211,7 +215,7 @@ for (const sync of ["true", "auto"] as const) {
                 Application.use((app) =>
                     app.viewMaterial.execute({ lmsMaterialId: material.lmsMaterialId, sync, head: "true" })
                 ).pipe(
-                    Effect.provide(testApplicationLayer(cache, source)),
+                    Effect.provide(testApplicationLayer(archive, source)),
                 ),
             );
 
@@ -221,16 +225,16 @@ for (const sync of ["true", "auto"] as const) {
     }
 }
 
-Deno.test("material view uses a complete cache without looking up a course hint or opening the LMS", async () => {
+Deno.test("material view uses a complete archive without looking up a course hint or opening the LMS", async () => {
     const detail: MaterialDetail = { course, material: courseMaterials.folders[0]!.materials[0]!, resources: [] };
-    const cache = LmsCacheGateway.of(cacheGateway({ getMaterialDetail: () => Effect.succeed(detail) }));
+    const archive = LmsArchiveGateway.of(archiveGateway({ getMaterialDetail: () => Effect.succeed(detail) }));
     const source = LmsSourceGateway.of({ withSession: () => Effect.die("unexpected LMS session") });
     for (const sync of ["auto", "false"] as const) {
         assertEquals(
             await Effect.runPromise(
                 Application.use((app) =>
                     app.viewMaterial.execute({ lmsMaterialId: detail.material.lmsMaterialId, sync, head: "false" })
-                ).pipe(Effect.provide(testApplicationLayer(cache, source))),
+                ).pipe(Effect.provide(testApplicationLayer(archive, source))),
             ),
             detail,
         );
@@ -238,7 +242,7 @@ Deno.test("material view uses a complete cache without looking up a course hint 
 });
 
 const testApplicationLayer = (
-    cache: LmsCacheGateway["Service"],
+    archive: LmsArchiveGateway["Service"],
     source: LmsSourceGateway["Service"],
 ) => ApplicationLive.pipe(Layer.provide(Layer.mergeAll(
     Layer.succeed(
@@ -250,11 +254,11 @@ const testApplicationLayer = (
             status: Effect.die("unexpected status"),
         }),
     ),
-    Layer.succeed(LmsCacheGateway, cache),
+    Layer.succeed(LmsArchiveGateway, archive),
     Layer.succeed(LmsSourceGateway, source),
 )));
 
-const cacheGateway = (overrides: Partial<LmsCacheGatewayService>): LmsCacheGatewayService => ({
+const archiveGateway = (overrides: Partial<LmsArchiveGatewayService>): LmsArchiveGatewayService => ({
     findMaterialCourseId: () => Effect.die("unexpected findMaterialCourseId"),
     listCourses: Effect.die("unexpected listCourses"),
     listCourseMaterials: () => Effect.die("unexpected listCourseMaterials"),
@@ -286,12 +290,13 @@ const sourceGateway = (
     };
 };
 
-const cacheMiss = (operation: string): LmsCacheMissError => new LmsCacheMissError({ operation, message: "missing" });
+const archiveDataMissing = (operation: string): LmsArchiveDataMissingError =>
+    new LmsArchiveDataMissingError({ operation, message: "missing" });
 
 for (const preferredCourseId of [courseId, undefined]) {
-    Deno.test(`resource download uses an authenticated session with course hint ${preferredCourseId} without writing cache`, async () => {
+    Deno.test(`resource download uses an authenticated session with course hint ${preferredCourseId} without writing archive`, async () => {
         const heads: string[] = [];
-        const cache = cacheGateway({ findMaterialCourseId: () => Effect.succeed(preferredCourseId) });
+        const archive = archiveGateway({ findMaterialCourseId: () => Effect.succeed(preferredCourseId) });
         const source = sourceGateway({
             downloadResource: (materialId, position, courseHint) => {
                 assertEquals(materialId, LmsMaterialId("SRY1"));
@@ -307,14 +312,14 @@ for (const preferredCourseId of [courseId, undefined]) {
                     position: 2,
                     head: "false",
                 })
-            ).pipe(Effect.provide(testApplicationLayer(cache, source))),
+            ).pipe(Effect.provide(testApplicationLayer(archive, source))),
         );
         assertEquals(result, { type: "external", url: "https://example.com/shared" });
         assertEquals(heads, ["false"]);
     });
 }
 
-Deno.test("invalid resource positions fail before cache lookup or authentication", async () => {
+Deno.test("invalid resource positions fail before archive lookup or authentication", async () => {
     for (const position of [-1, 0.5, NaN, Infinity]) {
         const result = await Effect.runPromise(Effect.result(
             Application.use((app) =>
@@ -323,7 +328,7 @@ Deno.test("invalid resource positions fail before cache lookup or authentication
                     position,
                     head: "auto",
                 })
-            ).pipe(Effect.provide(testApplicationLayer(cacheGateway({}), {
+            ).pipe(Effect.provide(testApplicationLayer(archiveGateway({}), {
                 withSession: () => Effect.die("unexpected session"),
             }))),
         ));

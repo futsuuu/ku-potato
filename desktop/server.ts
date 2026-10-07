@@ -3,13 +3,13 @@ import { Layer, ManagedRuntime } from "effect";
 import { fileURLToPath } from "node:url";
 import { ApplicationLive } from "../core/mod.ts";
 import { makeLmsGatewaysLayer } from "../playwright/mod.ts";
-import { makeLmsCacheGatewayLayer } from "../sqlite/mod.ts";
+import { makeLmsArchiveGatewayLayer } from "../sqlite/mod.ts";
 import type { DesktopBindings } from "./bindings.ts";
 import { DesktopInboundAdapter } from "./mod.ts";
 
 const outbound = Layer.mergeAll(
     makeLmsGatewaysLayer(),
-    makeLmsCacheGatewayLayer(),
+    makeLmsArchiveGatewayLayer(),
 );
 const runtime = ManagedRuntime.make(ApplicationLive.pipe(Layer.provide(outbound)));
 

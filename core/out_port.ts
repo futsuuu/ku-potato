@@ -61,27 +61,27 @@ export interface LmsAuthenticationGatewayService {
     >;
 }
 
-/** The persistent cache, implemented by the SQLite adapter. */
-export interface LmsCacheGatewayService {
+/** Local archive of retrieved course, material, and resource-list snapshots, implemented by the SQLite adapter. */
+export interface LmsArchiveGatewayService {
     /** Latest known course, even when the material's resources have never been fetched. */
     readonly findMaterialCourseId: (
         lmsMaterialId: LmsMaterialId,
-    ) => Effect.Effect<LmsCourseId | undefined, LmsCacheGatewayError>;
-    readonly listCourses: Effect.Effect<readonly Course[], LmsCacheGatewayError | LmsCacheMissError>;
+    ) => Effect.Effect<LmsCourseId | undefined, LmsArchiveGatewayError>;
+    readonly listCourses: Effect.Effect<readonly Course[], LmsArchiveGatewayError | LmsArchiveDataMissingError>;
     readonly listCourseMaterials: (
         lmsCourseId: LmsCourseId,
-    ) => Effect.Effect<CourseMaterials, LmsCacheGatewayError | LmsCacheMissError>;
+    ) => Effect.Effect<CourseMaterials, LmsArchiveGatewayError | LmsArchiveDataMissingError>;
     readonly listMaterialResources: (
         lmsMaterialId: LmsMaterialId,
-    ) => Effect.Effect<MaterialResources, LmsCacheGatewayError | LmsCacheMissError>;
+    ) => Effect.Effect<MaterialResources, LmsArchiveGatewayError | LmsArchiveDataMissingError>;
     readonly getMaterialDetail: (
         lmsMaterialId: LmsMaterialId,
-    ) => Effect.Effect<MaterialDetail, LmsCacheGatewayError | LmsCacheMissError>;
-    readonly appendCourses: (courses: readonly Course[]) => Effect.Effect<void, LmsCacheGatewayError>;
-    readonly appendCourseMaterials: (snapshot: CourseMaterialsSnapshot) => Effect.Effect<void, LmsCacheGatewayError>;
+    ) => Effect.Effect<MaterialDetail, LmsArchiveGatewayError | LmsArchiveDataMissingError>;
+    readonly appendCourses: (courses: readonly Course[]) => Effect.Effect<void, LmsArchiveGatewayError>;
+    readonly appendCourseMaterials: (snapshot: CourseMaterialsSnapshot) => Effect.Effect<void, LmsArchiveGatewayError>;
     readonly appendMaterialResources: (
         snapshot: MaterialResourcesSnapshot,
-    ) => Effect.Effect<void, LmsCacheGatewayError>;
+    ) => Effect.Effect<void, LmsArchiveGatewayError>;
 }
 
 /** Context service for an external LMS data source. */
@@ -97,9 +97,9 @@ export class LmsAuthenticationGateway extends Context.Service<
     "ku-potato/core/LmsAuthenticationGateway",
 ) {}
 
-/** Context service for the persistent LMS cache. */
-export class LmsCacheGateway extends Context.Service<LmsCacheGateway, LmsCacheGatewayService>()(
-    "ku-potato/core/LmsCacheGateway",
+/** Context service for the persistent LMS archive. */
+export class LmsArchiveGateway extends Context.Service<LmsArchiveGateway, LmsArchiveGatewayService>()(
+    "ku-potato/core/LmsArchiveGateway",
 ) {}
 
 /** A failure while obtaining data from KU-LMS. */
@@ -144,18 +144,18 @@ export class LmsAuthenticationStorageError extends Schema.TaggedError<LmsAuthent
     },
 ) {}
 
-/** A failure while reading or recording the persistent cache. */
-export class LmsCacheGatewayError extends Schema.TaggedError<LmsCacheGatewayError>()(
-    "LmsCacheGatewayError",
+/** A failure while reading or recording the persistent archive. */
+export class LmsArchiveGatewayError extends Schema.TaggedError<LmsArchiveGatewayError>()(
+    "LmsArchiveGatewayError",
     {
         operation: Schema.String,
         message: Schema.String,
     },
 ) {}
 
-/** The requested value has never been synchronized into the cache. */
-export class LmsCacheMissError extends Schema.TaggedError<LmsCacheMissError>()(
-    "LmsCacheMissError",
+/** The requested value has never been synchronized into the archive. */
+export class LmsArchiveDataMissingError extends Schema.TaggedError<LmsArchiveDataMissingError>()(
+    "LmsArchiveDataMissingError",
     {
         operation: Schema.String,
         message: Schema.String,

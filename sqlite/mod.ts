@@ -1,10 +1,10 @@
-/** SQLite implementation of the persistent LMS cache port. */
+/** SQLite implementation of the persistent LMS archive port. */
 
 import {
-    LmsCacheGateway,
-    LmsCacheGatewayError,
-    type LmsCacheGatewayService,
-    LmsCacheMissError,
+    LmsArchiveDataMissingError,
+    LmsArchiveGateway,
+    LmsArchiveGatewayError,
+    type LmsArchiveGatewayService,
 } from "../core/out_port.ts";
 import {
     type Course,
@@ -22,7 +22,7 @@ import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { DateTime, Effect, Layer, Schema, Scope } from "effect";
 import { fileURLToPath } from "node:url";
-import { applicationCachePath } from "../platform/directories.ts";
+import { applicationDataPath } from "../platform/directories.ts";
 import {
     courseMaterialFolders,
     courseMaterialRetrievals,
@@ -36,7 +36,7 @@ import {
 export * from "./schema.ts";
 
 type Database = ReturnType<typeof drizzle>;
-type CacheConnection = Pick<Database, "insert" | "select">;
+type ArchiveConnection = Pick<Database, "insert" | "select">;
 type CourseReadRow = Pick<typeof courses.$inferSelect, "lmsCourseId" | "name" | "availability">;
 type MaterialReadRow = Pick<
     typeof courseMaterials.$inferSelect,
@@ -50,31 +50,31 @@ type MaterialReadRow = Pick<
 >;
 
 /** The default user-local database location. */
-export const defaultCacheDatabasePath = (): string => applicationCachePath("cache.sqlite3");
+export const defaultArchiveDatabasePath = (): string => applicationDataPath("lms-archive.sqlite3");
 
 /**
- * Opens the cache database, applies bundled migrations, and exposes the cache
+ * Opens the archive database, applies bundled migrations, and exposes the archive
  * service for the lifetime of the surrounding Effect scope.
  */
-export const makeLmsCacheGateway = (
-    databasePath = defaultCacheDatabasePath(),
-): Effect.Effect<LmsCacheGatewayService, LmsCacheGatewayError, Scope.Scope> =>
+export const makeLmsArchiveGateway = (
+    databasePath = defaultArchiveDatabasePath(),
+): Effect.Effect<LmsArchiveGatewayService, LmsArchiveGatewayError, Scope.Scope> =>
     Effect.acquireRelease(
-        cacheWriteTry("open", () => {
+        archiveWriteTry("open", () => {
             Deno.mkdirSync(databaseDirectory(databasePath), { recursive: true });
             const database = drizzle(databasePath);
             try {
                 // Drizzle starts a transaction, inside which SQLite ignores foreign_keys changes.
-                // Disable before migrating so table rebuilds cannot cascade-delete cached history.
+                // Disable before migrating so table rebuilds cannot cascade-delete archived history.
                 database.$client.exec("pragma foreign_keys = off");
                 migrate(database, {
                     migrationsFolder: fileURLToPath(new URL("./drizzle", import.meta.url)),
                 });
                 database.$client.exec("pragma foreign_keys = on");
                 if (database.$client.prepare("pragma foreign_key_check").all().length > 0) {
-                    throw new Error("Cache migration left inconsistent foreign keys.");
+                    throw new Error("Archive migration left inconsistent foreign keys.");
                 }
-                return { database, gateway: LmsCacheGateway.of(makeGateway(database)) };
+                return { database, gateway: LmsArchiveGateway.of(makeGateway(database)) };
             } catch (cause) {
                 database.$client.close();
                 throw cause;
@@ -87,79 +87,79 @@ export const makeLmsCacheGateway = (
     ).pipe(Effect.map(({ gateway }) => gateway));
 
 /**
- * Creates a cache service that opens and migrates SQLite only when a cache
+ * Creates an archive service that opens and migrates SQLite only when an archive
  * operation is first executed, then reuses it for the surrounding scope.
  */
-export const makeLazyLmsCacheGateway = (
-    databasePath = defaultCacheDatabasePath(),
-): Effect.Effect<LmsCacheGatewayService, never, Scope.Scope> =>
+export const makeLazyLmsArchiveGateway = (
+    databasePath = defaultArchiveDatabasePath(),
+): Effect.Effect<LmsArchiveGatewayService, never, Scope.Scope> =>
     Effect.gen(function* () {
         const scope = yield* Scope.Scope;
         const cachedGateway = yield* Effect.cached(
-            makeLmsCacheGateway(databasePath).pipe(Effect.provideService(Scope.Scope, scope)),
+            makeLmsArchiveGateway(databasePath).pipe(Effect.provideService(Scope.Scope, scope)),
         );
-        return LmsCacheGateway.of({
+        return LmsArchiveGateway.of({
             findMaterialCourseId: (lmsMaterialId) =>
-                cachedGateway.pipe(Effect.flatMap((cache) => cache.findMaterialCourseId(lmsMaterialId))),
-            listCourses: cachedGateway.pipe(Effect.flatMap((cache) => cache.listCourses)),
+                cachedGateway.pipe(Effect.flatMap((archive) => archive.findMaterialCourseId(lmsMaterialId))),
+            listCourses: cachedGateway.pipe(Effect.flatMap((archive) => archive.listCourses)),
             listCourseMaterials: (lmsCourseId) =>
-                cachedGateway.pipe(Effect.flatMap((cache) => cache.listCourseMaterials(lmsCourseId))),
+                cachedGateway.pipe(Effect.flatMap((archive) => archive.listCourseMaterials(lmsCourseId))),
             listMaterialResources: (lmsMaterialId) =>
-                cachedGateway.pipe(Effect.flatMap((cache) => cache.listMaterialResources(lmsMaterialId))),
+                cachedGateway.pipe(Effect.flatMap((archive) => archive.listMaterialResources(lmsMaterialId))),
             getMaterialDetail: (lmsMaterialId) =>
-                cachedGateway.pipe(Effect.flatMap((cache) => cache.getMaterialDetail(lmsMaterialId))),
-            appendCourses: (courses) => cachedGateway.pipe(Effect.flatMap((cache) => cache.appendCourses(courses))),
+                cachedGateway.pipe(Effect.flatMap((archive) => archive.getMaterialDetail(lmsMaterialId))),
+            appendCourses: (courses) => cachedGateway.pipe(Effect.flatMap((archive) => archive.appendCourses(courses))),
             appendCourseMaterials: (snapshot) =>
-                cachedGateway.pipe(Effect.flatMap((cache) => cache.appendCourseMaterials(snapshot))),
+                cachedGateway.pipe(Effect.flatMap((archive) => archive.appendCourseMaterials(snapshot))),
             appendMaterialResources: (snapshot) =>
-                cachedGateway.pipe(Effect.flatMap((cache) => cache.appendMaterialResources(snapshot))),
+                cachedGateway.pipe(Effect.flatMap((archive) => archive.appendMaterialResources(snapshot))),
         });
     });
 
-/** A scoped cache service that retains lazy database initialization. */
-export const makeLmsCacheGatewayLayer = (databasePath = defaultCacheDatabasePath()) =>
-    Layer.effect(LmsCacheGateway, makeLazyLmsCacheGateway(databasePath));
+/** A scoped archive service that retains lazy database initialization. */
+export const makeLmsArchiveGatewayLayer = (databasePath = defaultArchiveDatabasePath()) =>
+    Layer.effect(LmsArchiveGateway, makeLazyLmsArchiveGateway(databasePath));
 
-const makeGateway = (database: Database): LmsCacheGatewayService => ({
+const makeGateway = (database: Database): LmsArchiveGatewayService => ({
     findMaterialCourseId: (lmsMaterialId) =>
-        cacheWriteTry("findMaterialCourseId", () => {
+        archiveWriteTry("findMaterialCourseId", () => {
             const row = database.select({ lmsCourseId: courseMaterialRetrievals.lmsCourseId }).from(courseMaterials)
                 .innerJoin(courseMaterialRetrievals, eq(courseMaterialRetrievals.id, courseMaterials.retrievalId))
                 .where(eq(courseMaterials.lmsMaterialId, lmsMaterialId))
                 .orderBy(desc(courseMaterials.retrievalId)).limit(1).get();
             return row === undefined ? undefined : LmsCourseId(row.lmsCourseId);
         }),
-    listCourses: cacheReadTry("listCourses", () => readCourses(database)),
+    listCourses: archiveReadTry("listCourses", () => readCourses(database)),
     listCourseMaterials: (lmsCourseId) =>
-        cacheReadTry("listCourseMaterials", () => readCourseMaterials(database, lmsCourseId)),
+        archiveReadTry("listCourseMaterials", () => readCourseMaterials(database, lmsCourseId)),
     listMaterialResources: (lmsMaterialId) =>
-        cacheReadTry("listMaterialResources", () => readMaterialResources(database, lmsMaterialId)),
+        archiveReadTry("listMaterialResources", () => readMaterialResources(database, lmsMaterialId)),
     getMaterialDetail: (lmsMaterialId) =>
-        cacheReadTry("getMaterialDetail", () => readMaterialDetail(database, lmsMaterialId)),
+        archiveReadTry("getMaterialDetail", () => readMaterialDetail(database, lmsMaterialId)),
     appendCourses: (retrievedCourses) =>
-        cacheWriteTry("appendCourses", () => recordCourses(database, retrievedCourses)),
+        archiveWriteTry("appendCourses", () => recordCourses(database, retrievedCourses)),
     appendCourseMaterials: (snapshot) =>
-        cacheWriteTry("appendCourseMaterials", () => recordCourseMaterials(database, snapshot)),
+        archiveWriteTry("appendCourseMaterials", () => recordCourseMaterials(database, snapshot)),
     appendMaterialResources: (snapshot) =>
-        cacheWriteTry("appendMaterialResources", () => recordMaterialResources(database, snapshot)),
+        archiveWriteTry("appendMaterialResources", () => recordMaterialResources(database, snapshot)),
 });
 
-const cacheReadTry = <A>(
+const archiveReadTry = <A>(
     operation: string,
     evaluate: () => A,
-): Effect.Effect<A, LmsCacheGatewayError | LmsCacheMissError> =>
+): Effect.Effect<A, LmsArchiveGatewayError | LmsArchiveDataMissingError> =>
     Effect.try({
         try: evaluate,
         catch: (cause) =>
-            Schema.is(LmsCacheMissError)(cause)
+            Schema.is(LmsArchiveDataMissingError)(cause)
                 ? cause
-                : new LmsCacheGatewayError({ operation, message: describeCause(cause) }),
+                : new LmsArchiveGatewayError({ operation, message: describeCause(cause) }),
     });
 
-const cacheWriteTry = <A>(operation: string, evaluate: () => A): Effect.Effect<A, LmsCacheGatewayError> =>
+const archiveWriteTry = <A>(operation: string, evaluate: () => A): Effect.Effect<A, LmsArchiveGatewayError> =>
     Effect.try({
         try: evaluate,
-        catch: (cause) => new LmsCacheGatewayError({ operation, message: describeCause(cause) }),
+        catch: (cause) => new LmsArchiveGatewayError({ operation, message: describeCause(cause) }),
     });
 
 const describeCause = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause);
@@ -197,7 +197,7 @@ const recordMaterialResources = (database: Database, snapshot: MaterialResources
             fetchedAt: now(),
         }).returning({ id: materialResourceRetrievals.id }).get();
         if (materialResourceRetrieval == null) {
-            throw new LmsCacheGatewayError({
+            throw new LmsArchiveGatewayError({
                 operation: "appendMaterialResources",
                 message: "Could not create retrieval.",
             });
@@ -211,11 +211,11 @@ const recordMaterialResources = (database: Database, snapshot: MaterialResources
     });
 };
 
-const insertCourses = (database: CacheConnection, retrievedCourses: readonly Course[]): number => {
+const insertCourses = (database: ArchiveConnection, retrievedCourses: readonly Course[]): number => {
     const retrieval = database.insert(courseRetrievals).values({ fetchedAt: now() })
         .returning({ id: courseRetrievals.id }).get();
     if (retrieval == null) {
-        throw new LmsCacheGatewayError({ operation: "appendCourses", message: "Could not create retrieval." });
+        throw new LmsArchiveGatewayError({ operation: "appendCourses", message: "Could not create retrieval." });
     }
     const courseRows = retrievedCourses.map((course, position) => ({
         retrievalId: retrieval.id,
@@ -229,7 +229,7 @@ const insertCourses = (database: CacheConnection, retrievedCourses: readonly Cou
 };
 
 const insertCourseMaterialRetrieval = (
-    database: CacheConnection,
+    database: ArchiveConnection,
     courseRetrievalId: number,
     lmsCourseId: LmsCourseId,
 ): number => {
@@ -240,16 +240,19 @@ const insertCourseMaterialRetrieval = (
         fetchedAt: now(),
     }).returning({ id: courseMaterialRetrievals.id }).get();
     if (retrieval == null) {
-        throw new LmsCacheGatewayError({ operation: "appendCourseMaterials", message: "Could not create retrieval." });
+        throw new LmsArchiveGatewayError({
+            operation: "appendCourseMaterials",
+            message: "Could not create retrieval.",
+        });
     }
     return retrieval.id;
 };
 
-const findCoursePosition = (database: CacheConnection, retrievalId: number, lmsCourseId: LmsCourseId): number => {
+const findCoursePosition = (database: ArchiveConnection, retrievalId: number, lmsCourseId: LmsCourseId): number => {
     const row = database.select({ position: courses.position }).from(courses)
         .where(and(eq(courses.retrievalId, retrievalId), eq(courses.lmsCourseId, lmsCourseId))).get();
     if (row === undefined) {
-        throw new LmsCacheGatewayError({
+        throw new LmsArchiveGatewayError({
             operation: "appendCourseMaterials",
             message: `The course ${lmsCourseId} was absent from its bundled course retrieval.`,
         });
@@ -258,7 +261,7 @@ const findCoursePosition = (database: CacheConnection, retrievalId: number, lmsC
 };
 
 const insertCourseMaterials = (
-    database: CacheConnection,
+    database: ArchiveConnection,
     retrievalId: number,
     retrievedMaterials: CourseMaterials,
 ): void => {
@@ -291,7 +294,7 @@ const readCourses = (database: Database): readonly Course[] => {
     const retrieval = database.select({ id: courseRetrievals.id })
         .from(courseRetrievals).orderBy(desc(courseRetrievals.id)).limit(1).get();
     if (retrieval == null) {
-        throw cacheMiss("listCourses", "No course retrieval has been synchronized yet.");
+        throw archiveDataMissing("listCourses", "No course retrieval has been synchronized yet.");
     }
     return database.select({
         lmsCourseId: courses.lmsCourseId,
@@ -309,7 +312,7 @@ const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMat
         .limit(1)
         .get();
     if (retrieval == null) {
-        throw cacheMiss(
+        throw archiveDataMissing(
             "listCourseMaterials",
             `No material retrieval for course ${lmsCourseId} has been synchronized yet.`,
         );
@@ -356,7 +359,7 @@ const readMaterialResources = (database: Database, lmsMaterialId: string): Mater
         .limit(1)
         .get();
     if (retrieval == null) {
-        throw cacheMiss(
+        throw archiveDataMissing(
             "listMaterialResources",
             `No resource retrieval for material ${lmsMaterialId} has been synchronized yet.`,
         );
@@ -400,10 +403,10 @@ const readMaterialDetail = (database: Database, lmsMaterialId: string): Material
         .limit(1)
         .get();
     if (row == null) {
-        throw cacheMiss("getMaterialDetail", `No material ${lmsMaterialId} has been synchronized yet.`);
+        throw archiveDataMissing("getMaterialDetail", `No material ${lmsMaterialId} has been synchronized yet.`);
     }
     if (row.courseAvailability !== "available" || row.courseLmsCourseId === null) {
-        throw new LmsCacheGatewayError({
+        throw new LmsArchiveGatewayError({
             operation: "getMaterialDetail",
             message: `Material ${lmsMaterialId} belongs to an unavailable course.`,
         });
@@ -451,8 +454,8 @@ const decodePublicationDeadline = (
         ? row.publicationDeadlineAt ?? DateTime.toDate(DateTime.makeUnsafe(0))
         : row.publicationDeadlineStatus;
 
-const cacheMiss = (operation: string, message: string): LmsCacheMissError =>
-    new LmsCacheMissError({ operation, message });
+const archiveDataMissing = (operation: string, message: string): LmsArchiveDataMissingError =>
+    new LmsArchiveDataMissingError({ operation, message });
 
 const now = (): Date => DateTime.toDate(DateTime.nowUnsafe());
 

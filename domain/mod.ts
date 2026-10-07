@@ -71,7 +71,7 @@ export type MaterialResources = {
     readonly resources: readonly Resource[];
 };
 
-/** Cached information needed to display one globally identified material. */
+/** Archived information needed to display one globally identified material. */
 export type MaterialDetail = {
     readonly course: AvailableCourse;
     readonly material: Material;

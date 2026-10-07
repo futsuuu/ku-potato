@@ -33,7 +33,7 @@ const serializeListedMaterial = Effect.fn("DesktopInboundAdapter.serializeListed
                 head: "auto",
             }).pipe(
                 Effect.as(true),
-                Effect.catchIf((error) => error.reason === "cache-miss", () => Effect.succeed(false)),
+                Effect.catchIf((error) => error.reason === "archive-data-missing", () => Effect.succeed(false)),
             );
         }
     }
@@ -89,7 +89,10 @@ const listMaterials = Effect.fn("DesktopInboundAdapter.listMaterials")(function*
     if (failure) return yield* failure.error;
     const materials = result.courseMaterials[0];
     if (!materials) {
-        return yield* new ApplicationError({ reason: "cache-miss", message: "講義の教材一覧が見つかりません。" });
+        return yield* new ApplicationError({
+            reason: "archive-data-missing",
+            message: "講義の教材一覧が見つかりません。",
+        });
     }
     const courses = yield* application.listCourses.execute({ sync: "auto", head: "auto" });
     const course = courses.find((course) => course.availability === "available" && course.lmsCourseId === lmsCourseId);

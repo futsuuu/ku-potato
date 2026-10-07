@@ -6,8 +6,8 @@ const messages: Record<QueryError["reason"], string> = {
     source: "取得に失敗しました。もう一度お試しください。",
     "authentication-required": "ブラウザでログインしてから、もう一度お試しください。",
     "authentication-storage": "ログイン情報を読み込めませんでした。",
-    cache: "保存済みのデータを読み込めませんでした。",
-    "cache-miss": "データが見つかりません。再取得をお試しください。",
+    archive: "保存済みのデータを読み込めませんでした。",
+    "archive-data-missing": "データが見つかりません。再取得をお試しください。",
     "material-not-found": "教材が見つかりません。公開が終了した可能性があります。",
     "invalid-position": "資料の位置が正しくありません。",
 };
