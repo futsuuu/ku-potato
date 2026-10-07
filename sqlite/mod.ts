@@ -12,12 +12,16 @@ import {
     type CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
+    LmsResourceId,
     type Material,
     type MaterialDetail,
     type MaterialResources,
     type MaterialResourcesSnapshot,
+    type Resource,
+    type ResourceAcquisition,
+    type SavedResourceFile,
 } from "../domain/mod.ts";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { DateTime, Effect, Layer, Schema, Scope } from "effect";
@@ -31,6 +35,7 @@ import {
     courses,
     materialResourceRetrievals,
     materialResources,
+    resourceStates,
 } from "./schema.ts";
 
 export * from "./schema.ts";
@@ -113,6 +118,16 @@ export const makeLazyLmsArchiveGateway = (
                 cachedGateway.pipe(Effect.flatMap((archive) => archive.appendCourseMaterials(snapshot))),
             appendMaterialResources: (snapshot) =>
                 cachedGateway.pipe(Effect.flatMap((archive) => archive.appendMaterialResources(snapshot))),
+            getResourceState: (materialId, resourceId) =>
+                cachedGateway.pipe(Effect.flatMap((archive) => archive.getResourceState(materialId, resourceId))),
+            recordResourceAttempt: (materialId, resourceId, attempt) =>
+                cachedGateway.pipe(
+                    Effect.flatMap((archive) => archive.recordResourceAttempt(materialId, resourceId, attempt)),
+                ),
+            commitResourceAcquisition: (materialId, resourceId, file, at) =>
+                cachedGateway.pipe(
+                    Effect.flatMap((archive) => archive.commitResourceAcquisition(materialId, resourceId, file, at)),
+                ),
         });
     });
 
@@ -142,6 +157,35 @@ const makeGateway = (database: Database): LmsArchiveGatewayService => ({
         archiveWriteTry("appendCourseMaterials", () => recordCourseMaterials(database, snapshot)),
     appendMaterialResources: (snapshot) =>
         archiveWriteTry("appendMaterialResources", () => recordMaterialResources(database, snapshot)),
+    getResourceState: (materialId, resourceId) =>
+        archiveWriteTry("getResourceState", () => {
+            const row = database.select().from(resourceStates)
+                .where(resourceStateKey(materialId, resourceId)).get();
+            return row === undefined ? undefined : decodeResourceState(row);
+        }),
+    recordResourceAttempt: (materialId, resourceId, attempt) =>
+        archiveWriteTry("recordResourceAttempt", () => {
+            requireResourceState(database, materialId, resourceId);
+            database.update(resourceStates).set(encodeAttempt(attempt))
+                .where(resourceStateKey(materialId, resourceId)).run();
+        }),
+    commitResourceAcquisition: (materialId, resourceId, file, at) =>
+        archiveWriteTry("commitResourceAcquisition", () =>
+            database.transaction((transaction) => {
+                const previous = requireResourceState(transaction, materialId, resourceId);
+                transaction.update(resourceStates).set({
+                    ...(file === undefined ? {} : {
+                        fileUuid: file.uuid,
+                        originalFilename: file.originalFilename,
+                        sha256: file.sha256,
+                        fileSize: file.size,
+                        fileSourceUrl: file.sourceUrl ?? null,
+                    }),
+                    lastSucceededAt: at,
+                    ...encodeAttempt({ at, status: "success" }),
+                }).where(resourceStateKey(materialId, resourceId)).run();
+                return decodeSavedFile(previous);
+            })),
 });
 
 const archiveReadTry = <A>(
@@ -206,8 +250,33 @@ const recordMaterialResources = (database: Database, snapshot: MaterialResources
             retrievalId: materialResourceRetrieval.id,
             position,
             name: resource.name,
+            lmsResourceId: resource.lmsResourceId ?? null,
+            type: resource.type ?? null,
+            sourceKind: resource.sourceKind ?? null,
+            url: resource.url ?? null,
         }));
         if (resourceRows.length > 0) transaction.insert(materialResources).values(resourceRows).run();
+        transaction.update(resourceStates).set({ isCurrent: false })
+            .where(eq(resourceStates.lmsMaterialId, snapshot.materialResources.lmsMaterialId)).run();
+        for (const resource of snapshot.materialResources.resources) {
+            // Old snapshots have names only. They cannot establish a resource identity.
+            if (resource.lmsResourceId === undefined) continue;
+            const metadata = {
+                name: resource.name,
+                type: resource.type ?? null,
+                sourceKind: resource.sourceKind ?? null,
+                url: resource.url ?? null,
+                isCurrent: true,
+            };
+            transaction.insert(resourceStates).values({
+                lmsMaterialId: snapshot.materialResources.lmsMaterialId,
+                lmsResourceId: resource.lmsResourceId,
+                ...metadata,
+            }).onConflictDoUpdate({
+                target: [resourceStates.lmsMaterialId, resourceStates.lmsResourceId],
+                set: metadata,
+            }).run();
+        }
     });
 };
 
@@ -296,13 +365,94 @@ const readCourses = (database: Database): readonly Course[] => {
     if (retrieval == null) {
         throw archiveDataMissing("listCourses", "No course retrieval has been synchronized yet.");
     }
-    return database.select({
+    const currentCourses = database.select({
         lmsCourseId: courses.lmsCourseId,
         name: courses.name,
         availability: courses.availability,
     }).from(courses).where(eq(courses.retrievalId, retrieval.id)).orderBy(asc(courses.position)).all()
         .map(decodeCourse);
+    const knownIds = new Set(
+        currentCourses.flatMap((course) => course.availability === "available" ? [course.lmsCourseId] : []),
+    );
+    const archivedCourses: Course[] = [];
+    for (const placement of readSavedMaterialPlacements(database)) {
+        const id = LmsCourseId(placement.courseLmsCourseId);
+        if (knownIds.has(id)) continue;
+        knownIds.add(id);
+        archivedCourses.push({
+            lmsCourseId: id,
+            name: placement.courseName,
+            availability: "available",
+            archived: true,
+        });
+    }
+    return [...currentCourses, ...archivedCourses];
 };
+
+/** Only materials with archived bytes or a saved external URL keep their navigation hierarchy. */
+const readSavedMaterialPlacements = (database: Database) => {
+    const savedIds = database.selectDistinct({ id: resourceStates.lmsMaterialId }).from(resourceStates)
+        .where(or(isNotNull(resourceStates.fileUuid), isNotNull(resourceStates.url))).all().map((row) => row.id);
+    if (savedIds.length === 0) return [];
+    const rows = database.select({
+        retrievalId: courseMaterials.retrievalId,
+        courseLmsCourseId: courseMaterialRetrievals.lmsCourseId,
+        courseName: courses.name,
+        folderName: courseMaterialFolders.name,
+        folderClassDate: courseMaterialFolders.classDate,
+        folderPosition: courseMaterials.folderPosition,
+        lmsMaterialId: courseMaterials.lmsMaterialId,
+        name: courseMaterials.name,
+        type: courseMaterials.type,
+        publicationDeadlineStatus: courseMaterials.publicationDeadlineStatus,
+        publicationDeadlineAt: courseMaterials.publicationDeadlineAt,
+        resourceAvailability: courseMaterials.resourceAvailability,
+    }).from(courseMaterials)
+        .innerJoin(courseMaterialRetrievals, eq(courseMaterialRetrievals.id, courseMaterials.retrievalId))
+        .innerJoin(
+            courses,
+            and(
+                eq(courses.retrievalId, courseMaterialRetrievals.courseRetrievalId),
+                eq(courses.position, courseMaterialRetrievals.coursePosition),
+                eq(courses.lmsCourseId, courseMaterialRetrievals.lmsCourseId),
+            ),
+        )
+        .innerJoin(
+            courseMaterialFolders,
+            and(
+                eq(courseMaterialFolders.retrievalId, courseMaterials.retrievalId),
+                eq(courseMaterialFolders.position, courseMaterials.folderPosition),
+            ),
+        )
+        .where(inArray(courseMaterials.lmsMaterialId, savedIds))
+        .orderBy(desc(courseMaterials.retrievalId), asc(courseMaterials.position)).all();
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+        if (seen.has(row.lmsMaterialId)) return false;
+        seen.add(row.lmsMaterialId);
+        return true;
+    });
+};
+
+const isCourseCurrent = (database: Database, courseId: string): boolean => {
+    const latest = database.select({ id: courseRetrievals.id }).from(courseRetrievals)
+        .orderBy(desc(courseRetrievals.id)).limit(1).get();
+    if (latest === undefined) return false;
+    return database.select({ id: courses.lmsCourseId }).from(courses)
+        .where(
+            and(
+                eq(courses.retrievalId, latest.id),
+                eq(courses.lmsCourseId, courseId),
+                eq(courses.availability, "available"),
+            ),
+        ).get() !== undefined;
+};
+
+const archivedMaterial = (material: Material): Material => ({
+    ...material,
+    archived: true,
+    ...(material.type === "material" ? { resourceAvailability: "unavailable" as const } : {}),
+});
 
 const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMaterials => {
     const retrieval = database.select({ id: courseMaterialRetrievals.id })
@@ -340,14 +490,38 @@ const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMat
         .orderBy(asc(courseMaterials.position))
         .all();
     const materialsByFolder = Map.groupBy(materials, (material) => material.folderPosition);
-
+    const savedPlacements = readSavedMaterialPlacements(database).filter((row) =>
+        row.courseLmsCourseId === lmsCourseId
+    );
+    const savedIds = new Set(savedPlacements.map((row) => row.lmsMaterialId));
+    const courseCurrent = isCourseCurrent(database, lmsCourseId);
+    const visibleFolders = folders.map((folder) => ({
+        name: folder.name,
+        ...(folder.classDate === null ? {} : { classDate: folder.classDate }),
+        materials: (materialsByFolder.get(folder.position) ?? [])
+            .filter((material) => courseCurrent || savedIds.has(material.lmsMaterialId))
+            .map((material) => courseCurrent ? decodeMaterial(material) : archivedMaterial(decodeMaterial(material))),
+    }));
+    const visibleIds = new Set(
+        visibleFolders.flatMap((folder) => folder.materials.map((material) => material.lmsMaterialId)),
+    );
+    for (const saved of savedPlacements) {
+        if (visibleIds.has(LmsMaterialId(saved.lmsMaterialId))) continue;
+        const folder = visibleFolders.find((candidate) =>
+            candidate.name === saved.folderName &&
+            candidate.classDate?.getTime() === saved.folderClassDate?.getTime()
+        );
+        const material = archivedMaterial(decodeMaterial(saved));
+        if (folder !== undefined) folder.materials.push(material);
+        else {visibleFolders.push({
+                name: saved.folderName,
+                ...(saved.folderClassDate === null ? {} : { classDate: saved.folderClassDate }),
+                materials: [material],
+            });}
+    }
     return {
         lmsCourseId: LmsCourseId(lmsCourseId),
-        folders: folders.map((folder) => ({
-            name: folder.name,
-            ...(folder.classDate === null ? {} : { classDate: folder.classDate }),
-            materials: (materialsByFolder.get(folder.position) ?? []).map(decodeMaterial),
-        })),
+        folders: courseCurrent ? visibleFolders : visibleFolders.filter((folder) => folder.materials.length > 0),
     };
 };
 
@@ -364,19 +538,84 @@ const readMaterialResources = (database: Database, lmsMaterialId: string): Mater
             `No resource retrieval for material ${lmsMaterialId} has been synchronized yet.`,
         );
     }
-    const resources = database.select({ name: materialResources.name })
+    const resources = database.select()
         .from(materialResources)
         .where(eq(materialResources.retrievalId, retrieval.id))
         .orderBy(asc(materialResources.position))
         .all();
+    const states = database.select().from(resourceStates)
+        .where(eq(resourceStates.lmsMaterialId, lmsMaterialId)).all();
+    const byId = new Map(states.map((state) => [state.lmsResourceId, state]));
     return {
         lmsMaterialId: LmsMaterialId(lmsMaterialId),
-        resources: resources.map((resource) => ({ name: resource.name })),
+        resources: [
+            ...resources.map((resource): Resource => {
+                if (resource.lmsResourceId === null) return { name: resource.name };
+                const state = byId.get(resource.lmsResourceId);
+                if (state === undefined) throw new Error(`Missing resource state ${resource.lmsResourceId}.`);
+                return decodeResourceState(state);
+            }),
+            ...states.filter((state) => !state.isCurrent && (state.fileUuid !== null || state.url !== null))
+                .map(decodeResourceState),
+        ],
+    };
+};
+
+const resourceStateKey = (materialId: string, resourceId: string) =>
+    and(eq(resourceStates.lmsMaterialId, materialId), eq(resourceStates.lmsResourceId, resourceId));
+
+const requireResourceState = (database: Pick<Database, "select">, materialId: string, resourceId: string) => {
+    const row = database.select().from(resourceStates).where(resourceStateKey(materialId, resourceId)).get();
+    if (row === undefined) throw new Error(`No metadata for resource ${resourceId} in material ${materialId}.`);
+    return row;
+};
+
+const encodeAttempt = (attempt: ResourceAcquisition["lastAttempt"]) => ({
+    lastAttemptAt: attempt.at,
+    lastAttemptStatus: attempt.status,
+    lastAttemptError: attempt.error ?? null,
+});
+
+const decodeSavedFile = (row: typeof resourceStates.$inferSelect): SavedResourceFile | undefined => {
+    if (row.fileUuid === null) return undefined;
+    if (row.originalFilename === null || row.sha256 === null || row.fileSize === null) {
+        throw new Error(`Incomplete file metadata for resource ${row.lmsResourceId}.`);
+    }
+    return {
+        uuid: row.fileUuid,
+        originalFilename: row.originalFilename,
+        sha256: row.sha256,
+        size: row.fileSize,
+        ...(row.fileSourceUrl === null ? {} : { sourceUrl: row.fileSourceUrl }),
+    };
+};
+
+const decodeResourceState = (row: typeof resourceStates.$inferSelect): Resource => {
+    const savedFile = decodeSavedFile(row);
+    return {
+        name: row.name,
+        lmsResourceId: LmsResourceId(row.lmsResourceId),
+        ...(row.type === null ? {} : { type: row.type }),
+        ...(row.sourceKind === null ? {} : { sourceKind: row.sourceKind }),
+        ...(row.url === null ? {} : { url: row.url }),
+        availability: row.isCurrent ? "current" : "archived",
+        ...(savedFile === undefined ? {} : { savedFile }),
+        ...(row.lastAttemptAt === null || row.lastAttemptStatus === null ? {} : {
+            acquisition: {
+                ...(row.lastSucceededAt === null ? {} : { lastSucceededAt: row.lastSucceededAt }),
+                lastAttempt: {
+                    at: row.lastAttemptAt,
+                    status: row.lastAttemptStatus,
+                    ...(row.lastAttemptError === null ? {} : { error: row.lastAttemptError }),
+                },
+            },
+        }),
     };
 };
 
 const readMaterialDetail = (database: Database, lmsMaterialId: string): MaterialDetail => {
     const row = database.select({
+        retrievalId: courseMaterials.retrievalId,
         courseLmsCourseId: courses.lmsCourseId,
         courseName: courses.name,
         courseAvailability: courses.availability,
@@ -411,16 +650,30 @@ const readMaterialDetail = (database: Database, lmsMaterialId: string): Material
             message: `Material ${lmsMaterialId} belongs to an unavailable course.`,
         });
     }
-    const material = decodeMaterial(row);
+    const courseCurrent = isCourseCurrent(database, row.courseLmsCourseId);
+    const latestMaterialRetrieval = database.select({ id: courseMaterialRetrievals.id }).from(courseMaterialRetrievals)
+        .where(eq(courseMaterialRetrievals.lmsCourseId, row.courseLmsCourseId))
+        .orderBy(desc(courseMaterialRetrievals.id)).limit(1).get();
+    const materialCurrent = courseCurrent && latestMaterialRetrieval?.id === row.retrievalId;
+    const material = materialCurrent ? decodeMaterial(row) : archivedMaterial(decodeMaterial(row));
     const resources = material.type === "material" ? readMaterialResources(database, lmsMaterialId).resources : [];
+    const resourcesCurrent = materialCurrent && material.type === "material" &&
+        material.resourceAvailability === "available";
     return {
         course: {
             lmsCourseId: LmsCourseId(row.courseLmsCourseId),
             name: row.courseName,
             availability: "available",
+            ...(courseCurrent ? {} : { archived: true }),
         },
         material,
-        resources,
+        resources: resourcesCurrent
+            ? resources
+            : resources.filter((resource) =>
+                resource.lmsResourceId === undefined || resource.savedFile !== undefined || resource.url !== undefined
+            ).map((resource) =>
+                resource.lmsResourceId === undefined ? resource : { ...resource, availability: "archived" }
+            ),
     };
 };
 

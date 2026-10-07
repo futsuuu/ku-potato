@@ -1,6 +1,6 @@
 /** Persistent archive schema. */
 
-import type { Course, Material } from "../domain/mod.ts";
+import type { Course, Material, Resource } from "../domain/mod.ts";
 import { foreignKey, index, integer, primaryKey, snakeCase, text, unique } from "drizzle-orm/sqlite-core";
 
 type MaterialType = Material["type"];
@@ -100,6 +100,33 @@ export const materialResources = snakeCase.table("material_resources", {
     retrievalId: integer().notNull().references(() => materialResourceRetrievals.id, { onDelete: "cascade" }),
     position: integer().notNull(),
     name: text().notNull(),
+    lmsResourceId: text(),
+    type: text().$type<Resource["type"]>(),
+    sourceKind: text(),
+    url: text(),
 }, (table) => [
     primaryKey({ columns: [table.retrievalId, table.position] }),
+    unique("material_resources_retrieval_resource_id_unique").on(table.retrievalId, table.lmsResourceId),
+]);
+
+/** Mutable metadata and the latest successful file, independently of listing snapshots. */
+export const resourceStates = snakeCase.table("resource_states", {
+    lmsMaterialId: text().notNull(),
+    lmsResourceId: text().notNull(),
+    name: text().notNull(),
+    type: text().$type<Resource["type"]>(),
+    sourceKind: text(),
+    url: text(),
+    isCurrent: integer({ mode: "boolean" }).notNull(),
+    fileUuid: text(),
+    originalFilename: text(),
+    sha256: text(),
+    fileSize: integer(),
+    fileSourceUrl: text(),
+    lastSucceededAt: integer({ mode: "timestamp_ms" }),
+    lastAttemptAt: integer({ mode: "timestamp_ms" }),
+    lastAttemptStatus: text().$type<"success" | "failure">(),
+    lastAttemptError: text(),
+}, (table) => [
+    primaryKey({ columns: [table.lmsMaterialId, table.lmsResourceId] }),
 ]);
