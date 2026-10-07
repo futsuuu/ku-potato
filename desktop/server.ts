@@ -2,16 +2,13 @@ import { serveDir, serveFile } from "@std/http/file-server";
 import { Layer, ManagedRuntime } from "effect";
 import { fileURLToPath } from "node:url";
 import { ApplicationLive } from "../core/mod.ts";
-import { LmsAuthenticationGateway, LmsSourceGateway } from "../core/out_port.ts";
-import { makeLmsGateways } from "../playwright/mod.ts";
+import { makeLmsGatewaysLayer } from "../playwright/mod.ts";
 import { makeLmsCacheGatewayLayer } from "../sqlite/mod.ts";
 import type { DesktopBindings } from "./bindings.ts";
 import { DesktopInboundAdapter } from "./mod.ts";
 
-const gateways = makeLmsGateways();
 const outbound = Layer.mergeAll(
-    Layer.succeed(LmsAuthenticationGateway, gateways.authentication),
-    Layer.succeed(LmsSourceGateway, gateways.source),
+    makeLmsGatewaysLayer(),
     makeLmsCacheGatewayLayer(),
 );
 const runtime = ManagedRuntime.make(ApplicationLive.pipe(Layer.provide(outbound)));
