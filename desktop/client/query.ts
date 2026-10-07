@@ -12,6 +12,8 @@ const messages: Record<QueryError["reason"], string> = {
     "invalid-position": "資料の位置が正しくありません。",
 };
 
+export const queryErrorMessage = (error: Pick<QueryError, "reason">) => messages[error.reason];
+
 export function createDesktopQuery<A>(
     key: () => string,
     fetch: (key: string, sync: SyncPolicy) => Promise<DesktopQueryResult<A>>,
@@ -29,7 +31,7 @@ export function createDesktopQuery<A>(
             (result) => {
                 if (current !== request) return;
                 if (result.status === "success") setData(() => result.data);
-                else setError(messages[result.error.reason]);
+                else setError(queryErrorMessage(result.error));
             },
             () => {
                 if (current === request) setError("取得に失敗しました。もう一度お試しください。");

@@ -24,7 +24,7 @@ const shortcuts = {
     "app-page": "mx-auto max-w-content px-lg py-xl",
     "app-header": "flex items-center justify-between gap-lg",
     "app-button":
-        "px-md py-sm rounded-control border-thin border-solid border-line bg-canvas text-ink disabled:text-muted disabled:cursor-not-allowed",
+        "flex-none px-md py-sm rounded-control border-thin border-solid border-line bg-canvas text-ink disabled:text-muted disabled:cursor-not-allowed",
     "app-list": "p-none list-none",
     "app-row": "py-md border-b-thin border-b-solid border-line",
     "app-meta": "block mt-xs text-small text-muted break-anywhere",
@@ -39,8 +39,21 @@ export default defineConfig<Theme>({
     content: { pipeline: { include: [/desktop\/client\/.*\.[jt]sx?$/] } },
     theme,
     shortcuts,
-    // Mini does not include list-style utilities.
-    rules: [["list-none", { "list-style": "none" }]],
+    // Mini does not include list-style or screen-reader-only utilities.
+    rules: [
+        ["list-none", { "list-style": "none" }],
+        ["sr-only", {
+            position: "absolute",
+            width: theme.lineWidth.thin,
+            height: theme.lineWidth.thin,
+            padding: theme.spacing.none,
+            margin: `-${theme.lineWidth.thin}`,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            "white-space": "nowrap",
+            "border-width": theme.lineWidth.none,
+        }],
+    ],
     // Keep structural Mini utilities; require named tokens for the design scales.
     blocklist: [
         /[[\]$#]|\d/,
