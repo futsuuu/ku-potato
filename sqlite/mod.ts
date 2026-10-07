@@ -22,6 +22,7 @@ import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { DateTime, Effect, Layer, Schema, Scope } from "effect";
 import { fileURLToPath } from "node:url";
+import { applicationCachePath } from "../platform/directories.ts";
 import {
     courseMaterialFolders,
     courseMaterialRetrievals,
@@ -49,12 +50,7 @@ type MaterialReadRow = Pick<
 >;
 
 /** The default user-local database location. */
-export const defaultCacheDatabasePath = (): string => {
-    const localAppData = Deno.env.get("LOCALAPPDATA");
-    return localAppData === undefined
-        ? `${Deno.cwd()}/.ku-potato/cache.sqlite3`
-        : `${localAppData}/ku-potato/cache.sqlite3`;
-};
+export const defaultCacheDatabasePath = (): string => applicationCachePath("cache.sqlite3");
 
 /**
  * Opens the cache database, applies bundled migrations, and exposes the cache

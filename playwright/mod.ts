@@ -7,6 +7,7 @@ import {
 } from "../core/out_port.ts";
 import { Effect, Semaphore } from "effect";
 import * as playwright from "playwright-core";
+import { applicationDataPath } from "../platform/directories.ts";
 import { makeLmsSourceSession } from "./session.ts";
 import { loginToLms } from "./login.ts";
 import { tryPromise } from "./promise.ts";
@@ -22,12 +23,7 @@ export { parseLmsCourseId } from "./home.ts";
 export { parseLmsDate, parseLmsMaterialId, parseMaterialType, parsePublicationDeadline } from "./parsing.ts";
 
 /** The default user-local location for Playwright authentication state. */
-export const defaultAuthenticationStoragePath = (): string => {
-    const localAppData = Deno.env.get("LOCALAPPDATA");
-    return localAppData === undefined
-        ? `${Deno.cwd()}/.ku-potato/auth/storage-state.json`
-        : `${localAppData}/ku-potato/auth/storage-state.json`;
-};
+export const defaultAuthenticationStoragePath = (): string => applicationDataPath("auth", "storage-state.json");
 
 /** Creates an LMS source that opens one exclusive tab per operation. */
 export const makeLmsSourceGateway = (storageStatePath = defaultAuthenticationStoragePath()) =>
