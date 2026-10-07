@@ -17,13 +17,15 @@ import {
     type LmsAuthenticationStorageError,
     type LmsMaterialNotFoundError,
     LmsSourceGateway,
-    type LmsSourceGatewayError,
+    LmsSourceGatewayError,
     type LmsSourceSession,
+    ResourceFileGateway,
+    type ResourceFileGatewayError,
 } from "./out_port.ts";
 import type { Course, CourseMaterials, LmsCourseId } from "../domain/mod.ts";
-import { Effect, Layer, Result, Schema } from "effect";
+import { DateTime, Effect, Layer, Result, Schema } from "effect";
 
-type OutboundServices = LmsAuthenticationGateway | LmsArchiveGateway | LmsSourceGateway;
+type OutboundServices = LmsAuthenticationGateway | LmsArchiveGateway | LmsSourceGateway | ResourceFileGateway;
 type GatewayError =
     | LmsSourceGatewayError
     | LmsAuthenticationRequiredError
@@ -31,8 +33,9 @@ type GatewayError =
     | LmsArchiveGatewayError
     | LmsArchiveDataMissingError
     | LmsMaterialNotFoundError;
+type StorageOrGatewayError = GatewayError | ResourceFileGatewayError;
 
-const toApplicationError = (error: GatewayError): ApplicationError => {
+const toApplicationError = (error: StorageOrGatewayError): ApplicationError => {
     switch (error._tag) {
         case "LmsSourceGatewayError":
             return new ApplicationError({ reason: "source", message: error.message });
@@ -46,6 +49,8 @@ const toApplicationError = (error: GatewayError): ApplicationError => {
             return new ApplicationError({ reason: "archive-data-missing", message: error.message });
         case "LmsMaterialNotFoundError":
             return new ApplicationError({ reason: "material-not-found", message: error.message });
+        case "ResourceFileGatewayError":
+            return new ApplicationError({ reason: "resource-storage", message: error.message });
     }
 };
 
@@ -78,6 +83,7 @@ const listCourses = Effect.fn("Core.listCourses")(function* (options: QueryOptio
         source.withSession(options.head, (session) =>
             session.fetchCourses.pipe(
                 Effect.tap((courses) => archive.appendCourses(courses)),
+                Effect.andThen(archive.listCourses),
             )),
     );
 });
@@ -117,7 +123,17 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
                     const fetched = yield* Effect.result(fetchAndArchiveCourseMaterials(session, archive, lmsCourseId));
                     if (Result.isSuccess(fetched)) {
                         materialsByCourseId.set(lmsCourseId, fetched.success);
-                    } else if (fetched.failure._tag !== "LmsCourseNotFoundError") {
+                    } else if (fetched.failure._tag === "LmsCourseNotFoundError") {
+                        const retained = yield* Effect.result(archive.listCourseMaterials(lmsCourseId));
+                        if (
+                            Result.isSuccess(retained) &&
+                            retained.success.folders.some((folder) =>
+                                folder.materials.some((material) => material.archived)
+                            )
+                        ) {
+                            materialsByCourseId.set(lmsCourseId, retained.success);
+                        }
+                    } else {
                         failures.push({ lmsCourseId, error: toApplicationError(fetched.failure) });
                     }
                 }
@@ -136,7 +152,7 @@ const listMaterials = Effect.fn("Core.listMaterials")(function* (
 const viewMaterial = Effect.fn("Core.viewMaterial")(function* (options: ViewMaterialOptions) {
     const archive = yield* LmsArchiveGateway;
     const source = yield* LmsSourceGateway;
-    return yield* readWithPolicy(
+    const detail = yield* readWithPolicy(
         options.sync,
         archive.getMaterialDetail(options.lmsMaterialId),
         Effect.gen(function* () {
@@ -151,6 +167,16 @@ const viewMaterial = Effect.fn("Core.viewMaterial")(function* (options: ViewMate
             );
         }),
     );
+    const files = yield* ResourceFileGateway;
+    return {
+        ...detail,
+        resources: detail.resources.map((resource) => ({
+            ...resource,
+            ...(resource.savedFile && resource.lmsResourceId
+                ? { savedPath: files.path(resource.lmsResourceId, resource.savedFile.uuid) }
+                : {}),
+        })),
+    };
 });
 
 const fetchAndArchiveCourseMaterials = Effect.fn("Core.fetchAndArchiveCourseMaterials")(function* (
@@ -166,11 +192,105 @@ const fetchAndArchiveCourseMaterials = Effect.fn("Core.fetchAndArchiveCourseMate
 const downloadResource = Effect.fn("Core.downloadResource")(function* (options: DownloadResourceOptions) {
     const archive = yield* LmsArchiveGateway;
     const source = yield* LmsSourceGateway;
+    const files = yield* ResourceFileGateway;
     const preferredCourseId = yield* archive.findMaterialCourseId(options.lmsMaterialId);
-    return yield* source.withSession(
-        options.head,
-        (session) => session.downloadResource(options.lmsMaterialId, options.position, preferredCourseId),
-    );
+    let resourceId = options.lmsResourceId;
+    if (resourceId === undefined) {
+        const archived = yield* Effect.result(archive.listMaterialResources(options.lmsMaterialId));
+        if (Result.isSuccess(archived)) {
+            const resource = archived.success.resources[options.position];
+            if (resource === undefined) {
+                return yield* new LmsSourceGatewayError({
+                    operation: "download resource",
+                    message: "資料の位置が一覧の範囲外です。",
+                });
+            }
+            resourceId = resource.lmsResourceId;
+            if (resourceId === undefined) {
+                return yield* new LmsSourceGatewayError({
+                    operation: "download resource",
+                    message: "旧形式の資料一覧です。教材の資料一覧を再取得してください。",
+                });
+            }
+        } else if (archived.failure._tag !== "LmsArchiveDataMissingError") {
+            return yield* archived.failure;
+        }
+    }
+    if (resourceId === undefined) {
+        const snapshot = yield* source.withSession(
+            options.head,
+            (session) => session.fetchMaterialResources(options.lmsMaterialId, preferredCourseId),
+        );
+        yield* archive.appendMaterialResources(snapshot);
+        resourceId = snapshot.materialResources.resources[options.position]?.lmsResourceId;
+    }
+    if (resourceId === undefined) {
+        return yield* new LmsSourceGatewayError({
+            operation: "download resource",
+            message: "資料のIDを取得できません。",
+        });
+    }
+    const selectedId = resourceId;
+    const attempt = source.withSession(options.head, (session) =>
+        Effect.gen(function* () {
+            const snapshot = yield* session.fetchMaterialResources(options.lmsMaterialId, preferredCourseId);
+            yield* archive.appendMaterialResources(snapshot);
+            const resource = snapshot.materialResources.resources.find((row) => row.lmsResourceId === selectedId);
+            if (resource === undefined) {
+                return yield* new LmsSourceGatewayError({
+                    operation: "download resource",
+                    message: "資料は現在の一覧にありません。保存済み内容を参照してください。",
+                });
+            }
+            const previous = yield* archive.getResourceState(options.lmsMaterialId, selectedId);
+            const downloaded = yield* session.downloadResource(
+                options.lmsMaterialId,
+                selectedId,
+                preferredCourseId,
+            );
+            if (downloaded.type === "external") {
+                yield* archive.commitResourceAcquisition(
+                    options.lmsMaterialId,
+                    selectedId,
+                    undefined,
+                    DateTime.toDate(DateTime.nowUnsafe()),
+                );
+                return downloaded;
+            }
+            return yield* Effect.gen(function* () {
+                const file = yield* files.save(
+                    selectedId,
+                    downloaded.path,
+                    downloaded.originalFilename ?? resource.name,
+                    previous?.savedFile,
+                );
+                const saved = { ...file, sourceUrl: resource.url };
+                const obsolete = yield* archive.commitResourceAcquisition(
+                    options.lmsMaterialId,
+                    selectedId,
+                    saved,
+                    DateTime.toDate(DateTime.nowUnsafe()),
+                );
+                if (obsolete && obsolete.uuid !== saved.uuid) {
+                    yield* files.remove(selectedId, obsolete.uuid).pipe(Effect.catch(Effect.logError));
+                }
+                return {
+                    ...downloaded,
+                    path: files.path(selectedId, saved.uuid),
+                    originalFilename: saved.originalFilename,
+                };
+            }).pipe(Effect.ensuring(files.discardDownload(downloaded.path).pipe(Effect.catch(Effect.logError))));
+        }));
+    return yield* files.withResourceLock(selectedId, attempt).pipe(Effect.catch((error) =>
+        Effect.gen(function* () {
+            yield* archive.recordResourceAttempt(options.lmsMaterialId, selectedId, {
+                at: DateTime.toDate(DateTime.nowUnsafe()),
+                status: "failure",
+                error: error.message,
+            }).pipe(Effect.catch(Effect.logError));
+            return yield* error;
+        })
+    ));
 });
 
 const readWithPolicy = <A, ArchiveError, FetchError, R>(
@@ -195,7 +315,7 @@ export const ApplicationLive = Layer.effect(
     Application,
     Effect.gen(function* () {
         const context = yield* Effect.context<OutboundServices>();
-        const bind = <A, E extends GatewayError>(
+        const bind = <A, E extends StorageOrGatewayError>(
             operation: Effect.Effect<A, E, OutboundServices>,
         ): Effect.Effect<A, ApplicationError> =>
             operation.pipe(Effect.provide(context), Effect.mapError(toApplicationError));

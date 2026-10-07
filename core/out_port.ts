@@ -6,10 +6,14 @@ import type {
     CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
+    LmsResourceId,
     MaterialDetail,
     MaterialResources,
     MaterialResourcesSnapshot,
+    Resource,
+    ResourceAcquisition,
     ResourceDownload,
+    SavedResourceFile,
 } from "../domain/mod.ts";
 import { Context, type Effect, Schema } from "effect";
 import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
@@ -28,7 +32,7 @@ export interface LmsSourceSession {
     ) => Effect.Effect<MaterialResourcesSnapshot, LmsSourceGatewayError | LmsMaterialNotFoundError>;
     readonly downloadResource: (
         lmsMaterialId: LmsMaterialId,
-        position: number,
+        position: number | LmsResourceId,
         preferredCourseId?: LmsCourseId,
     ) => Effect.Effect<ResourceDownload, LmsSourceGatewayError | LmsMaterialNotFoundError>;
 }
@@ -63,6 +67,21 @@ export interface LmsAuthenticationGatewayService {
 
 /** Local archive of retrieved course, material, and resource-list snapshots, implemented by the SQLite adapter. */
 export interface LmsArchiveGatewayService {
+    readonly getResourceState: (
+        materialId: LmsMaterialId,
+        resourceId: LmsResourceId,
+    ) => Effect.Effect<Resource | undefined, LmsArchiveGatewayError>;
+    readonly recordResourceAttempt: (
+        materialId: LmsMaterialId,
+        resourceId: LmsResourceId,
+        attempt: ResourceAcquisition["lastAttempt"],
+    ) => Effect.Effect<void, LmsArchiveGatewayError>;
+    readonly commitResourceAcquisition: (
+        materialId: LmsMaterialId,
+        resourceId: LmsResourceId,
+        file: SavedResourceFile | undefined,
+        at: Date,
+    ) => Effect.Effect<SavedResourceFile | undefined, LmsArchiveGatewayError>;
     /** Latest known course, even when the material's resources have never been fetched. */
     readonly findMaterialCourseId: (
         lmsMaterialId: LmsMaterialId,
@@ -83,6 +102,34 @@ export interface LmsArchiveGatewayService {
         snapshot: MaterialResourcesSnapshot,
     ) => Effect.Effect<void, LmsArchiveGatewayError>;
 }
+
+/** Persistent file storage. Paths are derived from IDs and UUIDs, never archived. */
+export interface ResourceFileGatewayService {
+    readonly path: (resourceId: LmsResourceId, uuid: string) => string;
+    readonly save: (
+        resourceId: LmsResourceId,
+        downloadedPath: string,
+        originalFilename: string,
+        previous?: SavedResourceFile,
+    ) => Effect.Effect<SavedResourceFile, ResourceFileGatewayError>;
+    readonly remove: (resourceId: LmsResourceId, uuid: string) => Effect.Effect<void, ResourceFileGatewayError>;
+    readonly discardDownload: (path: string) => Effect.Effect<void, ResourceFileGatewayError>;
+    /** Serializes complete metadata/file switches, including between local processes. */
+    readonly withResourceLock: <A, E, R>(
+        resourceId: LmsResourceId,
+        use: Effect.Effect<A, E, R>,
+    ) => Effect.Effect<A, E | ResourceFileGatewayError, R>;
+}
+
+export class ResourceFileGateway extends Context.Service<ResourceFileGateway, ResourceFileGatewayService>()(
+    "ku-potato/core/ResourceFileGateway",
+) {}
+
+export class ResourceFileGatewayError
+    extends Schema.TaggedError<ResourceFileGatewayError>()("ResourceFileGatewayError", {
+        operation: Schema.String,
+        message: Schema.String,
+    }) {}
 
 /** Context service for an external LMS data source. */
 export class LmsSourceGateway extends Context.Service<LmsSourceGateway, LmsSourceGatewayService>()(

@@ -5,6 +5,7 @@ import type {
     CourseMaterials,
     LmsCourseId,
     LmsMaterialId,
+    LmsResourceId,
     MaterialDetail,
     ResourceDownload,
 } from "../domain/mod.ts";
@@ -23,6 +24,7 @@ export class ApplicationError extends Schema.TaggedError<ApplicationError>()("Ap
         "archive-data-missing",
         "material-not-found",
         "invalid-position",
+        "resource-storage",
     ]),
     message: Schema.String,
 }) {}
@@ -96,6 +98,8 @@ export type DownloadResourceOptions = {
     readonly lmsMaterialId: LmsMaterialId;
     /** Zero-based index in the resource list, matching its archived DB position. */
     readonly position: number;
+    /** Inbound adapters can pin the displayed identity even if the list changes. */
+    readonly lmsResourceId?: LmsResourceId;
     readonly head: HeadPolicy;
 };
 

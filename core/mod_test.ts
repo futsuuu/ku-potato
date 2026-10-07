@@ -10,6 +10,7 @@ import {
     LmsSourceGatewayError,
     type LmsSourceGatewayService,
     type LmsSourceSession,
+    ResourceFileGateway,
 } from "./out_port.ts";
 import {
     type Course,
@@ -17,6 +18,7 @@ import {
     type CourseMaterialsSnapshot,
     LmsCourseId,
     LmsMaterialId,
+    LmsResourceId,
     type MaterialDetail,
     type MaterialResourcesSnapshot,
 } from "../domain/mod.ts";
@@ -256,9 +258,19 @@ const testApplicationLayer = (
     ),
     Layer.succeed(LmsArchiveGateway, archive),
     Layer.succeed(LmsSourceGateway, source),
+    Layer.succeed(ResourceFileGateway, {
+        path: () => "saved-path",
+        save: () => Effect.die("unexpected save"),
+        remove: () => Effect.die("unexpected remove"),
+        discardDownload: () => Effect.die("unexpected discard"),
+        withResourceLock: (_id, use) => use,
+    }),
 )));
 
 const archiveGateway = (overrides: Partial<LmsArchiveGatewayService>): LmsArchiveGatewayService => ({
+    getResourceState: () => Effect.die("unexpected getResourceState"),
+    recordResourceAttempt: () => Effect.die("unexpected recordResourceAttempt"),
+    commitResourceAcquisition: () => Effect.die("unexpected commitResourceAcquisition"),
     findMaterialCourseId: () => Effect.die("unexpected findMaterialCourseId"),
     listCourses: Effect.die("unexpected listCourses"),
     listCourseMaterials: () => Effect.die("unexpected listCourseMaterials"),
@@ -294,13 +306,37 @@ const archiveDataMissing = (operation: string): LmsArchiveDataMissingError =>
     new LmsArchiveDataMissingError({ operation, message: "missing" });
 
 for (const preferredCourseId of [courseId, undefined]) {
-    Deno.test(`resource download uses an authenticated session with course hint ${preferredCourseId} without writing archive`, async () => {
+    Deno.test(`resource acquisition pins its archived ID and records success with course hint ${preferredCourseId}`, async () => {
         const heads: string[] = [];
-        const archive = archiveGateway({ findMaterialCourseId: () => Effect.succeed(preferredCourseId) });
+        const resource = {
+            name: "link",
+            lmsResourceId: LmsResourceId("SRS1"),
+            type: "external",
+            url: "https://example.com/shared",
+        } as const;
+        let commits = 0;
+        const archive = archiveGateway({
+            findMaterialCourseId: () => Effect.succeed(preferredCourseId),
+            listMaterialResources: () =>
+                Effect.succeed({ lmsMaterialId: LmsMaterialId("SRY1"), resources: [resource] }),
+            appendMaterialResources: () => Effect.void,
+            getResourceState: () => Effect.succeed(resource),
+            commitResourceAcquisition: () =>
+                Effect.sync(() => {
+                    commits++;
+                    return undefined;
+                }),
+        });
         const source = sourceGateway({
+            fetchMaterialResources: () =>
+                Effect.succeed({
+                    courses,
+                    courseMaterials,
+                    materialResources: { lmsMaterialId: LmsMaterialId("SRY1"), resources: [resource] },
+                }),
             downloadResource: (materialId, position, courseHint) => {
                 assertEquals(materialId, LmsMaterialId("SRY1"));
-                assertEquals(position, 2);
+                assertEquals(position, LmsResourceId("SRS1"));
                 assertEquals(courseHint, preferredCourseId);
                 return Effect.succeed({ type: "external", url: "https://example.com/shared" });
             },
@@ -309,13 +345,14 @@ for (const preferredCourseId of [courseId, undefined]) {
             Application.use((app) =>
                 app.downloadResource.execute({
                     lmsMaterialId: LmsMaterialId("SRY1"),
-                    position: 2,
+                    position: 0,
                     head: "false",
                 })
             ).pipe(Effect.provide(testApplicationLayer(archive, source))),
         );
         assertEquals(result, { type: "external", url: "https://example.com/shared" });
         assertEquals(heads, ["false"]);
+        assertEquals(commits, 1);
     });
 }
 
