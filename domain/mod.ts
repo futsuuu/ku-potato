@@ -82,10 +82,9 @@ export type CourseMaterials = {
 /** A resource listed in the detail page for one teaching material. */
 export type Resource = {
     readonly name: string;
-    /** Absent only for snapshots archived before stable IDs were recorded. */
-    readonly lmsResourceId?: LmsResourceId;
-    readonly type?: "file" | "external" | "unsupported";
-    readonly sourceKind?: string;
+    readonly lmsResourceId: LmsResourceId;
+    readonly type: "file" | "external" | "unsupported";
+    readonly sourceKind: string;
     readonly url?: string;
     readonly availability?: "current" | "archived";
     readonly savedFile?: SavedResourceFile;

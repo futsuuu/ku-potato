@@ -180,7 +180,12 @@ for (const sync of ["true", "auto"] as const) {
             const materialDetail: MaterialDetail = {
                 course,
                 material,
-                resources: [{ name: "week-1.pdf" }],
+                resources: [{
+                    name: "week-1.pdf",
+                    lmsResourceId: LmsResourceId("SRS1"),
+                    type: "file",
+                    sourceKind: "ファイル資料",
+                }],
             };
             const snapshot: MaterialResourcesSnapshot = {
                 courses,
@@ -312,6 +317,7 @@ for (const preferredCourseId of [courseId, undefined]) {
             name: "link",
             lmsResourceId: LmsResourceId("SRS1"),
             type: "external",
+            sourceKind: "外部資料",
             url: "https://example.com/shared",
         } as const;
         let commits = 0;

@@ -172,9 +172,7 @@ const viewMaterial = Effect.fn("Core.viewMaterial")(function* (options: ViewMate
         ...detail,
         resources: detail.resources.map((resource) => ({
             ...resource,
-            ...(resource.savedFile && resource.lmsResourceId
-                ? { savedPath: files.path(resource.lmsResourceId, resource.savedFile.uuid) }
-                : {}),
+            ...(resource.savedFile ? { savedPath: files.path(resource.lmsResourceId, resource.savedFile.uuid) } : {}),
         })),
     };
 });
@@ -206,12 +204,6 @@ const downloadResource = Effect.fn("Core.downloadResource")(function* (options: 
                 });
             }
             resourceId = resource.lmsResourceId;
-            if (resourceId === undefined) {
-                return yield* new LmsSourceGatewayError({
-                    operation: "download resource",
-                    message: "旧形式の資料一覧です。教材の資料一覧を再取得してください。",
-                });
-            }
         } else if (archived.failure._tag !== "LmsArchiveDataMissingError") {
             return yield* archived.failure;
         }
