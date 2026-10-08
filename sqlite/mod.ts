@@ -69,15 +69,12 @@ export const makeLmsArchiveGateway = (
             Deno.mkdirSync(databaseDirectory(databasePath), { recursive: true });
             const database = drizzle(databasePath);
             try {
-                // Drizzle starts a transaction, inside which SQLite ignores foreign_keys changes.
-                // Disable before migrating so table rebuilds cannot cascade-delete archived history.
-                database.$client.exec("pragma foreign_keys = off");
+                database.$client.exec("pragma foreign_keys = on");
                 migrate(database, {
                     migrationsFolder: fileURLToPath(new URL("./drizzle", import.meta.url)),
                 });
-                database.$client.exec("pragma foreign_keys = on");
                 if (database.$client.prepare("pragma foreign_key_check").all().length > 0) {
-                    throw new Error("Archive migration left inconsistent foreign keys.");
+                    throw new Error("Archive contains inconsistent foreign keys.");
                 }
                 return { database, gateway: LmsArchiveGateway.of(makeGateway(database)) };
             } catch (cause) {
@@ -250,21 +247,19 @@ const recordMaterialResources = (database: Database, snapshot: MaterialResources
             retrievalId: materialResourceRetrieval.id,
             position,
             name: resource.name,
-            lmsResourceId: resource.lmsResourceId ?? null,
-            type: resource.type ?? null,
-            sourceKind: resource.sourceKind ?? null,
+            lmsResourceId: resource.lmsResourceId,
+            type: resource.type,
+            sourceKind: resource.sourceKind,
             url: resource.url ?? null,
         }));
         if (resourceRows.length > 0) transaction.insert(materialResources).values(resourceRows).run();
         transaction.update(resourceStates).set({ isCurrent: false })
             .where(eq(resourceStates.lmsMaterialId, snapshot.materialResources.lmsMaterialId)).run();
         for (const resource of snapshot.materialResources.resources) {
-            // Old snapshots have names only. They cannot establish a resource identity.
-            if (resource.lmsResourceId === undefined) continue;
             const metadata = {
                 name: resource.name,
-                type: resource.type ?? null,
-                sourceKind: resource.sourceKind ?? null,
+                type: resource.type,
+                sourceKind: resource.sourceKind,
                 url: resource.url ?? null,
                 isCurrent: true,
             };
@@ -550,7 +545,6 @@ const readMaterialResources = (database: Database, lmsMaterialId: string): Mater
         lmsMaterialId: LmsMaterialId(lmsMaterialId),
         resources: [
             ...resources.map((resource): Resource => {
-                if (resource.lmsResourceId === null) return { name: resource.name };
                 const state = byId.get(resource.lmsResourceId);
                 if (state === undefined) throw new Error(`Missing resource state ${resource.lmsResourceId}.`);
                 return decodeResourceState(state);
@@ -595,8 +589,8 @@ const decodeResourceState = (row: typeof resourceStates.$inferSelect): Resource 
     return {
         name: row.name,
         lmsResourceId: LmsResourceId(row.lmsResourceId),
-        ...(row.type === null ? {} : { type: row.type }),
-        ...(row.sourceKind === null ? {} : { sourceKind: row.sourceKind }),
+        type: row.type,
+        sourceKind: row.sourceKind,
         ...(row.url === null ? {} : { url: row.url }),
         availability: row.isCurrent ? "current" : "archived",
         ...(savedFile === undefined ? {} : { savedFile }),
@@ -669,11 +663,8 @@ const readMaterialDetail = (database: Database, lmsMaterialId: string): Material
         material,
         resources: resourcesCurrent
             ? resources
-            : resources.filter((resource) =>
-                resource.lmsResourceId === undefined || resource.savedFile !== undefined || resource.url !== undefined
-            ).map((resource) =>
-                resource.lmsResourceId === undefined ? resource : { ...resource, availability: "archived" }
-            ),
+            : resources.filter((resource) => resource.savedFile !== undefined || resource.url !== undefined)
+                .map((resource) => ({ ...resource, availability: "archived" })),
     };
 };
 

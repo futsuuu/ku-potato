@@ -1,9 +1,9 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "919bce8c-1152-4e2e-9c37-db623d4ce643",
+  "id": "118c27a0-cd96-42a3-832c-30a4be690db4",
   "prevIds": [
-    "da543d13-e602-4e44-adf5-44a10731536f"
+    "00000000-0000-0000-0000-000000000000"
   ],
   "ddl": [
     {
@@ -32,6 +32,10 @@
     },
     {
       "name": "material_resources",
+      "entityType": "tables"
+    },
+    {
+      "name": "resource_states",
       "entityType": "tables"
     },
     {
@@ -345,6 +349,206 @@
       "table": "material_resources"
     },
     {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lms_resource_id",
+      "entityType": "columns",
+      "table": "material_resources"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "type",
+      "entityType": "columns",
+      "table": "material_resources"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source_kind",
+      "entityType": "columns",
+      "table": "material_resources"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "url",
+      "entityType": "columns",
+      "table": "material_resources"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lms_material_id",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lms_resource_id",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "type",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source_kind",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "url",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "is_current",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "file_uuid",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "original_filename",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "sha256",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "file_size",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "file_source_url",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_succeeded_at",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_attempt_at",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_attempt_status",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_attempt_error",
+      "entityType": "columns",
+      "table": "resource_states"
+    },
+    {
       "columns": [
         "retrieval_id"
       ],
@@ -482,6 +686,16 @@
     },
     {
       "columns": [
+        "lms_material_id",
+        "lms_resource_id"
+      ],
+      "nameExplicit": false,
+      "name": "resource_states_pk",
+      "entityType": "pks",
+      "table": "resource_states"
+    },
+    {
+      "columns": [
         "id"
       ],
       "nameExplicit": false,
@@ -599,6 +813,16 @@
       "name": "courses_retrieval_position_course_id_unique",
       "entityType": "uniques",
       "table": "courses"
+    },
+    {
+      "columns": [
+        "retrieval_id",
+        "lms_resource_id"
+      ],
+      "nameExplicit": true,
+      "name": "material_resources_retrieval_resource_id_unique",
+      "entityType": "uniques",
+      "table": "material_resources"
     }
   ],
   "renames": []

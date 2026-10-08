@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertInstanceOf } from "@std/assert";
+import { assert, assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
 import { LmsArchiveDataMissingError, LmsArchiveGateway, LmsArchiveGatewayError } from "../core/out_port.ts";
 import {
     type CourseMaterialsSnapshot,
@@ -11,10 +11,6 @@ import {
 } from "../domain/mod.ts";
 import { DateTime, Effect, Result } from "effect";
 import { drizzle } from "drizzle-orm/node-sqlite";
-import { migrate } from "drizzle-orm/node-sqlite/migrator";
-import { fileURLToPath } from "node:url";
-// oxlint-disable-next-line effecttsgo/node-builtin-import -- Construct fixture paths synchronously for bundled SQLite migrations.
-import { join } from "node:path";
 import { makeLazyLmsArchiveGateway, makeLmsArchiveGateway, makeLmsArchiveGatewayLayer } from "./mod.ts";
 
 Deno.test("lazy SQLite archive does not open the database until it is used", async () => {
@@ -84,7 +80,12 @@ Deno.test("SQLite archive keeps material resources after a later course material
         ...courseMaterials,
         materialResources: {
             lmsMaterialId: materialId,
-            resources: [{ name: "week-1.pdf" }],
+            resources: [{
+                name: "week-1.pdf",
+                lmsResourceId: LmsResourceId("SRS1"),
+                type: "file",
+                sourceKind: "ファイル資料",
+            }],
         },
     };
     const laterCourseMaterials: CourseMaterialsSnapshot = {
@@ -94,6 +95,12 @@ Deno.test("SQLite archive keeps material resources after a later course material
             folders: [{ name: "Week 2", materials: [] }],
         },
     };
+    const at = DateTime.toDate(DateTime.makeUnsafe("2026-04-01T00:00:00Z"));
+    const savedResource = {
+        ...materialResources.materialResources.resources[0]!,
+        savedFile,
+        acquisition: { lastSucceededAt: at, lastAttempt: { at, status: "success" } },
+    } as const;
 
     try {
         const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
@@ -106,6 +113,7 @@ Deno.test("SQLite archive keeps material resources after a later course material
             assert(Result.isFailure(missingResources));
             assertInstanceOf(missingResources.failure, LmsArchiveDataMissingError);
             yield* archive.appendMaterialResources(materialResources);
+            yield* archive.commitResourceAcquisition(materialId, savedResource.lmsResourceId, savedFile, at);
             yield* archive.appendCourseMaterials(laterCourseMaterials);
             return {
                 courses: yield* archive.listCourses,
@@ -116,8 +124,25 @@ Deno.test("SQLite archive keeps material resources after a later course material
         })));
 
         assertEquals(result.courses, [course]);
-        assertEquals(result.materials, laterCourseMaterials.courseMaterials);
-        assertEquals(result.resources, materialResources.materialResources);
+        assertEquals(result.materials, {
+            ...laterCourseMaterials.courseMaterials,
+            folders: [
+                ...laterCourseMaterials.courseMaterials.folders,
+                {
+                    ...courseMaterials.courseMaterials.folders[0],
+                    materials: [{
+                        ...courseMaterials.courseMaterials.folders[0]?.materials[0],
+                        type: "material",
+                        archived: true,
+                        resourceAvailability: "unavailable",
+                    }],
+                },
+            ],
+        });
+        assertEquals(result.resources, {
+            lmsMaterialId: materialId,
+            resources: [{ ...savedResource, availability: "current" }],
+        });
         assertEquals(result.detail, {
             course,
             material: {
@@ -126,7 +151,7 @@ Deno.test("SQLite archive keeps material resources after a later course material
                 archived: true,
                 resourceAvailability: "unavailable",
             },
-            resources: materialResources.materialResources.resources,
+            resources: [{ ...savedResource, availability: "archived" }],
         });
     } finally {
         await Deno.remove(directory, { recursive: true });
@@ -135,7 +160,14 @@ Deno.test("SQLite archive keeps material resources after a later course material
 
 Deno.test.each([
     { resources: [] },
-    { resources: [{ name: "handout.pdf" }] },
+    {
+        resources: [{
+            name: "handout.pdf",
+            lmsResourceId: LmsResourceId("SRS1"),
+            type: "file",
+            sourceKind: "ファイル資料",
+        }],
+    },
 ])("SQLite archive retains $resources.length resources after a material becomes unavailable", async ({ resources }) => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const course = {
@@ -162,6 +194,7 @@ Deno.test.each([
             folders: [{ name: "Week 1", materials: [expiredMaterial] }],
         },
     };
+    const at = DateTime.toDate(DateTime.makeUnsafe("2026-04-01T00:00:00Z"));
 
     try {
         await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
@@ -179,11 +212,19 @@ Deno.test.each([
                 },
                 materialResources: { lmsMaterialId: material.lmsMaterialId, resources },
             });
+            for (const resource of resources) {
+                yield* archive.commitResourceAcquisition(material.lmsMaterialId, resource.lmsResourceId, savedFile, at);
+            }
             yield* archive.appendCourseMaterials(expiredSnapshot);
             assertEquals(yield* archive.getMaterialDetail(material.lmsMaterialId), {
                 course,
                 material: expiredMaterial,
-                resources,
+                resources: resources.map((resource): Resource => ({
+                    ...resource,
+                    availability: "archived",
+                    savedFile,
+                    acquisition: { lastSucceededAt: at, lastAttempt: { at, status: "success" } },
+                })),
             });
         })));
     } finally {
@@ -209,7 +250,15 @@ Deno.test("SQLite archive rolls back every failed snapshot write", async () => {
             lmsCourseId: courseId,
             folders: [{ name: "Original folder", materials: [material] }],
         },
-        materialResources: { lmsMaterialId: materialId, resources: [{ name: "original.pdf" }] },
+        materialResources: {
+            lmsMaterialId: materialId,
+            resources: [{
+                name: "original.pdf",
+                lmsResourceId: LmsResourceId("SRS1"),
+                type: "file",
+                sourceKind: "ファイル資料",
+            }],
+        },
     };
     const changedCourse = { ...course, name: "Changed course" };
     const changedMaterials = {
@@ -247,14 +296,23 @@ Deno.test("SQLite archive rolls back every failed snapshot write", async () => {
                 courseMaterials: changedMaterials,
                 materialResources: {
                     lmsMaterialId: materialId,
-                    resources: [{ name: null as unknown as string }],
+                    resources: [{
+                        ...original.materialResources.resources[0]!,
+                        name: null as unknown as string,
+                    }],
                 },
             }));
             assert(Result.isFailure(badResources));
             assertInstanceOf(badResources.failure, LmsArchiveGatewayError);
             assertEquals(yield* archive.listCourses, original.courses);
             assertEquals(yield* archive.listCourseMaterials(courseId), original.courseMaterials);
-            assertEquals(yield* archive.listMaterialResources(materialId), original.materialResources);
+            assertEquals(yield* archive.listMaterialResources(materialId), {
+                ...original.materialResources,
+                resources: original.materialResources.resources.map((resource): Resource => ({
+                    ...resource,
+                    availability: "current",
+                })),
+            });
         })));
     } finally {
         await Deno.remove(directory, { recursive: true });
@@ -385,6 +443,7 @@ Deno.test("SQLite preserves external URLs on listing without requiring acquisiti
         name: "Slides",
         lmsResourceId: resourceId,
         type: "external",
+        sourceKind: "外部資料",
         url: "https://example.com/slides",
     } as const;
     const unsupported = {
@@ -415,7 +474,7 @@ Deno.test("SQLite preserves external URLs on listing without requiring acquisiti
 Deno.test("SQLite rolls back duplicate resource IDs and failed file metadata switches", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
     const path = temporaryDatabasePath(directory);
-    const resource = { name: "Handout", lmsResourceId: resourceId, type: "file" } as const;
+    const resource = { name: "Handout", lmsResourceId: resourceId, type: "file", sourceKind: "ファイル資料" } as const;
     const at = DateTime.toDate(DateTime.makeUnsafe("2026-04-01T00:00:00Z"));
     try {
         await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
@@ -453,57 +512,47 @@ Deno.test("SQLite rolls back duplicate resource IDs and failed file metadata swi
     }
 });
 
-Deno.test("SQLite migrates populated legacy resource snapshots without inventing IDs", async () => {
-    const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-migration-" });
-    const path = temporaryDatabasePath(directory);
-    const migrationDirectory = join(directory, "old-migrations");
-    await Deno.mkdir(migrationDirectory);
-    const bundled = fileURLToPath(new URL("./drizzle", import.meta.url));
-    try {
-        for await (const entry of Deno.readDir(bundled)) {
-            if (!entry.isDirectory || entry.name >= "20261007204530") continue;
-            const destination = join(migrationDirectory, entry.name);
-            await Deno.mkdir(destination);
-            await Deno.copyFile(join(bundled, entry.name, "migration.sql"), join(destination, "migration.sql"));
-            await Deno.copyFile(join(bundled, entry.name, "snapshot.json"), join(destination, "snapshot.json"));
-        }
-        const legacy = drizzle(path);
+Deno.test.each(["lmsResourceId", "type", "sourceKind"].map((field) => ({ field })))(
+    "SQLite requires $field for both listing snapshots and resource states",
+    async ({ field }) => {
+        const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
+        const path = temporaryDatabasePath(directory);
+        const resource: Resource = {
+            name: "Handout",
+            lmsResourceId: resourceId,
+            type: "file",
+            sourceKind: "ファイル資料",
+        };
         try {
-            legacy.$client.exec("PRAGMA foreign_keys=OFF");
-            migrate(legacy, { migrationsFolder: migrationDirectory });
-            legacy.$client.exec(`
-                INSERT INTO course_retrievals(id,fetched_at) VALUES(1,0);
-                INSERT INTO courses(retrieval_id,position,lms_course_id,name,availability) VALUES(1,0,'course-1','Programming','available');
-                INSERT INTO course_material_retrievals(id,course_retrieval_id,course_position,lms_course_id,fetched_at) VALUES(1,1,0,'course-1',0);
-                INSERT INTO course_material_folders(retrieval_id,position,name) VALUES(1,0,'Week 1');
-                INSERT INTO course_materials(retrieval_id,position,lms_material_id,folder_position,name,type,publication_deadline_status,resource_availability) VALUES(1,0,'material-1',0,'Handout','material','no-deadline','available');
-                INSERT INTO material_resource_retrievals(id,lms_material_id,fetched_at) VALUES(1,'material-1',0);
-                INSERT INTO material_resources(retrieval_id,position,name) VALUES(1,0,'legacy.pdf');
-            `);
+            await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+                const archive = yield* makeLmsArchiveGateway(path);
+                yield* archive.appendMaterialResources(resourceSnapshot([resource]));
+                const failure = yield* Effect.result(archive.appendMaterialResources(
+                    resourceSnapshot([{ ...resource, [field]: undefined }]),
+                ));
+                assert(Result.isFailure(failure));
+                assertInstanceOf(failure.failure, LmsArchiveGatewayError);
+                assertEquals((yield* archive.listMaterialResources(archiveMaterialId)).resources, [{
+                    ...resource,
+                    availability: "current",
+                }]);
+                const connection = drizzle(path);
+                try {
+                    const column = field === "lmsResourceId"
+                        ? "lms_resource_id"
+                        : field === "sourceKind"
+                        ? "source_kind"
+                        : "type";
+                    assertThrows(() => connection.$client.exec(`UPDATE resource_states SET ${column} = NULL`));
+                } finally {
+                    connection.$client.close();
+                }
+            })));
         } finally {
-            legacy.$client.close();
+            await Deno.remove(directory, { recursive: true });
         }
-        await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-            const archive = yield* makeLmsArchiveGateway(path);
-            const detail = yield* archive.getMaterialDetail(archiveMaterialId);
-            assertEquals(detail.resources, [{ name: "legacy.pdf" }]);
-            assertEquals(detail.material.name, "Handout");
-            assertEquals(detail.course.name, "Programming");
-            assertEquals(yield* archive.getResourceState(archiveMaterialId, resourceId), undefined);
-            yield* archive.appendMaterialResources(
-                resourceSnapshot([{ name: "legacy.pdf", lmsResourceId: resourceId, type: "file" }]),
-            );
-            assertEquals((yield* archive.getMaterialDetail(archiveMaterialId)).resources, [{
-                name: "legacy.pdf",
-                lmsResourceId: resourceId,
-                type: "file",
-                availability: "current",
-            }]);
-        })));
-    } finally {
-        await Deno.remove(directory, { recursive: true });
-    }
-});
+    },
+);
 
 Deno.test("SQLite keeps archive navigation when saved materials and their course disappear", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-sqlite-" });
@@ -523,7 +572,12 @@ Deno.test("SQLite keeps archive navigation when saved materials and their course
         await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
             const archive = yield* makeLmsArchiveGateway(temporaryDatabasePath(directory));
             yield* archive.appendMaterialResources(
-                snapshot(fileMaterial.lmsMaterialId, { name: "Handout", lmsResourceId: resourceId, type: "file" }),
+                snapshot(fileMaterial.lmsMaterialId, {
+                    name: "Handout",
+                    lmsResourceId: resourceId,
+                    type: "file",
+                    sourceKind: "ファイル資料",
+                }),
             );
             yield* archive.commitResourceAcquisition(
                 fileMaterial.lmsMaterialId,
@@ -536,6 +590,7 @@ Deno.test("SQLite keeps archive navigation when saved materials and their course
                     name: "Slides",
                     lmsResourceId: LmsResourceId("SRS0000000000002"),
                     type: "external",
+                    sourceKind: "外部資料",
                     url: "https://example.com/slides",
                 }),
             );
@@ -544,6 +599,7 @@ Deno.test("SQLite keeps archive navigation when saved materials and their course
                     name: "Unsaved",
                     lmsResourceId: LmsResourceId("SRS0000000000003"),
                     type: "file",
+                    sourceKind: "ファイル資料",
                 }),
             );
             // The course is still listed, but every material has disappeared from its current list.
