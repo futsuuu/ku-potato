@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Exit, Schema } from "effect";
 import type { Page } from "playwright-core";
 import { LmsAuthenticationStorageError, LmsSourceGatewayError } from "../core/out_port.ts";
 import {
@@ -59,62 +59,90 @@ export const createVirtualAuthenticator = Effect.fn("PlaywrightBrowser.createVir
     page: Page,
     storedCredentialSources?: StoredCredentialSources,
 ) {
-    const cdp = yield* tryPromise("create virtual WebAuthn authenticator", () => page.context().newCDPSession(page));
-    yield* tryPromise("enable WebAuthn", () => cdp.send("WebAuthn.enable"));
-    const { authenticatorId } = yield* tryPromise(
-        "create virtual WebAuthn authenticator",
-        () =>
-            cdp.send("WebAuthn.addVirtualAuthenticator", {
-                options: {
-                    protocol: "ctap2",
-                    transport: "usb",
-                    hasResidentKey: true,
-                    hasUserVerification: true,
-                    // Simulate successful user verification and user presence for automation.
-                    isUserVerified: true,
-                    automaticPresenceSimulation: true,
-                },
-            }),
-    );
-    for (const credentialSource of storedCredentialSources?.credentials ?? []) {
-        yield* tryPromise(
-            "restore WebAuthn credential source",
-            () => cdp.send("WebAuthn.addCredential", { authenticatorId, credential: credentialSource }),
-        );
-    }
-    return {
-        close: tryPromise(
-            "remove virtual WebAuthn authenticator",
-            () => cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }),
-        ).pipe(
-            Effect.asVoid,
-            Effect.ensuring(
-                tryPromise("detach WebAuthn session", () => cdp.detach()).pipe(Effect.catch(Effect.logError)),
-            ),
-        ),
-        saveCredentialSources: Effect.fn("PlaywrightBrowser.saveCredentialSources")(
-            function* (path: string, username: string) {
-                const { credentials: credentialSources } = yield* authenticationStorageTry(
-                    "save credential sources",
-                    () => cdp.send("WebAuthn.getCredentials", { authenticatorId }),
+    let partialAuthenticatorId: string | undefined;
+    return yield* Effect.acquireUseRelease(
+        tryPromise("create virtual WebAuthn authenticator", () => page.context().newCDPSession(page)),
+        (cdp) =>
+            Effect.gen(function* () {
+                const close = Effect.gen(function* () {
+                    const authenticatorId = partialAuthenticatorId;
+                    if (authenticatorId) {
+                        yield* tryPromise(
+                            "remove virtual WebAuthn authenticator",
+                            () => cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }),
+                        );
+                    }
+                }).pipe(Effect.ensuring(
+                    tryPromise("detach WebAuthn session", () => cdp.detach()).pipe(Effect.catch(Effect.logError)),
+                ));
+                yield* tryPromise("enable WebAuthn", () => cdp.send("WebAuthn.enable"));
+                const created = yield* tryPromise(
+                    "create virtual WebAuthn authenticator",
+                    () =>
+                        cdp.send("WebAuthn.addVirtualAuthenticator", {
+                            options: {
+                                protocol: "ctap2",
+                                transport: "usb",
+                                hasResidentKey: true,
+                                hasUserVerification: true,
+                                // Simulate successful user verification and user presence for automation.
+                                isUserVerified: true,
+                                automaticPresenceSimulation: true,
+                            },
+                        }),
                 );
-                const contents = yield* Schema.decodeUnknownEffect(StoredCredentialSources)({
-                    version: 1,
-                    username,
-                    credentials: credentialSources,
-                }).pipe(
-                    Effect.flatMap(Schema.encodeEffect(StoredCredentialSourcesJson)),
-                    Effect.mapError(() =>
-                        new LmsAuthenticationStorageError({
-                            operation: "save credential sources",
-                            message: "仮想認証器から取得したWebAuthnクレデンシャルソースが不正です。",
-                        })
+                const authenticatorId = created.authenticatorId;
+                partialAuthenticatorId = authenticatorId;
+                for (const credentialSource of storedCredentialSources?.credentials ?? []) {
+                    yield* tryPromise(
+                        "restore WebAuthn credential source",
+                        () => cdp.send("WebAuthn.addCredential", { authenticatorId, credential: credentialSource }),
+                    );
+                }
+                return {
+                    close,
+                    saveCredentialSources: Effect.fn("PlaywrightBrowser.saveCredentialSources")(
+                        function* (path: string, username: string) {
+                            const { credentials: credentialSources } = yield* authenticationStorageTry(
+                                "save credential sources",
+                                () => cdp.send("WebAuthn.getCredentials", { authenticatorId }),
+                            );
+                            const contents = yield* Schema.decodeUnknownEffect(StoredCredentialSources)({
+                                version: 1,
+                                username,
+                                credentials: credentialSources,
+                            }).pipe(
+                                Effect.flatMap(Schema.encodeEffect(StoredCredentialSourcesJson)),
+                                Effect.mapError(() =>
+                                    new LmsAuthenticationStorageError({
+                                        operation: "save credential sources",
+                                        message: "仮想認証器から取得したWebAuthnクレデンシャルソースが不正です。",
+                                    })
+                                ),
+                            );
+                            yield* writeAuthenticationFile(path, contents);
+                        },
                     ),
-                );
-                yield* writeAuthenticationFile(path, contents);
-            },
-        ),
-    };
+                };
+            }),
+        (cdp, exit) =>
+            Exit.isFailure(exit)
+                ? Effect.gen(function* () {
+                    const authenticatorId = partialAuthenticatorId;
+                    if (authenticatorId) {
+                        yield* tryPromise(
+                            "remove partially restored WebAuthn authenticator",
+                            () => cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }),
+                        ).pipe(
+                            Effect.catch(Effect.logError),
+                        );
+                    }
+                    yield* tryPromise("detach incomplete WebAuthn session", () => cdp.detach()).pipe(
+                        Effect.catch(Effect.logError),
+                    );
+                })
+                : Effect.void,
+    );
 });
 export type VirtualAuthenticator = Effect.Success<ReturnType<typeof createVirtualAuthenticator>>;
 

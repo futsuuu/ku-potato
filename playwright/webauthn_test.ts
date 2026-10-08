@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { Effect } from "effect";
 import { type BrowserContext, chromium } from "playwright-core";
-import { LmsAuthenticationStorageError } from "../core/out_port.ts";
+import { LmsAuthenticationStorageError, LmsSourceGatewayError } from "../core/out_port.ts";
 import { createVirtualAuthenticator, readStoredCredentialSources, registerWebAuthnCredential } from "./webauthn.ts";
 
 const origin = "https://slink.secioss.com";
@@ -144,6 +144,58 @@ Deno.test("Invalid stored WebAuthn credential sources report a storage error wit
 });
 
 const settingsUrl = `${origin}/user/?app=u2fregister`;
+
+Deno.test("partial WebAuthn initialization removes its authenticator and detaches the CDP session", async () => {
+    const browser = await chromium.launch({ channel: "chrome", headless: true });
+    try {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        const newSession = context.newCDPSession.bind(context);
+        let detached = 0;
+        let removed = 0;
+        context.newCDPSession = async (page) => {
+            const session = await newSession(page);
+            const send = session.send.bind(session);
+            const detach = session.detach.bind(session);
+            session.send = (...args) => {
+                if (args[0] === "WebAuthn.addCredential") {
+                    return Promise.reject(new Error("Expected restoration failure"));
+                }
+                if (args[0] === "WebAuthn.removeVirtualAuthenticator") removed++;
+                return send(...args);
+            };
+            session.detach = async () => {
+                detached++;
+                await detach();
+            };
+            return session;
+        };
+        await assertRejects(
+            () =>
+                Effect.runPromise(createVirtualAuthenticator(page, {
+                    version: 1,
+                    username,
+                    credentials: [{
+                        credentialId: "test",
+                        rpId: "slink.secioss.com",
+                        privateKey: "test",
+                        isResidentCredential: true,
+                        signCount: 0,
+                    }],
+                })),
+            LmsSourceGatewayError,
+            "Expected restoration failure",
+        );
+        assertEquals(removed, 1);
+        assertEquals(detached, 1);
+        const next = await Effect.runPromise(createVirtualAuthenticator(page));
+        await Effect.runPromise(next.close);
+        assertEquals(removed, 2);
+        assertEquals(detached, 2);
+    } finally {
+        await browser.close();
+    }
+});
 
 async function fixture(context: BrowserContext, path: string) {
     let registered = false;

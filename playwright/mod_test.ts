@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { Effect } from "effect";
+import { chromium } from "playwright-core";
 import { makeLmsAuthenticationGateway, makeLmsGateways } from "./mod.ts";
 import { credentialSourcesStoragePath } from "./webauthn.ts";
 import {
@@ -10,6 +11,42 @@ import {
 } from "../core/out_port.ts";
 import { type CourseMaterialsSnapshot, LmsCourseId, LmsMaterialId, type Material } from "../domain/mod.ts";
 import { hasAuthenticationState, storageStatePath, withAuthenticatedPage } from "./testing.ts";
+
+Deno.test("registering an already stored credential fails before launching a browser or authenticating", async () => {
+    const directory = await Deno.makeTempDir({ prefix: "ku-potato-registration-test-" });
+    const state = `${directory}/state.json`;
+    const launch = chromium.launch.bind(chromium);
+    let launches = 0;
+    try {
+        await Deno.writeTextFile(
+            credentialSourcesStoragePath(state),
+            JSON.stringify({
+                version: 1,
+                username: "test@example.invalid",
+                credentials: [{
+                    credentialId: "test",
+                    rpId: "example.invalid",
+                    privateKey: "test",
+                    isResidentCredential: true,
+                    signCount: 0,
+                }],
+            }),
+        );
+        chromium.launch = () => {
+            launches++;
+            return Promise.reject(new Error("Unexpected browser launch"));
+        };
+        await assertRejects(
+            () => Effect.runPromise(makeLmsAuthenticationGateway(state).registerWebAuthnCredential("false")),
+            LmsAuthenticationStorageError,
+            "保存済み",
+        );
+        assertEquals(launches, 0);
+    } finally {
+        chromium.launch = launch;
+        await Deno.remove(directory, { recursive: true });
+    }
+});
 
 Deno.test("Logout removes isolated authentication state and succeeds when it is already absent", async () => {
     const directory = await Deno.makeTempDir({ prefix: "ku-potato-logout-test-" });

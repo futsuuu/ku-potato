@@ -5,12 +5,13 @@ import {
     LmsAuthenticationStorageError,
     LmsSourceGateway,
 } from "../core/out_port.ts";
-import { Context, Effect, Layer, Semaphore } from "effect";
+import { Context, Effect, Layer, Result, Semaphore } from "effect";
 import * as playwright from "playwright-core";
 import { applicationDataPath } from "../platform/directories.ts";
 import { makeLmsSourceSession } from "./session.ts";
 import { loginToLms, resumeLmsSession } from "./login.ts";
 import { authenticationStorageTry, parentDirectory } from "./authentication_storage.ts";
+import { withAuthenticationLock } from "./authentication_lock.ts";
 import { type BrowserSessionPool, makeBrowserSessionPool } from "./browser.ts";
 import {
     createVirtualAuthenticator,
@@ -72,30 +73,33 @@ function makeGateways(storageStatePath: string, pool: BrowserSessionPool) {
             registerWebAuthnCredential: (headPolicy) =>
                 browserPermit.withPermits(1)(Effect.gen(function* () {
                     const path = credentialSourcesStoragePath(storageStatePath);
-                    if (yield* readStoredCredentialSources(path)) {
-                        return yield* new LmsAuthenticationStorageError({
-                            operation: "register WebAuthn credential",
-                            message: "WebAuthnクレデンシャルソースは保存済みです。auth loginでログインできます。",
-                        });
-                    }
-                    yield* withAuthenticatedSession(pool, storageStatePath, headPolicy, (page) =>
+                    yield* withAuthenticationLock(storageStatePath, assertCredentialRegistrationAvailable(path));
+                    return yield* withAuthenticatedSession(pool, storageStatePath, headPolicy, (page) =>
                         Effect.gen(function* () {
-                            const authenticator = yield* Effect.acquireRelease(
-                                createVirtualAuthenticator(page),
-                                (authenticator) => authenticator.close.pipe(Effect.catch(Effect.logError)),
-                            );
-                            yield* registerWebAuthnCredential(page, path, authenticator);
-                        }));
+                            // Another process may have registered between the initial check and login.
+                            yield* assertCredentialRegistrationAvailable(path);
+                            yield* Effect.scoped(Effect.gen(function* () {
+                                const authenticator = yield* Effect.acquireRelease(
+                                    createVirtualAuthenticator(page),
+                                    (authenticator) =>
+                                        authenticator.close.pipe(Effect.catch(Effect.logError)),
+                                );
+                                yield* registerWebAuthnCredential(page, path, authenticator);
+                            }));
+                        }), true);
                 })),
             logout: browserPermit.withPermits(1)(
-                Effect.gen(function* () {
-                    yield* pool.reset;
-                    yield* Effect.forEach(
-                        [storageStatePath, credentialSourcesStoragePath(storageStatePath)],
-                        removeAuthenticationState,
-                        { discard: true },
-                    );
-                }),
+                withAuthenticationLock(
+                    storageStatePath,
+                    Effect.gen(function* () {
+                        yield* pool.reset;
+                        yield* Effect.forEach(
+                            [storageStatePath, credentialSourcesStoragePath(storageStatePath)],
+                            removeAuthenticationState,
+                            { discard: true },
+                        );
+                    }),
+                ),
             ),
             status: browserPermit.withPermits(1)(
                 withBrowserSession(pool, storageStatePath, undefined, false, () => Effect.void),
@@ -108,22 +112,34 @@ function makeGateways(storageStatePath: string, pool: BrowserSessionPool) {
     };
 }
 
+const assertCredentialRegistrationAvailable = Effect.fn("PlaywrightBrowser.assertCredentialRegistrationAvailable")(
+    function* (path: string) {
+        if (yield* readStoredCredentialSources(path)) {
+            return yield* new LmsAuthenticationStorageError({
+                operation: "register WebAuthn credential",
+                message: "WebAuthnクレデンシャルソースは保存済みです。auth loginでログインできます。",
+            });
+        }
+    },
+);
+
 function withAuthenticatedSession<A, E, R>(
     pool: BrowserSessionPool,
     storageStatePath: string,
     headPolicy: HeadPolicy,
     use: (page: playwright.Page) => Effect.Effect<A, E, R>,
+    useDuringAuthentication = false,
 ) {
     switch (headPolicy) {
         case "true":
-            return withBrowserSession(pool, storageStatePath, false, true, use);
+            return withBrowserSession(pool, storageStatePath, false, true, use, useDuringAuthentication);
         case "false":
-            return withBrowserSession(pool, storageStatePath, true, false, use);
+            return withBrowserSession(pool, storageStatePath, true, false, use, useDuringAuthentication);
         case "auto":
-            return withBrowserSession(pool, storageStatePath, undefined, false, use).pipe(
+            return withBrowserSession(pool, storageStatePath, undefined, false, use, useDuringAuthentication).pipe(
                 Effect.catchTag(
                     "LmsAuthenticationRequiredError",
-                    () => withBrowserSession(pool, storageStatePath, false, true, use),
+                    () => withBrowserSession(pool, storageStatePath, false, true, use, useDuringAuthentication),
                 ),
             );
     }
@@ -135,44 +151,78 @@ function withBrowserSession<A, E, R>(
     headless: boolean | undefined,
     allowInteraction: boolean,
     use: (page: playwright.Page) => Effect.Effect<A, E, R>,
+    useDuringAuthentication = false,
 ) {
-    return pool.withSession(headless, (context, fresh, page) =>
+    return pool.withSession(headless, (context, fresh, page) => {
+        if (useDuringAuthentication) {
+            return authenticateLmsPage(context, fresh, page, storageStatePath, allowInteraction, use);
+        }
+        return authenticateLmsPage(context, fresh, page, storageStatePath, allowInteraction, () => Effect.void).pipe(
+            Effect.andThen(() => use(page)),
+        );
+    });
+}
+
+/** Complete persistence and authenticator cleanup before releasing the authentication lock. */
+export function authenticateLmsPage<A, E, R>(
+    context: playwright.BrowserContext,
+    fresh: boolean,
+    page: playwright.Page,
+    storageStatePath: string,
+    allowInteraction: boolean,
+    use: (page: playwright.Page) => Effect.Effect<A, E, R>,
+) {
+    return withAuthenticationLock(
+        storageStatePath,
         Effect.scoped(Effect.gen(function* () {
-            if (fresh) yield* restoreAuthenticationState(context, storageStatePath);
-            const credentialSourcesPath = credentialSourcesStoragePath(storageStatePath);
-            const storedCredentialSources = yield* readStoredCredentialSources(credentialSourcesPath);
-            let completed = false;
-            const authenticator = storedCredentialSources
+            const exists = yield* authenticationStateExists(storageStatePath);
+            if (fresh && exists) yield* restoreAuthenticationState(context, storageStatePath);
+            if (!fresh && !exists) {
+                // Another process may have logged out while this context was retained.
+                yield* authenticationStorageTry(
+                    "clear removed authentication state",
+                    () => context.setStorageState({ cookies: [], origins: [] }),
+                );
+            }
+            const path = credentialSourcesStoragePath(storageStatePath);
+            const stored = yield* readStoredCredentialSources(path);
+            let persistenceAttempted = false;
+            const authenticator = stored
                 ? yield* Effect.acquireRelease(
-                    createVirtualAuthenticator(page, storedCredentialSources),
+                    createVirtualAuthenticator(page, stored),
                     (authenticator) =>
-                        (completed ? Effect.void : authenticator.saveCredentialSources(
-                            credentialSourcesPath,
-                            storedCredentialSources.username,
-                        )
-                            .pipe(
-                                Effect.orDie,
-                            )).pipe(Effect.ensuring(authenticator.close.pipe(Effect.catch(Effect.logError)))),
+                        (persistenceAttempted ? Effect.void : authenticator.saveCredentialSources(path, stored.username)
+                            .pipe(Effect.orDie)).pipe(
+                                Effect.ensuring(authenticator.close.pipe(Effect.catch(Effect.logError))),
+                            ),
                 )
                 : undefined;
             const result = yield* Effect.result(Effect.gen(function* () {
-                yield* (fresh ? loginToLms : resumeLmsSession)(
-                    page,
-                    allowInteraction,
-                    storedCredentialSources?.username,
-                );
-                yield* saveAuthenticationState(context, storageStatePath);
+                yield* (fresh || !exists ? loginToLms : resumeLmsSession)(page, allowInteraction, stored?.username);
                 const value = yield* use(page);
                 yield* saveAuthenticationState(context, storageStatePath);
                 return value;
             }));
-            completed = true;
-            if (authenticator && storedCredentialSources) {
-                yield* authenticator.saveCredentialSources(credentialSourcesPath, storedCredentialSources.username);
+            if (authenticator && stored) {
+                const persistence = yield* Effect.result(authenticator.saveCredentialSources(path, stored.username));
+                persistenceAttempted = true;
+                if (Result.isFailure(persistence)) {
+                    if (Result.isSuccess(result)) return yield* persistence.failure;
+                    // Retain the authentication error if both authentication and persistence failed.
+                    yield* Effect.logError(persistence.failure);
+                }
             }
             return yield* Effect.fromResult(result);
-        })));
+        })),
+    );
 }
+
+const authenticationStateExists = (path: string) =>
+    authenticationStorageTry("read authentication state", () =>
+        Deno.stat(path).then(
+            () => true,
+            (cause) => cause instanceof Deno.errors.NotFound ? false : Promise.reject(cause),
+        ));
 
 const restoreAuthenticationState = Effect.fn("PlaywrightBrowser.restoreAuthenticationState")(function* (
     context: playwright.BrowserContext,
