@@ -42,13 +42,10 @@ function ResourceRow(
             <Show when={props.resource.availability === "archived"}>
                 <span>保存済み資料（現在の一覧にはありません）</span>
             </Show>
-            <Show when={props.resource.lmsResourceId === undefined}>
-                <p>旧形式の一覧です。「再取得」で資料一覧を更新してください。</p>
-            </Show>
             <button
                 class="app-button"
                 type="button"
-                disabled={pending() || props.resource.lmsResourceId === undefined}
+                disabled={pending()}
                 onClick={download}
             >
                 {pending() ? "取得中…" : "取得"}

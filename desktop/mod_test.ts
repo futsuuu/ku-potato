@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { DateTime, Effect } from "effect";
 import { Application, ApplicationError, type ListMaterials } from "../core/in_port.ts";
-import { LmsCourseId, LmsMaterialId, type Material, type MaterialDetail } from "../domain/mod.ts";
+import { LmsCourseId, LmsMaterialId, LmsResourceId, type Material, type MaterialDetail } from "../domain/mod.ts";
 import { upcomingAssignments } from "./client/assignments.ts";
 import { DesktopInboundAdapter } from "./mod.ts";
 
@@ -179,7 +179,15 @@ const application = (viewMaterial: Application["Service"]["viewMaterial"]): Appl
 Deno.test.each([
     { name: "not retrieved", resources: undefined },
     { name: "empty list", resources: [] },
-    { name: "one resource", resources: [{ name: "handout.pdf" }] },
+    {
+        name: "one resource",
+        resources: [{
+            name: "handout.pdf",
+            lmsResourceId: LmsResourceId("SRS1"),
+            type: "file",
+            sourceKind: "ファイル資料",
+        }],
+    },
 ])("desktop exposes unavailable material resources when archived: $name", async ({ resources }) => {
     const calls: string[] = [];
     const result = await Effect.runPromise(
@@ -216,7 +224,16 @@ Deno.test.each([
 });
 
 Deno.test("desktop displays archived resources for an unavailable material", async () => {
-    const detail = { course, material, resources: [{ name: "handout.pdf" }] } satisfies MaterialDetail;
+    const detail = {
+        course,
+        material,
+        resources: [{
+            name: "handout.pdf",
+            lmsResourceId: LmsResourceId("SRS1"),
+            type: "file",
+            sourceKind: "ファイル資料",
+        }],
+    } satisfies MaterialDetail;
     const result = await Effect.runPromise(
         DesktopInboundAdapter.viewMaterial(material.lmsMaterialId, "auto").pipe(
             Effect.provideService(

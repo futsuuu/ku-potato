@@ -303,9 +303,6 @@ export const printMaterialDetail = Effect.fn("CliInboundAdapter.printMaterialDet
     for (const [position, resource] of detail.resources.entries()) {
         yield* display(`資料[${position}]: ${resource.name}`);
         if (resource.availability === "archived") yield* display("  保存済み資料（現在の一覧にはありません）");
-        if (resource.lmsResourceId === undefined) {
-            yield* display("  旧形式の一覧：取得前に資料一覧を再取得してください。");
-        }
         if (resource.savedPath) yield* display(`  保存先: ${resource.savedPath}`);
         if (resource.savedFile) yield* display(`  元ファイル名: ${resource.savedFile.originalFilename}`);
         if (resource.url) yield* display(`  外部URL: ${resource.url}`);
