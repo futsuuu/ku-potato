@@ -7,6 +7,17 @@ CREATE TABLE `course_material_folders` (
 	CONSTRAINT `fk_course_material_folders_retrieval_id_course_material_retrievals_id_fk` FOREIGN KEY (`retrieval_id`) REFERENCES `course_material_retrievals`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
+CREATE TABLE `course_material_jobs` (
+	`job_id` integer PRIMARY KEY,
+	`kind` text DEFAULT 'fetch-course-materials' NOT NULL,
+	`lms_course_id` text NOT NULL,
+	`head` text NOT NULL,
+	`result_ref` integer,
+	CONSTRAINT `fk_course_material_jobs_result_ref_course_material_retrievals_id_fk` FOREIGN KEY (`result_ref`) REFERENCES `course_material_retrievals`(`id`),
+	CONSTRAINT `fk_course_material_jobs_job_id_kind_jobs_id_kind_fk` FOREIGN KEY (`job_id`,`kind`) REFERENCES `jobs`(`id`,`kind`) ON DELETE CASCADE,
+	CONSTRAINT "course_material_jobs_kind_check" CHECK("kind" = 'fetch-course-materials')
+);
+--> statement-breakpoint
 CREATE TABLE `course_material_retrievals` (
 	`id` integer PRIMARY KEY AUTOINCREMENT,
 	`course_retrieval_id` integer NOT NULL,
@@ -14,6 +25,13 @@ CREATE TABLE `course_material_retrievals` (
 	`lms_course_id` text NOT NULL,
 	`fetched_at` integer NOT NULL,
 	CONSTRAINT `course_material_retrievals_course_fk` FOREIGN KEY (`course_retrieval_id`,`course_position`,`lms_course_id`) REFERENCES `courses`(`retrieval_id`,`position`,`lms_course_id`) ON DELETE CASCADE
+);
+--> statement-breakpoint
+CREATE TABLE `course_material_saved_materials` (
+	`retrieval_id` integer NOT NULL,
+	`lms_material_id` text NOT NULL,
+	CONSTRAINT `course_material_saved_materials_pk` PRIMARY KEY(`retrieval_id`, `lms_material_id`),
+	CONSTRAINT `fk_course_material_saved_materials_retrieval_id_course_material_retrievals_id_fk` FOREIGN KEY (`retrieval_id`) REFERENCES `course_material_retrievals`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
 CREATE TABLE `course_materials` (
@@ -46,6 +64,22 @@ CREATE TABLE `courses` (
 	CONSTRAINT `courses_pk` PRIMARY KEY(`retrieval_id`, `position`),
 	CONSTRAINT `fk_courses_retrieval_id_course_retrievals_id_fk` FOREIGN KEY (`retrieval_id`) REFERENCES `course_retrievals`(`id`) ON DELETE CASCADE,
 	CONSTRAINT `courses_retrieval_position_course_id_unique` UNIQUE(`retrieval_id`,`position`,`lms_course_id`)
+);
+--> statement-breakpoint
+CREATE TABLE `jobs` (
+	`id` integer PRIMARY KEY AUTOINCREMENT,
+	`kind` text NOT NULL,
+	`dedup_key` text NOT NULL,
+	`status` text NOT NULL,
+	`available_at` integer NOT NULL,
+	`attempts` integer DEFAULT 0 NOT NULL,
+	`max_attempts` integer DEFAULT 3 NOT NULL,
+	`owner_id` text,
+	`lease_token` text,
+	`lease_until` integer,
+	`last_error` text,
+	`error_tag` text,
+	CONSTRAINT `jobs_id_kind_unique` UNIQUE(`id`,`kind`)
 );
 --> statement-breakpoint
 CREATE TABLE `material_resource_retrievals` (
@@ -90,4 +124,6 @@ CREATE TABLE `resource_states` (
 CREATE INDEX `course_material_retrievals_course_fetched_at_index` ON `course_material_retrievals` (`course_retrieval_id`,`course_position`,`fetched_at`);--> statement-breakpoint
 CREATE INDEX `course_materials_material_retrieval_index` ON `course_materials` (`lms_material_id`,`retrieval_id`);--> statement-breakpoint
 CREATE INDEX `courses_lms_course_id_index` ON `courses` (`lms_course_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `jobs_active_unique` ON `jobs` (`kind`,`dedup_key`) WHERE "jobs"."status" in ('queued', 'running');--> statement-breakpoint
+CREATE INDEX `jobs_claim_index` ON `jobs` (`status`,`available_at`,`id`);--> statement-breakpoint
 CREATE INDEX `material_resource_retrievals_material_fetched_at_index` ON `material_resource_retrievals` (`lms_material_id`,`fetched_at`);

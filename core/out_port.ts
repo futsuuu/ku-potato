@@ -15,10 +15,57 @@ import type {
     ResourceDownload,
     SavedResourceFile,
 } from "../domain/mod.ts";
-import { Context, type Effect, type Result, Schema } from "effect";
-import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
+import { Context, type Effect, type Option, type Result, Schema } from "effect";
+import type {
+    ApplicationJobDefinition,
+    HeadPolicy,
+    Job,
+    JobCompletion,
+    JobDefinition,
+    JobFailure,
+    JobRequest,
+    LmsAuthenticationStatus,
+} from "./contract.ts";
 
-export type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
+export type {
+    ApplicationJobDefinition,
+    CourseMaterialsJobDefinition,
+    HeadPolicy,
+    Job,
+    JobCompletion,
+    JobDefinition,
+    JobFailure,
+    JobRequest,
+    LmsAuthenticationStatus,
+} from "./contract.ts";
+
+export interface JobQueueService<D extends JobDefinition = ApplicationJobDefinition> {
+    readonly enqueue: <R extends JobRequest<D>>(
+        request: R,
+    ) => Effect.Effect<Job<Extract<D, { kind: R["kind"] }>>, LmsArchiveGatewayError>;
+    readonly get: <K extends D["kind"]>(
+        id: number,
+        kind: K,
+    ) => Effect.Effect<Job<Extract<D, { kind: K }>> | undefined, LmsArchiveGatewayError>;
+    readonly claim: (
+        ownerId: string,
+        leaseMs: number,
+    ) => Effect.Effect<Job<D> | undefined, LmsArchiveGatewayError>;
+    readonly heartbeat: (job: Job<D>, leaseMs: number) => Effect.Effect<boolean, LmsArchiveGatewayError>;
+    readonly complete: (completion: JobCompletion<D>) => Effect.Effect<boolean, LmsArchiveGatewayError>;
+    readonly fail: (
+        job: Job<D>,
+        error: JobFailure,
+        retryDelayMs: number,
+    ) => Effect.Effect<boolean, LmsArchiveGatewayError>;
+    /** None means no successful result; Some preserves outputs including undefined. */
+    readonly result: <K extends D["kind"]>(
+        id: number,
+        kind: K,
+    ) => Effect.Effect<Option.Option<Extract<D, { kind: K }>["output"]>, LmsArchiveGatewayError>;
+}
+
+export class JobQueue extends Context.Service<JobQueue, JobQueueService>()("ku-potato/core/JobQueue") {}
 
 /** The list used for acquisition remains available even when clicking the resource fails. */
 export interface LmsResourceRetrieval {

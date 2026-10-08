@@ -9,10 +9,25 @@ import type {
     MaterialDetail,
     ResourceDownload,
 } from "../domain/mod.ts";
-import { Context, type Effect, Schema } from "effect";
-import type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
+import { Context, type Effect, type Option, Schema } from "effect";
+import type {
+    ApplicationJobDefinition,
+    HeadPolicy,
+    Job,
+    JobDefinition,
+    JobRequest,
+    LmsAuthenticationStatus,
+} from "./contract.ts";
 
-export type { HeadPolicy, LmsAuthenticationStatus } from "./contract.ts";
+export type {
+    ApplicationJobDefinition,
+    CourseMaterialsJobDefinition,
+    HeadPolicy,
+    Job,
+    JobDefinition,
+    JobRequest,
+    LmsAuthenticationStatus,
+} from "./contract.ts";
 
 /** A user-visible failure of an application operation. */
 export class ApplicationError extends Schema.TaggedError<ApplicationError>()("ApplicationError", {
@@ -106,6 +121,38 @@ export type DownloadResourceOptions = {
 export interface DownloadResource {
     readonly execute: (options: DownloadResourceOptions) => Effect.Effect<ResourceDownload, ApplicationError>;
 }
+
+/** Submission and observation only; callers do not start workers or access KU-LMS. */
+export interface JobClientService<D extends JobDefinition = ApplicationJobDefinition> {
+    readonly enqueue: <R extends JobRequest<D>>(
+        request: R,
+    ) => Effect.Effect<Job<Extract<D, { kind: R["kind"] }>>, ApplicationError>;
+    readonly get: <K extends D["kind"]>(
+        id: number,
+        kind: K,
+    ) => Effect.Effect<Job<Extract<D, { kind: K }>> | undefined, ApplicationError>;
+    readonly result: <K extends D["kind"]>(
+        id: number,
+        kind: K,
+    ) => Effect.Effect<Option.Option<Extract<D, { kind: K }>["output"]>, ApplicationError>;
+    /** Return the terminal state; operation failures remain visible in the job record. */
+    readonly wait: <K extends D["kind"]>(
+        id: number,
+        kind: K,
+    ) => Effect.Effect<Job<Extract<D, { kind: K }>>, ApplicationError>;
+}
+
+export class QueuedJobs extends Context.Service<QueuedJobs, JobClientService>()("ku-potato/core/QueuedJobs") {}
+
+export class JobWorkerConfigurationError
+    extends Schema.TaggedError<JobWorkerConfigurationError>()("JobWorkerConfigurationError", {
+        message: Schema.String,
+    }) {}
+
+/** Runs durable jobs until the host application shuts down. */
+export class JobWorker extends Context.Service<JobWorker, {
+    readonly run: Effect.Effect<never, ApplicationError>;
+}>()("ku-potato/core/JobWorker") {}
 
 /** Application features supplied to inbound adapters. */
 export class Application extends Context.Service<Application, {

@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "118c27a0-cd96-42a3-832c-30a4be690db4",
+  "id": "7283bd1c-0a52-4694-b3a6-b4b3ee10a3a1",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -11,7 +11,15 @@
       "entityType": "tables"
     },
     {
+      "name": "course_material_jobs",
+      "entityType": "tables"
+    },
+    {
       "name": "course_material_retrievals",
+      "entityType": "tables"
+    },
+    {
+      "name": "course_material_saved_materials",
       "entityType": "tables"
     },
     {
@@ -24,6 +32,10 @@
     },
     {
       "name": "courses",
+      "entityType": "tables"
+    },
+    {
+      "name": "jobs",
       "entityType": "tables"
     },
     {
@@ -81,6 +93,56 @@
     {
       "type": "integer",
       "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "job_id",
+      "entityType": "columns",
+      "table": "course_material_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'fetch-course-materials'",
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "course_material_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lms_course_id",
+      "entityType": "columns",
+      "table": "course_material_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "head",
+      "entityType": "columns",
+      "table": "course_material_jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "result_ref",
+      "entityType": "columns",
+      "table": "course_material_jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
       "autoincrement": true,
       "default": null,
       "generated": null,
@@ -127,6 +189,26 @@
       "name": "fetched_at",
       "entityType": "columns",
       "table": "course_material_retrievals"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "retrieval_id",
+      "entityType": "columns",
+      "table": "course_material_saved_materials"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lms_material_id",
+      "entityType": "columns",
+      "table": "course_material_saved_materials"
     },
     {
       "type": "integer",
@@ -287,6 +369,126 @@
       "name": "availability",
       "entityType": "columns",
       "table": "courses"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "dedup_key",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "available_at",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "3",
+      "generated": null,
+      "name": "max_attempts",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "owner_id",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lease_token",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "lease_until",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_error",
+      "entityType": "columns",
+      "table": "jobs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "error_tag",
+      "entityType": "columns",
+      "table": "jobs"
     },
     {
       "type": "integer",
@@ -565,6 +767,38 @@
     },
     {
       "columns": [
+        "result_ref"
+      ],
+      "tableTo": "course_material_retrievals",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_course_material_jobs_result_ref_course_material_retrievals_id_fk",
+      "entityType": "fks",
+      "table": "course_material_jobs"
+    },
+    {
+      "columns": [
+        "job_id",
+        "kind"
+      ],
+      "tableTo": "jobs",
+      "columnsTo": [
+        "id",
+        "kind"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_course_material_jobs_job_id_kind_jobs_id_kind_fk",
+      "entityType": "fks",
+      "table": "course_material_jobs"
+    },
+    {
+      "columns": [
         "course_retrieval_id",
         "course_position",
         "lms_course_id"
@@ -581,6 +815,21 @@
       "name": "course_material_retrievals_course_fk",
       "entityType": "fks",
       "table": "course_material_retrievals"
+    },
+    {
+      "columns": [
+        "retrieval_id"
+      ],
+      "tableTo": "course_material_retrievals",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_course_material_saved_materials_retrieval_id_course_material_retrievals_id_fk",
+      "entityType": "fks",
+      "table": "course_material_saved_materials"
     },
     {
       "columns": [
@@ -657,6 +906,16 @@
     {
       "columns": [
         "retrieval_id",
+        "lms_material_id"
+      ],
+      "nameExplicit": false,
+      "name": "course_material_saved_materials_pk",
+      "entityType": "pks",
+      "table": "course_material_saved_materials"
+    },
+    {
+      "columns": [
+        "retrieval_id",
         "position"
       ],
       "nameExplicit": false,
@@ -696,6 +955,15 @@
     },
     {
       "columns": [
+        "job_id"
+      ],
+      "nameExplicit": false,
+      "name": "course_material_jobs_pk",
+      "table": "course_material_jobs",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
         "id"
       ],
       "nameExplicit": false,
@@ -710,6 +978,15 @@
       "nameExplicit": false,
       "name": "course_retrievals_pk",
       "table": "course_retrievals",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "jobs_pk",
+      "table": "jobs",
       "entityType": "pks"
     },
     {
@@ -778,6 +1055,46 @@
     {
       "columns": [
         {
+          "value": "kind",
+          "isExpression": false
+        },
+        {
+          "value": "dedup_key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": "\"jobs\".\"status\" in ('queued', 'running')",
+      "origin": "manual",
+      "name": "jobs_active_unique",
+      "entityType": "indexes",
+      "table": "jobs"
+    },
+    {
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "available_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "jobs_claim_index",
+      "entityType": "indexes",
+      "table": "jobs"
+    },
+    {
+      "columns": [
+        {
           "value": "lms_material_id",
           "isExpression": false
         },
@@ -816,6 +1133,16 @@
     },
     {
       "columns": [
+        "id",
+        "kind"
+      ],
+      "nameExplicit": true,
+      "name": "jobs_id_kind_unique",
+      "entityType": "uniques",
+      "table": "jobs"
+    },
+    {
+      "columns": [
         "retrieval_id",
         "lms_resource_id"
       ],
@@ -823,6 +1150,12 @@
       "name": "material_resources_retrieval_resource_id_unique",
       "entityType": "uniques",
       "table": "material_resources"
+    },
+    {
+      "value": "\"kind\" = 'fetch-course-materials'",
+      "name": "course_material_jobs_kind_check",
+      "entityType": "checks",
+      "table": "course_material_jobs"
     }
   ],
   "renames": []

@@ -21,16 +21,19 @@ import {
     type ResourceAcquisition,
     type SavedResourceFile,
 } from "../domain/mod.ts";
-import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { DateTime, Effect, Layer, Schema, Scope } from "effect";
+import { describeSqliteCause, sqliteTry } from "./errors.ts";
 import { fileURLToPath } from "node:url";
 import { applicationDataPath } from "../platform/directories.ts";
+import { withInitializationLock } from "./initialization_lock.ts";
 import {
     courseMaterialFolders,
     courseMaterialRetrievals,
     courseMaterials,
+    courseMaterialSavedMaterials,
     courseRetrievals,
     courses,
     materialResourceRetrievals,
@@ -40,8 +43,8 @@ import {
 
 export * from "./schema.ts";
 
-type Database = ReturnType<typeof drizzle>;
-type ArchiveConnection = Pick<Database, "insert" | "select">;
+export type Database = ReturnType<typeof drizzle>;
+type ArchiveConnection = Pick<Database, "insert" | "select" | "selectDistinct">;
 type CourseReadRow = Pick<typeof courses.$inferSelect, "lmsCourseId" | "name" | "availability">;
 type MaterialReadRow = Pick<
     typeof courseMaterials.$inferSelect,
@@ -64,29 +67,40 @@ export const defaultArchiveDatabasePath = (): string => applicationDataPath("lms
 export const makeLmsArchiveGateway = (
     databasePath = defaultArchiveDatabasePath(),
 ): Effect.Effect<LmsArchiveGatewayService, LmsArchiveGatewayError, Scope.Scope> =>
+    openArchiveDatabase(databasePath).pipe(Effect.map((database) => LmsArchiveGateway.of(makeGateway(database))));
+
+/** Every connection is configured and schema initialization is serialized across processes. */
+export const openArchiveDatabase = (
+    databasePath: string,
+): Effect.Effect<Database, LmsArchiveGatewayError, Scope.Scope> =>
     Effect.acquireRelease(
-        archiveWriteTry("open", () => {
-            Deno.mkdirSync(databaseDirectory(databasePath), { recursive: true });
-            const database = drizzle(databasePath);
-            try {
-                database.$client.exec("pragma foreign_keys = on");
-                migrate(database, {
-                    migrationsFolder: fileURLToPath(new URL("./drizzle", import.meta.url)),
-                });
-                if (database.$client.prepare("pragma foreign_key_check").all().length > 0) {
-                    throw new Error("Archive contains inconsistent foreign keys.");
+        withInitializationLock(
+            `${databasePath}.init.lock`,
+            archiveWriteTry("open", () => {
+                Deno.mkdirSync(databaseDirectory(databasePath), { recursive: true });
+                const database = drizzle(databasePath);
+                try {
+                    database.$client.exec(
+                        "pragma busy_timeout = 100; pragma journal_mode = WAL; pragma foreign_keys = on",
+                    );
+                    migrate(database, {
+                        migrationsFolder: fileURLToPath(new URL("./drizzle", import.meta.url)),
+                    });
+                    if (database.$client.prepare("pragma foreign_key_check").all().length > 0) {
+                        throw new Error("Archive contains inconsistent foreign keys.");
+                    }
+                    return database;
+                } catch (cause) {
+                    database.$client.close();
+                    throw cause;
                 }
-                return { database, gateway: LmsArchiveGateway.of(makeGateway(database)) };
-            } catch (cause) {
-                database.$client.close();
-                throw cause;
-            }
-        }),
-        ({ database }) =>
+            }),
+        ),
+        (database) =>
             Effect.sync(() => {
                 database.$client.close();
             }),
-    ).pipe(Effect.map(({ gateway }) => gateway));
+    );
 
 /**
  * Creates an archive service that opens and migrates SQLite only when an archive
@@ -182,45 +196,64 @@ const makeGateway = (database: Database): LmsArchiveGatewayService => ({
                     ...encodeAttempt({ at, status: "success" }),
                 }).where(resourceStateKey(materialId, resourceId)).run();
                 return decodeSavedFile(previous);
-            })),
+            }, { behavior: "immediate" })),
 });
 
 const archiveReadTry = <A>(
     operation: string,
     evaluate: () => A,
 ): Effect.Effect<A, LmsArchiveGatewayError | LmsArchiveDataMissingError> =>
-    Effect.try({
-        try: evaluate,
-        catch: (cause) =>
+    sqliteTry(evaluate).pipe(
+        Effect.mapError(({ cause }) =>
             Schema.is(LmsArchiveDataMissingError)(cause)
                 ? cause
-                : new LmsArchiveGatewayError({ operation, message: describeCause(cause) }),
-    });
+                : new LmsArchiveGatewayError({ operation, message: describeSqliteCause(cause) })
+        ),
+    );
 
 const archiveWriteTry = <A>(operation: string, evaluate: () => A): Effect.Effect<A, LmsArchiveGatewayError> =>
-    Effect.try({
-        try: evaluate,
-        catch: (cause) => new LmsArchiveGatewayError({ operation, message: describeCause(cause) }),
-    });
-
-const describeCause = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause);
+    sqliteTry(evaluate).pipe(
+        Effect.mapError(({ cause }) => new LmsArchiveGatewayError({ operation, message: describeSqliteCause(cause) })),
+    );
 
 const recordCourses = (database: Database, retrievedCourses: readonly Course[]): void => {
     database.transaction((transaction) => {
         insertCourses(transaction, retrievedCourses);
-    });
+    }, { behavior: "immediate" });
+};
+
+export const insertCourseMaterialsSnapshot = (
+    transaction: ArchiveConnection,
+    snapshot: CourseMaterialsSnapshot,
+): number => {
+    const courseRetrievalId = insertCourses(transaction, snapshot.courses);
+    const courseMaterialRetrievalId = insertCourseMaterialRetrieval(
+        transaction,
+        courseRetrievalId,
+        snapshot.courseMaterials.lmsCourseId,
+    );
+    insertCourseMaterials(transaction, courseMaterialRetrievalId, snapshot.courseMaterials);
+    captureSavedMaterials(transaction, courseMaterialRetrievalId);
+    return courseMaterialRetrievalId;
 };
 
 const recordCourseMaterials = (database: Database, snapshot: CourseMaterialsSnapshot): void => {
-    database.transaction((transaction) => {
-        const courseRetrievalId = insertCourses(transaction, snapshot.courses);
-        const courseMaterialRetrievalId = insertCourseMaterialRetrieval(
-            transaction,
-            courseRetrievalId,
-            snapshot.courseMaterials.lmsCourseId,
-        );
-        insertCourseMaterials(transaction, courseMaterialRetrievalId, snapshot.courseMaterials);
+    database.transaction((transaction) => insertCourseMaterialsSnapshot(transaction, snapshot), {
+        behavior: "immediate",
     });
+};
+
+/** Uses immutable saved-material membership and bounded listing history for this retrieval. */
+export const readCourseMaterialsSnapshot = (
+    database: ArchiveConnection,
+    id: number,
+): CourseMaterialsSnapshot | undefined => {
+    const retrieval = database.select().from(courseMaterialRetrievals).where(eq(courseMaterialRetrievals.id, id)).get();
+    if (retrieval === undefined) return undefined;
+    return {
+        courses: readCourses(database, retrieval.courseRetrievalId, id),
+        courseMaterials: readCourseMaterials(database, retrieval.lmsCourseId, retrieval),
+    };
 };
 
 const recordMaterialResources = (database: Database, snapshot: MaterialResourcesSnapshot): void => {
@@ -272,7 +305,23 @@ const recordMaterialResources = (database: Database, snapshot: MaterialResources
                 set: metadata,
             }).run();
         }
-    });
+        captureSavedMaterials(transaction, courseMaterialRetrievalId);
+    }, { behavior: "immediate" });
+};
+
+const readSavedMaterialIds = (
+    database: Pick<Database, "select" | "selectDistinct">,
+    exactRetrievalId?: number,
+): string[] =>
+    exactRetrievalId === undefined
+        ? database.selectDistinct({ id: resourceStates.lmsMaterialId }).from(resourceStates)
+            .where(or(isNotNull(resourceStates.fileUuid), isNotNull(resourceStates.url))).all().map((row) => row.id)
+        : database.select({ id: courseMaterialSavedMaterials.lmsMaterialId }).from(courseMaterialSavedMaterials)
+            .where(eq(courseMaterialSavedMaterials.retrievalId, exactRetrievalId)).all().map((row) => row.id);
+
+const captureSavedMaterials = (database: ArchiveConnection, retrievalId: number): void => {
+    const rows = readSavedMaterialIds(database).map((lmsMaterialId) => ({ retrievalId, lmsMaterialId }));
+    if (rows.length > 0) database.insert(courseMaterialSavedMaterials).values(rows).run();
 };
 
 const insertCourses = (database: ArchiveConnection, retrievedCourses: readonly Course[]): number => {
@@ -354,9 +403,16 @@ const insertCourseMaterials = (
     if (materialRows.length > 0) database.insert(courseMaterials).values(materialRows).run();
 };
 
-const readCourses = (database: Database): readonly Course[] => {
+const readCourses = (
+    database: ArchiveConnection,
+    exactRetrievalId?: number,
+    materialRetrievalLimit?: number,
+): readonly Course[] => {
     const retrieval = database.select({ id: courseRetrievals.id })
-        .from(courseRetrievals).orderBy(desc(courseRetrievals.id)).limit(1).get();
+        .from(courseRetrievals).where(
+            exactRetrievalId === undefined ? undefined : eq(courseRetrievals.id, exactRetrievalId),
+        )
+        .orderBy(desc(courseRetrievals.id)).limit(1).get();
     if (retrieval == null) {
         throw archiveDataMissing("listCourses", "No course retrieval has been synchronized yet.");
     }
@@ -370,7 +426,7 @@ const readCourses = (database: Database): readonly Course[] => {
         currentCourses.flatMap((course) => course.availability === "available" ? [course.lmsCourseId] : []),
     );
     const archivedCourses: Course[] = [];
-    for (const placement of readSavedMaterialPlacements(database)) {
+    for (const placement of readSavedMaterialPlacements(database, materialRetrievalLimit)) {
         const id = LmsCourseId(placement.courseLmsCourseId);
         if (knownIds.has(id)) continue;
         knownIds.add(id);
@@ -385,9 +441,8 @@ const readCourses = (database: Database): readonly Course[] => {
 };
 
 /** Only materials with archived bytes or a saved external URL keep their navigation hierarchy. */
-const readSavedMaterialPlacements = (database: Database) => {
-    const savedIds = database.selectDistinct({ id: resourceStates.lmsMaterialId }).from(resourceStates)
-        .where(or(isNotNull(resourceStates.fileUuid), isNotNull(resourceStates.url))).all().map((row) => row.id);
+const readSavedMaterialPlacements = (database: ArchiveConnection, materialRetrievalLimit?: number) => {
+    const savedIds = readSavedMaterialIds(database, materialRetrievalLimit);
     if (savedIds.length === 0) return [];
     const rows = database.select({
         retrievalId: courseMaterials.retrievalId,
@@ -419,7 +474,14 @@ const readSavedMaterialPlacements = (database: Database) => {
                 eq(courseMaterialFolders.position, courseMaterials.folderPosition),
             ),
         )
-        .where(inArray(courseMaterials.lmsMaterialId, savedIds))
+        .where(
+            and(
+                inArray(courseMaterials.lmsMaterialId, savedIds),
+                materialRetrievalLimit === undefined
+                    ? undefined
+                    : lte(courseMaterials.retrievalId, materialRetrievalLimit),
+            ),
+        )
         .orderBy(desc(courseMaterials.retrievalId), asc(courseMaterials.position)).all();
     const seen = new Set<string>();
     return rows.filter((row) => {
@@ -429,8 +491,9 @@ const readSavedMaterialPlacements = (database: Database) => {
     });
 };
 
-const isCourseCurrent = (database: Database, courseId: string): boolean => {
+const isCourseCurrent = (database: ArchiveConnection, courseId: string, exactCourseRetrievalId?: number): boolean => {
     const latest = database.select({ id: courseRetrievals.id }).from(courseRetrievals)
+        .where(exactCourseRetrievalId === undefined ? undefined : eq(courseRetrievals.id, exactCourseRetrievalId))
         .orderBy(desc(courseRetrievals.id)).limit(1).get();
     if (latest === undefined) return false;
     return database.select({ id: courses.lmsCourseId }).from(courses)
@@ -449,10 +512,19 @@ const archivedMaterial = (material: Material): Material => ({
     ...(material.type === "material" ? { resourceAvailability: "unavailable" as const } : {}),
 });
 
-const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMaterials => {
+const readCourseMaterials = (
+    database: ArchiveConnection,
+    lmsCourseId: string,
+    exactRetrieval?: typeof courseMaterialRetrievals.$inferSelect,
+): CourseMaterials => {
     const retrieval = database.select({ id: courseMaterialRetrievals.id })
         .from(courseMaterialRetrievals)
-        .where(eq(courseMaterialRetrievals.lmsCourseId, lmsCourseId))
+        .where(
+            and(
+                eq(courseMaterialRetrievals.lmsCourseId, lmsCourseId),
+                exactRetrieval === undefined ? undefined : eq(courseMaterialRetrievals.id, exactRetrieval.id),
+            ),
+        )
         .orderBy(desc(courseMaterialRetrievals.id))
         .limit(1)
         .get();
@@ -485,11 +557,11 @@ const readCourseMaterials = (database: Database, lmsCourseId: string): CourseMat
         .orderBy(asc(courseMaterials.position))
         .all();
     const materialsByFolder = Map.groupBy(materials, (material) => material.folderPosition);
-    const savedPlacements = readSavedMaterialPlacements(database).filter((row) =>
+    const savedPlacements = readSavedMaterialPlacements(database, exactRetrieval?.id).filter((row) =>
         row.courseLmsCourseId === lmsCourseId
     );
     const savedIds = new Set(savedPlacements.map((row) => row.lmsMaterialId));
-    const courseCurrent = isCourseCurrent(database, lmsCourseId);
+    const courseCurrent = isCourseCurrent(database, lmsCourseId, exactRetrieval?.courseRetrievalId);
     const visibleFolders = folders.map((folder) => ({
         name: folder.name,
         ...(folder.classDate === null ? {} : { classDate: folder.classDate }),

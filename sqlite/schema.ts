@@ -1,7 +1,51 @@
 /** Persistent archive schema. */
 
 import type { Course, Material, Resource } from "../domain/mod.ts";
-import { foreignKey, index, integer, primaryKey, snakeCase, text, unique } from "drizzle-orm/sqlite-core";
+import {
+    check,
+    foreignKey,
+    index,
+    integer,
+    primaryKey,
+    snakeCase,
+    text,
+    unique,
+    uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+
+/** Durable work shared by all application processes using this account's database. */
+export const jobs = snakeCase.table("jobs", {
+    id: integer().primaryKey({ autoIncrement: true }),
+    kind: text().notNull(),
+    dedupKey: text().notNull(),
+    status: text().$type<"queued" | "running" | "succeeded" | "failed" | "blocked">().notNull(),
+    availableAt: integer().notNull(),
+    attempts: integer().notNull().default(0),
+    maxAttempts: integer().notNull().default(3),
+    ownerId: text(),
+    leaseToken: text(),
+    leaseUntil: integer(),
+    lastError: text(),
+    errorTag: text(),
+}, (table) => [
+    unique("jobs_id_kind_unique").on(table.id, table.kind),
+    uniqueIndex("jobs_active_unique").on(table.kind, table.dedupKey)
+        .where(sql`${table.status} in ('queued', 'running')`),
+    index("jobs_claim_index").on(table.status, table.availableAt, table.id),
+]);
+
+/** Operation-specific input and a typed reference to its immutable result. */
+export const courseMaterialJobs = snakeCase.table("course_material_jobs", {
+    jobId: integer().primaryKey(),
+    kind: text().$type<"fetch-course-materials">().notNull().default("fetch-course-materials"),
+    lmsCourseId: text().notNull(),
+    head: text().$type<"auto" | "true" | "false">().notNull(),
+    resultRef: integer().references(() => courseMaterialRetrievals.id),
+}, (table) => [
+    check("course_material_jobs_kind_check", sql`${table.kind} = 'fetch-course-materials'`),
+    foreignKey({ columns: [table.jobId, table.kind], foreignColumns: [jobs.id, jobs.kind] }).onDelete("cascade"),
+]);
 
 type MaterialType = Material["type"];
 type ResourceAvailability = Extract<Material, { readonly type: "material" }>["resourceAvailability"];
@@ -49,6 +93,14 @@ export const courseMaterialRetrievals = snakeCase.table("course_material_retriev
         table.coursePosition,
         table.fetchedAt,
     ),
+]);
+
+/** Saved materials eligible for archive overlays when this retrieval was committed. */
+export const courseMaterialSavedMaterials = snakeCase.table("course_material_saved_materials", {
+    retrievalId: integer().notNull().references(() => courseMaterialRetrievals.id, { onDelete: "cascade" }),
+    lmsMaterialId: text().notNull(),
+}, (table) => [
+    primaryKey({ columns: [table.retrievalId, table.lmsMaterialId] }),
 ]);
 
 /** A folder as it appeared in one course-material retrieval. */
