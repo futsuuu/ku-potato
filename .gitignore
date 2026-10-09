@@ -6,3 +6,8 @@
 /deno.node-modules.jsonc
 /types
 /.ku-potato
+/bin
+/data
+/state
+/cache
+/temp
