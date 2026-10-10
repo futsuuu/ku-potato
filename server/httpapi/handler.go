@@ -42,18 +42,53 @@ func New(service inport.Service, authority string) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
-	if !sameAuthority(r.Host, h.authority) || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+	origin := r.Header.Get("Origin")
+	trusted := desktopOrigin(origin)
+	if !sameAuthority(r.Host, h.authority) || (r.Header.Get("Sec-Fetch-Site") == "cross-site" && !trusted) {
 		write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Only local clients are accepted"}})
 		return
 	}
-	if origin := r.Header.Get("Origin"); origin != "" {
+	if origin != "" && !trusted {
 		parsed, err := url.Parse(origin)
 		if err != nil || parsed.Scheme != "http" || parsed.Host != r.Host || parsed.Path != "" {
 			write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Cross-origin requests are not accepted"}})
 			return
 		}
 	}
+	if trusted {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Add("Vary", "Origin")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition, ETag")
+		if r.Method == http.MethodOptions {
+			method := r.Header.Get("Access-Control-Request-Method")
+			if method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD" {
+				write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Request method is not accepted"}})
+				return
+			}
+			for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
+				switch strings.ToLower(strings.TrimSpace(header)) {
+				case "", "content-type", "range", "if-none-match":
+				default:
+					write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Request headers are not accepted"}})
+					return
+				}
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, HEAD")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range, If-None-Match")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
 	h.mux.ServeHTTP(w, r)
+}
+
+func desktopOrigin(origin string) bool {
+	switch origin {
+	case "http://wails.localhost", "http://wails.localhost:34115", "wails://wails", "wails://wails:34115", "wails://wails.localhost:34115":
+		return true
+	default:
+		return false
+	}
 }
 func sameAuthority(actual, expected string) bool {
 	host, port, err := net.SplitHostPort(actual)

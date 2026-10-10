@@ -60,7 +60,8 @@ type dataResponse[T any] struct{ Body dataBody[T] }
 
 type healthResponse struct {
 	Body struct {
-		Status string `json:"status" enum:"ok"`
+		Status  string `json:"status" enum:"ok"`
+		Service string `json:"service" enum:"ku-potato-server"`
 	}
 }
 
@@ -68,6 +69,7 @@ func (h *Handler) register(api huma.API) {
 	register(api, huma.Operation{OperationID: "health", Method: http.MethodGet, Path: "/healthz", Summary: "Check HTTP process"}, func(ctx context.Context, input *struct{}) (*healthResponse, error) {
 		output := &healthResponse{}
 		output.Body.Status = "ok"
+		output.Body.Service = "ku-potato-server"
 		return output, nil
 	})
 	register(api, huma.Operation{OperationID: "getCachedAuthenticationState", Method: http.MethodGet, Path: "/auth", Summary: "Read cached authentication state"}, func(ctx context.Context, input *struct{}) (*dataResponse[domain.AuthState], error) {
