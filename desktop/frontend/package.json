@@ -1,0 +1,17 @@
+{
+  "name": "@ku-potato/frontend",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@solidjs/web": "2.0.0-rc.14",
+    "openapi-fetch": "0.17.0",
+    "solid-js": "2.0.0-rc.14"
+  },
+  "devDependencies": {
+    "@ku-potato/api-codegen": "workspace:*",
+    "@solidjs/vite-plugin": "3.0.0-next.49",
+    "@types/node": "^24.0.0",
+    "jsdom": "^30.1.2",
+    "unocss": "^66.10.5"
+  }
+}
