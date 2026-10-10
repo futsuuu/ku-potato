@@ -1,0 +1,12 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "KU-POTATO",
+  "outputfilename": "ku-potato",
+  "frontend:dir": "frontend",
+  "frontend:install": "vp install --frozen-lockfile",
+  "frontend:build": "vp run -w frontend:build",
+  "frontend:dev:watcher": "vp dev",
+  "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": ".",
+  "build:dir": "build"
+}
