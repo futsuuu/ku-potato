@@ -250,6 +250,8 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 		return domain.Snapshot{}, err
 	}
 	ids := []string{}
+	// Keep a successful listing observation even if a previously known material disappeared.
+	missing := domain.Snapshot{Courses: courses, MaterialID: material}
 	for _, c := range courses {
 		if c.ID == preferred && c.Availability == "available" {
 			ids = append(ids, c.ID)
@@ -271,12 +273,15 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 		if err != nil {
 			return domain.Snapshot{}, err
 		}
+		if id == preferred {
+			missing.Materials = &materials
+		}
 		for _, folder := range materials.Folders {
 			for _, m := range folder.Materials {
 				if m.ID != material {
 					continue
 				}
-				snapshot := domain.Snapshot{Courses: courses, Materials: &materials, MaterialID: material, Resources: []domain.Resource{}}
+				snapshot := domain.Snapshot{Courses: courses, Materials: &materials, MaterialID: material}
 				if m.Type != "material" || m.ResourceAvailability != "available" {
 					return snapshot, nil
 				}
@@ -290,6 +295,9 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 				return snapshot, err
 			}
 		}
+	}
+	if preferred != "" {
+		return missing, nil
 	}
 	return domain.Snapshot{}, domain.Fail("material-not-found", "教材が現在のLMS一覧にありません。保存済みデータを参照してください。")
 }

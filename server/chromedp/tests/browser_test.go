@@ -42,6 +42,8 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	var allowed atomic.Bool
 	allowed.Store(true)
 	var materialMalformed atomic.Bool
+	var materialPrivate atomic.Bool
+	var materialRemoved atomic.Bool
 	var requireHomeToken atomic.Bool
 	lms := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -98,7 +100,15 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 			case <-r.Context().Done():
 				return
 			}
-			fmt.Fprint(w, `<tr><td><table><tr><td class="kyozaititleCell" id="SRY1"><i title="資料"></i><a href="/lms/corsColl/doLinkKyozaiTitle">Handout</a></td><td>2026/10/31 24:00</td></tr><tr><td class="kyozaititleCell" id="REP1"><i title="レポート"></i>Report</td><td>－</td></tr></table></td></tr></table>`)
+			fmt.Fprint(w, `<tr><td><table>`)
+			if !materialRemoved.Load() {
+				if materialPrivate.Load() {
+					fmt.Fprint(w, `<tr><td class="kyozaititleCell" id="SRY1"><i title="資料"></i>Handout</td><td>公開終了</td></tr>`)
+				} else {
+					fmt.Fprint(w, `<tr><td class="kyozaititleCell" id="SRY1"><i title="資料"></i><a href="/lms/corsColl/doLinkKyozaiTitle">Handout</a></td><td>2026/10/31 24:00</td></tr>`)
+				}
+			}
+			fmt.Fprint(w, `<tr><td class="kyozaititleCell" id="REP1"><i title="レポート"></i>Report</td><td>－</td></tr></table></td></tr></table>`)
 		case "/lms/corsColl/doLinkKyozaiTitle":
 			fmt.Fprint(w, `<a href="/lms/homeRedirect/?sid=fixture">HOME</a>`)
 			fmt.Fprint(w, `<table><tr><th>資料名</th></tr><tr><td data-label="資料名"><i title="ファイル資料"></i><a href="javascript:downloadFile('FIL1','SRS1')">handout.txt</a></td></tr><tr><td data-label="資料名"><i title="外部資料"></i><a href="/external?syosaiId=SRS2&amp;fileurl=https%3A%2F%2Fexample.org%2Fresource%23anchor">External</a></td></tr></table><script>function downloadFile(){location.href='/file'}</script>`)
@@ -154,6 +164,16 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	external, err := browser.Download(ctx, "SRY1", "SRS2", "KOG1")
 	if err != nil || external.URL != "https://example.org/resource#anchor" {
 		t.Fatal(external, err)
+	}
+	materialPrivate.Store(true)
+	private, err := browser.Resources(ctx, "SRY1", "KOG1")
+	if err != nil || private.Resources != nil || private.Materials == nil || private.Materials.Folders[0].Materials[0].ResourceAvailability != "unavailable" {
+		t.Fatal("private material must not become a fetched empty list", private, err)
+	}
+	materialRemoved.Store(true)
+	removed, err := browser.Resources(ctx, "SRY1", "KOG1")
+	if err != nil || removed.Resources != nil || removed.Materials == nil || len(removed.Materials.Folders[0].Materials) != 1 {
+		t.Fatal("removed material must keep the latest listing observation", removed, err)
 	}
 	materialMalformed.Store(true)
 	short, stop := context.WithTimeout(ctx, 3*time.Second)
