@@ -37,8 +37,10 @@ func (b *Browser) stopRuntime() {
 	for _, slot := range b.slots {
 		b.reset(slot)
 	}
-	if b.root != nil {
-		_ = cd.Cancel(b.root)
+	if b.root != nil && cd.FromContext(b.root).Browser != nil {
+		shutdown, cancel := context.WithTimeout(b.root, 5*time.Second)
+		_ = cd.Cancel(shutdown)
+		cancel()
 	}
 	if b.cancelRoot != nil {
 		b.cancelRoot()
@@ -83,7 +85,11 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 		opts = append(opts, cd.ExecPath(b.opts.Executable))
 	}
 	alloc, cancelAlloc := cd.NewExecAllocator(context.Background(), opts...)
-	b.root, b.cancelRoot = cd.NewContext(alloc)
+	// The chromedp cancel function also waits for allocation. A failed startup
+	// has no allocated browser to wait for, so retain the parent's raw cancel.
+	parent, cancelRoot := context.WithCancel(alloc)
+	b.root, _ = cd.NewContext(parent)
+	b.cancelRoot = cancelRoot
 	b.cancelAlloc = cancelAlloc
 	stop := context.AfterFunc(ctx, b.cancelRoot)
 	defer stop()

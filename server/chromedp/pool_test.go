@@ -33,6 +33,38 @@ func testChrome(t *testing.T) string {
 	return ""
 }
 
+func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
+	dir := t.TempDir()
+	b, err := New(Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "temp"), Executable: filepath.Join(dir, "missing-chrome")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		for range 2 {
+			if _, err := b.Status(ctx); err == nil {
+				done <- fmt.Errorf("missing browser accepted")
+				return
+			}
+			if b.root != nil {
+				done <- fmt.Errorf("failed runtime retained")
+				return
+			}
+		}
+		done <- b.Close()
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("failed browser startup blocked cleanup or retry")
+	}
+}
+
 func TestPoolRetainsPagesAndIsolatesParallelLeases(t *testing.T) {
 	executable := testChrome(t)
 	lms := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
