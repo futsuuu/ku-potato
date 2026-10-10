@@ -2,33 +2,33 @@ package sqlite
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-func TestLegacyJobsAreRemovedWhileArchiveSurvives(t *testing.T) {
+func TestStoreReopensAndKeepsAuthenticationState(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "archive.sqlite")
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.Exec(`CREATE TABLE snapshots(kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(kind,id));
-	INSERT INTO snapshots VALUES('courses', '', '[{"lmsCourseId":"KOG1","name":"saved course"}]');
-	CREATE TABLE jobs(id TEXT PRIMARY KEY, status TEXT, body TEXT);
-	INSERT INTO jobs VALUES('old', 'running', '{}');
-	PRAGMA user_version=1;`)
-	if err != nil {
-		db.Close()
-		t.Fatal(err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
+	path := filepath.Join(t.TempDir(), "資料 #%.sqlite")
 	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state, err := s.Auth(ctx); err != nil || state.Status != "unknown" {
+		t.Fatal(state, err)
+	}
+	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{{ID: "KOG1", Name: "saved course"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetAuth(ctx, "authenticated"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,9 +37,18 @@ func TestLegacyJobsAreRemovedWhileArchiveSurvives(t *testing.T) {
 	if err != nil || len(courses) != 1 || courses[0].ID != "KOG1" {
 		t.Fatal(courses, err)
 	}
-	var count int
-	if err := s.db.QueryRow("SELECT count(*) FROM sqlite_master WHERE name='jobs'").Scan(&count); err != nil || count != 0 {
-		t.Fatalf("jobs table retained: %d %v", count, err)
+	if state, err := s.Auth(ctx); err != nil || state.Status != "authenticated" || state.CheckedAt == nil {
+		t.Fatal(state, err)
+	}
+	if err := s.SetAuth(ctx, "unauthenticated"); err != nil {
+		t.Fatal(err)
+	}
+	if state, err := s.Auth(ctx); err != nil || state.Status != "unauthenticated" {
+		t.Fatal(state, err)
+	}
+	var enabled int
+	if err := s.db.QueryRow("PRAGMA foreign_keys").Scan(&enabled); err != nil || enabled != 1 {
+		t.Fatalf("foreign keys not enabled: %d %v", enabled, err)
 	}
 }
 
@@ -92,5 +101,188 @@ func TestRemovedCourseArchivesItsMaterialsAndResources(t *testing.T) {
 	detail, err := s.Detail(ctx, "SRY1")
 	if err != nil || !detail.Course.Archived || !detail.Material.Archived || detail.Resources[0].Availability != "archived" {
 		t.Fatal(detail, err)
+	}
+}
+
+func archiveSnapshot() domain.Snapshot {
+	return domain.Snapshot{
+		Courses: []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}},
+		Materials: &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{
+			ID: "SRY1", Name: "handout", Type: "material", PublicationDeadline: "2026-10-31T15:00:00Z", ResourceAvailability: "available",
+		}}}}},
+		MaterialID: "SRY1",
+		Resources:  []domain.Resource{{ID: "SRS1", Name: "file", Type: "file"}, {ID: "SRS2", Name: "not downloaded", Type: "file"}},
+	}
+}
+
+func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "archive.sqlite")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	snapshot := archiveSnapshot()
+	if err := s.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	file := &domain.SavedFile{ID: "saved", OriginalFilename: "handout.pdf", SHA256: "hash", Size: 42}
+	if err := s.Acquired(ctx, "SRY1", "SRS1", file, nil); err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.Detail(ctx, "SRY1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	private := archiveSnapshot()
+	m := &private.Materials.Folders[0].Materials[0]
+	m.Name, m.PublicationDeadline, m.ResourceAvailability = "private placeholder", "unavailable", "unavailable"
+	private.Resources = nil
+	if err := s.Append(ctx, private); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail, err := s.Detail(ctx, "SRY1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !detail.Material.Archived || detail.Material.ResourceAvailability != "unavailable" || detail.Material.Name != "handout" || detail.Material.PublicationDeadline != before.Material.PublicationDeadline || !detail.Material.FetchedAt.Equal(*before.Material.FetchedAt) {
+		t.Fatalf("lost last accessible metadata: %#v", detail.Material)
+	}
+	if len(detail.Resources) != 2 || detail.Resources[0].SavedFile == nil || *detail.Resources[0].SavedFile != *file || detail.Resources[1].Name != "not downloaded" {
+		t.Fatalf("lost past resources: %#v", detail.Resources)
+	}
+	for _, resource := range detail.Resources {
+		if resource.Availability != "archived" {
+			t.Fatal(resource)
+		}
+	}
+	var count int
+	if err := s.db.QueryRow("SELECT count(*) FROM material_resource_retrievals").Scan(&count); err != nil || count != 1 {
+		t.Fatalf("private observation became an empty resource retrieval: %d %v", count, err)
+	}
+	if err := s.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	detail, err = s.Detail(ctx, "SRY1")
+	if err != nil || detail.Material.Archived || detail.Resources[0].Availability != "current" || detail.Resources[0].SavedFile == nil {
+		t.Fatal(detail, err)
+	}
+	// A fetched empty list is a new observation, but it retains past resource metadata.
+	snapshot.Resources = []domain.Resource{}
+	if err := s.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	detail, err = s.Detail(ctx, "SRY1")
+	if err != nil || len(detail.Resources) != 2 || detail.Resources[0].Availability != "archived" {
+		t.Fatal(detail, err)
+	}
+	if err := s.db.QueryRow("SELECT count(*) FROM material_resource_retrievals").Scan(&count); err != nil || count != 3 {
+		t.Fatal(count, err)
+	}
+}
+
+func TestLatestRowsDoNotDuplicateRetainedHistory(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	snapshot := archiveSnapshot()
+	snapshot.Courses = append(snapshot.Courses, domain.Course{ID: "KOG2", Name: "old course"})
+	snapshot.Materials.Folders[0].Materials = append(snapshot.Materials.Folders[0].Materials, domain.Material{ID: "SRY2", Name: "removed", Type: "material"})
+	if err := s.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	current := archiveSnapshot()
+	current.Resources = current.Resources[:1]
+	current.Resources[0].Name = "updated"
+	if err := s.Append(ctx, current); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := s.Detail(ctx, "SRY1")
+	if err != nil || len(detail.Resources) != 2 || detail.Resources[0].Name != "updated" || detail.Resources[1].Availability != "archived" {
+		t.Fatal(detail, err)
+	}
+	materials, err := s.Materials(ctx, "KOG1")
+	if err != nil || len(materials.Folders[0].Materials) != 2 || !materials.Folders[0].Materials[1].Archived {
+		t.Fatal(materials, err)
+	}
+	courses, err := s.Courses(ctx)
+	if err != nil || len(courses) != 2 || !courses[1].Archived {
+		t.Fatal(courses, err)
+	}
+}
+
+func TestSnapshotConstraintFailureRollsBackAllChanges(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	if err := s.Append(ctx, archiveSnapshot()); err != nil {
+		t.Fatal(err)
+	}
+	broken := archiveSnapshot()
+	broken.Courses[0].Name = "must roll back"
+	broken.Materials.Folders[0].Name = "must roll back"
+	broken.Resources = append(broken.Resources, broken.Resources[0])
+	if err := s.Append(ctx, broken); err == nil {
+		t.Fatal("accepted duplicate resource")
+	}
+	detail, err := s.Detail(ctx, "SRY1")
+	if err != nil || detail.Course.Name != "course" || len(detail.Resources) != 2 {
+		t.Fatal(detail, err)
+	}
+	materials, err := s.Materials(ctx, "KOG1")
+	if err != nil || materials.Folders[0].Name != "week" {
+		t.Fatal(materials, err)
+	}
+	if _, err := s.db.Exec("INSERT INTO course_material_folders VALUES(999,0,'invalid','')"); err == nil {
+		t.Fatal("accepted invalid foreign key")
+	}
+}
+
+func TestEmptyAndNeverFetchedListsRemainDistinct(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	if _, err := s.Courses(ctx); !errors.Is(err, domain.ErrMissing) {
+		t.Fatal(err)
+	}
+	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{}}); err != nil {
+		t.Fatal(err)
+	}
+	if courses, err := s.Courses(ctx); err != nil || len(courses) != 0 {
+		t.Fatal(courses, err)
+	}
+	snapshot := archiveSnapshot()
+	snapshot.Resources = nil
+	if err := s.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Detail(ctx, "SRY1"); !errors.Is(err, domain.ErrMissing) {
+		t.Fatal(err)
+	}
+	snapshot.Materials.Folders[0].Materials[0].ResourceAvailability = "unavailable"
+	if err := s.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if detail, err := s.Detail(ctx, "SRY1"); err != nil || len(detail.Resources) != 0 {
+		t.Fatal(detail, err)
+	}
+}
+
+func TestCoursesWithoutIDsPreserveTheirPositions(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{
+		{Name: "same name", Availability: "unavailable"}, {Name: "same name", Availability: "unavailable"},
+		{ID: "KOG1", Name: "first placement"}, {ID: "KOG1", Name: "second placement"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if courses, err := s.Courses(ctx); err != nil || len(courses) != 4 || courses[3].Name != "second placement" {
+		t.Fatal(courses, err)
 	}
 }

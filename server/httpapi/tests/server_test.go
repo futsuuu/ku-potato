@@ -23,12 +23,13 @@ import (
 )
 
 type source struct {
-	authenticated atomic.Bool
-	failDownload  atomic.Bool
-	courseCalls   atomic.Int32
-	failCourses   atomic.Int32
-	release       <-chan struct{}
-	path          string
+	authenticated   atomic.Bool
+	failDownload    atomic.Bool
+	privateMaterial atomic.Bool
+	courseCalls     atomic.Int32
+	failCourses     atomic.Int32
+	release         <-chan struct{}
+	path            string
 }
 
 func (s *source) Login(context.Context, bool) error    { s.authenticated.Store(true); return nil }
@@ -65,6 +66,12 @@ func (s *source) Materials(ctx context.Context, id string) (domain.Snapshot, err
 func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, error) {
 	snapshot, err := s.Materials(ctx, "KOG1")
 	snapshot.MaterialID = id
+	if s.privateMaterial.Load() {
+		material := &snapshot.Materials.Folders[0].Materials[0]
+		material.ResourceAvailability = "unavailable"
+		material.PublicationDeadline = "unavailable"
+		return snapshot, err
+	}
 	snapshot.Resources = []domain.Resource{{ID: "SRS1", Name: "file.txt", Type: "file"}}
 	return snapshot, err
 }
@@ -250,6 +257,15 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	missingMaterials := wait(request("GET", "/courses/KOG2/materials?sync=true", ""))
 	if missingMaterials.Status != "failed" || missingMaterials.Error == nil || missingMaterials.Error.Reason != "course-not-found" {
 		t.Fatal(missingMaterials)
+	}
+	fake.privateMaterial.Store(true)
+	private := wait(request("GET", "/materials/SRY1?sync=true", ""))
+	var privateDetail domain.Detail
+	if private.Error != nil || json.Unmarshal(private.Result, &privateDetail) != nil || !privateDetail.Material.Archived || privateDetail.Material.ResourceAvailability != "unavailable" || len(privateDetail.Resources) != 1 || privateDetail.Resources[0].SavedFile == nil || privateDetail.Resources[0].Availability != "archived" {
+		t.Fatal("private material lost its archive", private, privateDetail)
+	}
+	if res := request("GET", downloadResult.DownloadURL, ""); res.Code != 200 || res.Body.String() != "saved bytes" {
+		t.Fatal("private material file became inaccessible", res.Code, res.Body)
 	}
 	loggedOut := wait(request("DELETE", "/auth", ""))
 	if loggedOut.Status != "succeeded" || !bytes.Contains(loggedOut.Result, []byte(`"status":"unauthenticated"`)) {

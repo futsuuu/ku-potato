@@ -6,6 +6,7 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
 	github.com/chromedp/chromedp v0.16.0
 	github.com/danielgtaylor/huma/v2 v2.39.1
+	github.com/go-jet/jet/v2 v2.16.1
 	github.com/gofrs/flock v0.13.1
 	github.com/wailsapp/wails/v2 v2.15.0
 	golang.org/x/sys v0.48.0
@@ -70,6 +71,7 @@ require (
 	github.com/leaanthony/slicer v1.6.0 // indirect
 	github.com/leaanthony/u v1.1.1 // indirect
 	github.com/leaanthony/winicon v1.0.0 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect

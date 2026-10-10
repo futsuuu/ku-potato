@@ -18,3 +18,5 @@ The Go server follows Hexagonal Architecture (Ports & Adapters).
 `core` implements inbound ports and depends on outbound ports. Inbound adapters use `core/inport`; outbound adapters implement `core/outport`. Adapters do not import concrete application implementations or each other; the entrypoint composes them. `domain` has no application or adapter dependencies.
 
 Browser pages persist across requests, with one page per BrowserContext. Authentication and credential writes are serialized; subsequent operations run concurrently in separate BrowserContexts. Jobs exist only in memory; archives, authentication state, and acquired files persist separately from cache and temporary files.
+
+SQLite uses Jet types generated from `sqlite/schema/schema.sql`. Run `vp run db:generate` after schema changes; `vp run db:check` verifies generated files. Retrieval history and acquired-file state are stored separately so private or removed materials remain browsable. Existing database formats are not migrated during private development.
