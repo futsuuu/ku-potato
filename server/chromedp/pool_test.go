@@ -2,6 +2,7 @@ package chromedp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	cd "github.com/chromedp/chromedp"
+	"github.com/futsuuu/ku-potato/server/domain"
 )
 
 func testChrome(t *testing.T) string {
@@ -44,8 +46,10 @@ func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		for range 2 {
-			if _, err := b.Status(ctx); err == nil {
-				done <- fmt.Errorf("missing browser accepted")
+			_, err := b.Status(ctx)
+			var failure *domain.Error
+			if !errors.As(err, &failure) || failure.Reason != "browser-start" {
+				done <- fmt.Errorf("missing browser startup error: %v", err)
 				return
 			}
 			if b.root != nil {
@@ -62,6 +66,30 @@ func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("failed browser startup blocked cleanup or retry")
+	}
+}
+
+func TestOccupiedProfileReportsBrowserStartupFailure(t *testing.T) {
+	opts := Options{StateDir: t.TempDir(), CacheDir: t.TempDir(), DownloadDir: t.TempDir(), Executable: testChrome(t)}
+	owner, err := New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := owner.start(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	other, err := New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	_, err = other.Status(ctx)
+	var failure *domain.Error
+	if !errors.As(err, &failure) || failure.Reason != "browser-start" {
+		t.Fatalf("occupied profile startup error: %v", err)
 	}
 }
 

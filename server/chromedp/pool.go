@@ -14,6 +14,7 @@ import (
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
+	"github.com/futsuuu/ku-potato/server/domain"
 )
 
 // The CDP target belongs to the server lifetime. Only the operation is cancelled.
@@ -41,6 +42,10 @@ func (b *Browser) stopRuntime() {
 		shutdown, cancel := context.WithTimeout(b.root, 5*time.Second)
 		_ = cd.Cancel(shutdown)
 		cancel()
+	}
+	if b.closeProcess != nil {
+		b.closeProcess()
+		b.closeProcess = nil
 	}
 	if b.cancelRoot != nil {
 		b.cancelRoot()
@@ -95,8 +100,17 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 	defer stop()
 	if err := cd.Run(b.root); err != nil {
 		b.stopRuntime()
-		return err
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return domain.Fail("browser-start", "Chrome を起動できません。KU-POTATO 用の Chrome が残っていないか、Chrome のパスと認証プロファイルの使用状況を確認してください。")
 	}
+	closeProcess, err := manageProcess(cd.FromContext(b.root).Browser.Process())
+	if err != nil {
+		b.stopRuntime()
+		return domain.Fail("browser-start", "Chrome のプロセス管理を設定できません。")
+	}
+	b.closeProcess = closeProcess
 	if err := b.restoreCookies(ctx); err != nil {
 		b.stopRuntime()
 		return err

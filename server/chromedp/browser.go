@@ -30,16 +30,17 @@ type pageSlot struct {
 	cancel context.CancelFunc
 }
 type Browser struct {
-	opts        Options
-	gate        sync.RWMutex
-	authMu      sync.Mutex
-	root        context.Context
-	cancelRoot  context.CancelFunc
-	cancelAlloc context.CancelFunc
-	interactive bool
-	closed      bool
-	slots       []*pageSlot
-	available   chan *pageSlot
+	opts         Options
+	gate         sync.RWMutex
+	authMu       sync.Mutex
+	root         context.Context
+	cancelRoot   context.CancelFunc
+	cancelAlloc  context.CancelFunc
+	closeProcess func()
+	interactive  bool
+	closed       bool
+	slots        []*pageSlot
+	available    chan *pageSlot
 }
 
 var _ outport.Source = (*Browser)(nil)

@@ -8,6 +8,7 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/gofrs/flock v0.13.1
 	github.com/wailsapp/wails/v2 v2.15.0
+	golang.org/x/sys v0.48.0
 	modernc.org/sqlite v1.60.1
 )
 
@@ -111,7 +112,6 @@ require (
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
