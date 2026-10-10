@@ -23,12 +23,13 @@ type Course struct {
 	Archived     bool   `json:"archived,omitempty"`
 }
 type Material struct {
-	ID                   string `json:"lmsMaterialId"`
-	Name                 string `json:"name"`
-	Type                 string `json:"type" enum:"material,report,test,questionnaire,e-learning"`
-	PublicationDeadline  string `json:"publicationDeadline"`
-	ResourceAvailability string `json:"resourceAvailability,omitempty" enum:"available,unavailable"`
-	Archived             bool   `json:"archived,omitempty"`
+	ID                   string     `json:"lmsMaterialId"`
+	Name                 string     `json:"name"`
+	Type                 string     `json:"type" enum:"material,report,test,questionnaire,e-learning"`
+	PublicationDeadline  string     `json:"publicationDeadline"`
+	ResourceAvailability string     `json:"resourceAvailability,omitempty" enum:"available,unavailable"`
+	FetchedAt            *time.Time `json:"fetchedAt,omitempty"`
+	Archived             bool       `json:"archived,omitempty"`
 }
 type Folder struct {
 	Name      string     `json:"name"`
@@ -73,7 +74,8 @@ type Snapshot struct {
 	Courses    []Course         `json:"courses"`
 	Materials  *CourseMaterials `json:"courseMaterials,omitempty"`
 	MaterialID string           `json:"lmsMaterialId,omitempty"`
-	Resources  []Resource       `json:"resources,omitempty"`
+	// nil Resources means the list was not fetched; an empty slice means a fetched empty list.
+	Resources []Resource `json:"resources,omitempty"`
 }
 type Download struct {
 	Snapshot Snapshot
