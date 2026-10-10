@@ -21,6 +21,14 @@ export default defineConfig({
         dependsOn: ["frontend:install"],
         cache: false,
       },
+      "db:generate": {
+        command: "go run ./tools/db-codegen",
+        cache: false,
+      },
+      "db:check": {
+        command: "go run ./tools/db-codegen -check",
+        cache: false,
+      },
       dev: {
         command: "go tool wails dev",
         cwd: "desktop",
@@ -40,7 +48,7 @@ export default defineConfig({
       },
       check: {
         command: ["vp check", "go vet ./server/... ./desktop/... ./tools/..."],
-        dependsOn: ["frontend:build"],
+        dependsOn: ["frontend:build", "db:check"],
         cache: false,
       },
       format: {
