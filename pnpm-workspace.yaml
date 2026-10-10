@@ -1,0 +1,8 @@
+packages:
+  - desktop/frontend
+  - tools/api-codegen
+
+minimumReleaseAgeExclude:
+  - "@solidjs/vite-plugin@3.0.0-next.49"
+overrides:
+  vite: npm:@voidzero-dev/vite-plus-core@1.1.0

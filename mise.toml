@@ -1,18 +1,2 @@
 [tools]
 go = "1.27.1"
-
-[tasks.dev]
-description = "Run the localhost HTTP server"
-run = "go run ./server/cmd/ku-potato"
-
-[tasks.build]
-description = "Build the server binary"
-run = "go build -o ./bin/ ./server/cmd/ku-potato"
-
-[tasks.test]
-description = "Run server tests, including live checks when authentication is saved"
-run = "go test ./server/..."
-
-[tasks.check]
-description = "Run static checks"
-run = "go vet ./server/..."
