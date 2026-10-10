@@ -385,6 +385,8 @@ export interface components {
     };
     Material: {
       archived?: boolean;
+      /** Format: date-time */
+      fetchedAt?: string;
       lmsMaterialId: string;
       name: string;
       publicationDeadline: string;

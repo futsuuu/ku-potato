@@ -21,7 +21,9 @@ export function formatDate(value: string) {
 }
 export function upcoming(assignments: Schema["Assignment"][], now: number) {
   return assignments
-    .filter((value) => Date.parse(value.material.publicationDeadline) > now)
+    .filter(
+      (value) => !value.material.archived && Date.parse(value.material.publicationDeadline) > now,
+    )
     .sort(
       (a, b) =>
         Date.parse(a.material.publicationDeadline) - Date.parse(b.material.publicationDeadline),

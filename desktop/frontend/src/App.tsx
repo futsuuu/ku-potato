@@ -10,7 +10,11 @@ function MaterialInfo(props: { material: Schema["Material"] }) {
   return (
     <small class="meta">
       {materialTypes[props.material.type]} · {formatDate(props.material.publicationDeadline)}
-      {props.material.archived ? " · 保存済み" : ""}
+      {props.material.resourceAvailability === "unavailable" ? " · 現在は非公開" : ""}
+      {props.material.archived ? " · 過去の取得データ" : ""}
+      {props.material.archived && props.material.fetchedAt
+        ? ` · ${formatDate(props.material.fetchedAt)}取得`
+        : ""}
     </small>
   );
 }
@@ -64,7 +68,7 @@ function ResourceRow(props: {
         </span>
       </div>
       <Show when={props.resource.availability === "archived"}>
-        <small class="meta">保存済み資料（現在の一覧にはありません）</small>
+        <small class="meta">過去の取得データ（現在は公開されていません）</small>
       </Show>
       <div class="actions">
         <button
@@ -261,10 +265,7 @@ function Workspace(props: { api: API }) {
                 <li>
                   <button
                     class="course-card"
-                    disabled={
-                      !value.lmsCourseId ||
-                      (value.availability === "unavailable" && !value.archived)
-                    }
+                    disabled={!value.lmsCourseId}
                     onClick={() => selectCourse(value)}
                   >
                     <span>
@@ -373,10 +374,7 @@ function Workspace(props: { api: API }) {
                       <li class="row">
                         <button
                           class="app-link material-name"
-                          disabled={
-                            value.type !== "material" ||
-                            value.resourceAvailability === "unavailable"
-                          }
+                          disabled={value.type !== "material"}
                           onClick={() => selectMaterial(value)}
                         >
                           {value.name}
@@ -396,8 +394,10 @@ function Workspace(props: { api: API }) {
           </button>
           <header>
             <div>
-              <h1>{material()?.name}</h1>
-              <Show when={material()}>{(value) => <MaterialInfo material={value()} />}</Show>
+              <h1>{detail.data()?.material.name ?? material()?.name}</h1>
+              <Show when={detail.data()?.material ?? material()}>
+                {(value) => <MaterialInfo material={value()} />}
+              </Show>
             </div>
             <button
               class="app-button"
@@ -411,7 +411,13 @@ function Workspace(props: { api: API }) {
           <ul class="list">
             <For
               each={detail.data()?.resources ?? []}
-              fallback={<li class="empty">資料がありません。</li>}
+              fallback={
+                <li class="empty">
+                  {detail.data()?.material.archived
+                    ? "過去に取得した資料データがありません。"
+                    : "資料がありません。"}
+                </li>
+              }
             >
               {(value) => (
                 <ResourceRow
