@@ -223,7 +223,10 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 		if e != nil {
 			return nil, e
 		}
-		return courses, a.append(ctx, domain.Snapshot{Courses: courses})
+		if e = a.append(ctx, domain.Snapshot{Courses: courses}); e != nil {
+			return nil, e
+		}
+		return a.archive.Courses(ctx)
 	case "sync-materials":
 		report(ctx, domain.Progress{Stage: "fetching-courses"})
 		ids := r.CourseIDs
