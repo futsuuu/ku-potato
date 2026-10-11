@@ -393,48 +393,165 @@ export interface components {
       /** @enum {string} */
       status: "ok";
     };
-    Material: {
-      archived?: boolean;
-      /** Format: date-time */
-      fetchedAt?: string;
-      lmsMaterialId: string;
-      materialLinkAvailable: boolean;
-      name: string;
-      publicationDeadline: string;
-      /** Format: date-time */
-      publicationDeadlineAt?: string;
-      /** @enum {string} */
-      publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-      /** @enum {string} */
-      resourceAvailability?: "available" | "unavailable";
-      /** @enum {string} */
-      status:
-        | "unviewed"
-        | "viewed"
-        | "partially-viewed"
-        | "unsubmitted"
-        | "submitted"
-        | "resubmission-required"
-        | "evaluated"
-        | "not-started"
-        | "in-progress"
-        | "completed"
-        | "unanswered"
-        | "answered"
-        | "unposted"
-        | "unevaluated"
-        | "unknown";
-      /** @enum {string} */
-      type:
-        | "material"
-        | "report"
-        | "test"
-        | "questionnaire"
-        | "e-learning"
-        | "board"
-        | "feedback"
-        | "unknown";
-    };
+    Material:
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status: "unviewed" | "viewed" | "partially-viewed" | "unknown";
+          /** @enum {string} */
+          type: "material";
+        }
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status:
+            | "unviewed"
+            | "unsubmitted"
+            | "submitted"
+            | "resubmission-required"
+            | "evaluated"
+            | "unknown";
+          /** @enum {string} */
+          type: "report";
+        }
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status: "not-started" | "in-progress" | "completed" | "unknown";
+          /** @enum {string} */
+          type: "test";
+        }
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status: "unanswered" | "answered" | "unknown";
+          /** @enum {string} */
+          type: "questionnaire";
+        }
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status: "not-started" | "in-progress" | "completed" | "unknown";
+          /** @enum {string} */
+          type: "e-learning";
+        }
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status: "unposted" | "evaluated" | "unknown";
+          /** @enum {string} */
+          type: "board";
+        }
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status: "unevaluated" | "evaluated" | "unknown";
+          /** @enum {string} */
+          type: "feedback";
+        }
+      | {
+          archived?: boolean;
+          /** Format: date-time */
+          fetchedAt?: string;
+          lmsMaterialId: string;
+          materialLinkAvailable: boolean;
+          name: string;
+          publicationDeadline: string;
+          /** Format: date-time */
+          publicationDeadlineAt?: string;
+          /** @enum {string} */
+          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
+          /** @enum {string} */
+          resourceAvailability?: "available" | "unavailable";
+          /** @enum {string} */
+          status: "unknown";
+          /** @enum {string} */
+          type: "unknown";
+        };
     OperationStatus: {
       /** Format: int64 */
       attempt: number;

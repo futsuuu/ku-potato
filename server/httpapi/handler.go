@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"reflect"
 	"strings"
 	"time"
 
@@ -33,7 +34,9 @@ func New(service inport.Service, authority string) *Handler {
 	config.CreateHooks = nil
 	config.SchemasPath = ""
 	config.Info.Description = "Single-account loopback API. Feature endpoints stream typed results, operation status, and progress using SSE. Replay the feature request to retry."
-	h.register(humago.New(h.mux, config))
+	api := humago.New(h.mux, config)
+	api.OpenAPI().Components.Schemas.RegisterTypeAlias(reflect.TypeFor[domain.Material](), reflect.TypeFor[material]())
+	h.register(api)
 	h.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		write(w, 404, map[string]any{"error": domain.Error{Reason: "not-found", Message: "API endpoint not found"}})
 	})

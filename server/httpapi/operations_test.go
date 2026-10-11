@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -141,6 +142,7 @@ type schemaDoc struct {
 	Const                any                   `json:"const"`
 	Pattern              string                `json:"pattern"`
 	Minimum              *float64              `json:"minimum"`
+	Required             []string              `json:"required"`
 }
 
 func (s *schemaDoc) hasType(name string) bool {
@@ -223,9 +225,30 @@ func TestGeneratedOpenAPIAndDocs(t *testing.T) {
 	if data == nil || !data.hasType("array") || !strings.HasSuffix(data.Items.Ref, "/Course") {
 		t.Fatal("missing typed result", data)
 	}
-	for name, field := range map[string]string{"Course": "availability", "Material": "type", "Resource": "type", "AuthState": "status", "OperationStatus": "status", "Progress": "stage", "Error": "reason"} {
+	for name, field := range map[string]string{"Course": "availability", "Resource": "type", "AuthState": "status", "OperationStatus": "status", "Progress": "stage", "Error": "reason"} {
 		if len(spec.Components.Schemas[name].Properties[field].Enum) == 0 {
 			t.Fatal("missing enum", name, field)
+		}
+	}
+	if !reflect.DeepEqual(spec.Components.Schemas["Course"].Properties["type"].Enum, []any{"scheduled", "other", "unknown"}) {
+		t.Fatal("missing course type enum")
+	}
+	materials := spec.Components.Schemas["Material"]
+	if len(materials.OneOf) != 8 {
+		t.Fatal("material is not a union", materials)
+	}
+	for _, variant := range materials.OneOf {
+		if len(variant.Properties["type"].Enum) != 1 || !slices.Contains(variant.Required, "type") || !slices.Contains(variant.Required, "status") {
+			t.Fatal("material variant lacks a required type or status", variant)
+		}
+	}
+	for name, ref := range map[string]*schemaDoc{
+		"folder":     spec.Components.Schemas["Folder"].Properties["materials"].Items,
+		"assignment": spec.Components.Schemas["Assignment"].Properties["material"],
+		"detail":     spec.Components.Schemas["Detail"].Properties["material"],
+	} {
+		if resolve(ref) != materials {
+			t.Fatal("nested material does not use the union", name, ref)
 		}
 	}
 	download := spec.Paths["/materials/{materialId}/resources/{resourceId}/download"].Post.Responses["200"].Content["text/event-stream"].Schema
