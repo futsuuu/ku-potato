@@ -223,7 +223,7 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 		if e != nil {
 			return nil, e
 		}
-		if e = a.append(ctx, domain.Snapshot{Courses: courses}); e != nil {
+		if _, e = a.append(ctx, domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses}); e != nil {
 			return nil, e
 		}
 		return a.archive.Courses(ctx)
@@ -238,11 +238,13 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 				}
 				return nil, e
 			}
-			if e = a.append(ctx, domain.Snapshot{Courses: courses}); e != nil {
+			if _, e = a.append(ctx, domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses}); e != nil {
 				return nil, e
 			}
-			for _, c := range courses {
-				if c.Availability == "available" {
+			seen := map[string]bool{}
+			for _, c := range courses.Courses {
+				if c.Availability == "available" && !seen[c.ID] {
+					seen[c.ID] = true
 					ids = append(ids, c.ID)
 				}
 			}
@@ -258,7 +260,7 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 		if e != nil {
 			return nil, e
 		}
-		if e = a.append(ctx, snapshot); e != nil {
+		if _, e = a.append(ctx, snapshot); e != nil {
 			return nil, e
 		}
 		return a.archive.Detail(ctx, r.MaterialID)
@@ -267,11 +269,12 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 	}
 	return nil, domain.Fail("invalid-input", "unknown job kind")
 }
-func (a *Application) append(ctx context.Context, s domain.Snapshot) error {
-	if err := a.archive.Append(ctx, s); err != nil {
-		return err
+func (a *Application) append(ctx context.Context, s domain.Snapshot) (domain.ObservationIDs, error) {
+	ids, err := a.archive.Append(ctx, s)
+	if err != nil {
+		return domain.ObservationIDs{}, err
 	}
-	return a.state.SetAuth(ctx, "authenticated")
+	return ids, a.state.SetAuth(ctx, "authenticated")
 }
 func (a *Application) download(ctx context.Context, r domain.Request) (any, error) {
 	preferred, err := a.archive.FindCourse(ctx, r.MaterialID)
@@ -287,19 +290,21 @@ func (a *Application) download(ctx context.Context, r domain.Request) (any, erro
 			}
 		}()
 	}
+	var observations domain.ObservationIDs
 	if download.Snapshot.MaterialID != "" {
-		if e := a.append(ctx, download.Snapshot); e != nil {
+		var e error
+		if observations, e = a.append(ctx, download.Snapshot); e != nil {
 			return nil, e
 		}
 	}
 	if err != nil {
-		if e := a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, nil, err); e != nil {
+		if e := a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, observations.Resources, nil, err); e != nil {
 			slog.Error("record acquisition failure", "error", e)
 		}
 		return nil, err
 	}
 	if download.URL != "" {
-		return domain.DownloadResult{Type: "external", URL: download.URL}, a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, nil, nil)
+		return domain.DownloadResult{Type: "external", URL: download.URL}, a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, observations.Resources, nil, nil)
 	}
 	report(ctx, domain.Progress{Stage: "saving"})
 	file, err := a.files.Save(download.Path, download.Filename)
@@ -317,7 +322,7 @@ func (a *Application) download(ctx context.Context, r domain.Request) (any, erro
 			previous = res.SavedFile
 		}
 	}
-	if err = a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, &file, nil); err != nil {
+	if err = a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, observations.Resources, &file, nil); err != nil {
 		_ = a.files.Remove(file)
 		return nil, err
 	}

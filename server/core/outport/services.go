@@ -12,7 +12,7 @@ type Source interface {
 	Logout(context.Context) error
 	Register(context.Context, bool) error
 	Status(context.Context) (bool, error)
-	Courses(context.Context) ([]domain.Course, error)
+	Courses(context.Context) (domain.CourseListing, error)
 	Materials(context.Context, string) (domain.Snapshot, error)
 	Resources(context.Context, string, string) (domain.Snapshot, error)
 	Download(context.Context, string, string, string) (domain.Download, error)
@@ -22,8 +22,8 @@ type Archive interface {
 	Materials(context.Context, string) (domain.CourseMaterials, error)
 	Detail(context.Context, string) (domain.Detail, error)
 	FindCourse(context.Context, string) (string, error)
-	Append(context.Context, domain.Snapshot) error
-	Acquired(context.Context, string, string, *domain.SavedFile, error) error
+	Append(context.Context, domain.Snapshot) (domain.ObservationIDs, error)
+	Acquired(context.Context, string, string, int64, *domain.SavedFile, error) error
 }
 type AuthenticationState interface {
 	Auth(context.Context) (domain.AuthState, error)

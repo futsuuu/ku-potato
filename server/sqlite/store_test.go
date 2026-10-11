@@ -19,7 +19,7 @@ func TestStoreReopensAndKeepsAuthenticationState(t *testing.T) {
 	if state, err := s.Auth(ctx); err != nil || state.Status != "unknown" {
 		t.Fatal(state, err)
 	}
-	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{{ID: "KOG1", Name: "saved course"}}}); err != nil {
+	if _, err := s.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: []domain.Course{{ID: "KOG1", Name: "saved course"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SetAuth(ctx, "authenticated"); err != nil {
@@ -64,20 +64,21 @@ func newStore(t *testing.T) *Store {
 func TestSnapshotsPreserveFilesAndFailedAcquisition(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
-	snapshot := domain.Snapshot{Courses: []domain.Course{{ID: "KOG1", Name: "course"}}, Materials: &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1"}}}}}, MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Name: "file", Type: "file"}}}
-	if err := s.Append(ctx, snapshot); err != nil {
+	snapshot := domain.Snapshot{AcademicYear: 2026, Courses: []domain.Course{{ID: "KOG1", Name: "course"}}, Materials: &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1"}}}}}, MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Name: "file", Type: "file"}}}
+	observations, err := s.Append(ctx, snapshot)
+	if err != nil {
 		t.Fatal(err)
 	}
 	file := &domain.SavedFile{ID: "test", SHA256: "hash"}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", file, nil); err != nil {
+	if err := s.Acquired(ctx, "SRY1", "SRS1", observations.Resources, file, nil); err != nil {
 		t.Fatal(err)
 	}
 	snapshot.Materials.Folders = []domain.Folder{}
 	snapshot.Resources = []domain.Resource{}
-	if err := s.Append(ctx, snapshot); err != nil {
+	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", nil, domain.Fail("source", "failed")); err != nil {
+	if err := s.Acquired(ctx, "SRY1", "SRS1", 0, nil, domain.Fail("source", "failed")); err != nil {
 		t.Fatal(err)
 	}
 	detail, err := s.Detail(ctx, "SRY1")
@@ -92,10 +93,10 @@ func TestSnapshotsPreserveFilesAndFailedAcquisition(t *testing.T) {
 func TestRemovedCourseArchivesItsMaterialsAndResources(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
-	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{{ID: "KOG1", Availability: "available"}}, Materials: &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1"}}}}}, MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1"}}}); err != nil {
+	if _, err := s.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: []domain.Course{{ID: "KOG1", Availability: "available"}}, Materials: &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1"}}}}}, MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{}}); err != nil {
+	if _, err := s.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: []domain.Course{}}); err != nil {
 		t.Fatal(err)
 	}
 	detail, err := s.Detail(ctx, "SRY1")
@@ -106,7 +107,8 @@ func TestRemovedCourseArchivesItsMaterialsAndResources(t *testing.T) {
 
 func archiveSnapshot() domain.Snapshot {
 	return domain.Snapshot{
-		Courses: []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}},
+		AcademicYear: 2026,
+		Courses:      []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}},
 		Materials: &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{
 			ID: "SRY1", Name: "handout", Type: "material", PublicationDeadline: "2026-10-31T15:00:00Z", ResourceAvailability: "available",
 		}}}}},
@@ -124,11 +126,12 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	}
 	t.Cleanup(func() { s.Close() })
 	snapshot := archiveSnapshot()
-	if err := s.Append(ctx, snapshot); err != nil {
+	observations, err := s.Append(ctx, snapshot)
+	if err != nil {
 		t.Fatal(err)
 	}
 	file := &domain.SavedFile{ID: "saved", OriginalFilename: "handout.pdf", SHA256: "hash", Size: 42}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", file, nil); err != nil {
+	if err := s.Acquired(ctx, "SRY1", "SRS1", observations.Resources, file, nil); err != nil {
 		t.Fatal(err)
 	}
 	before, err := s.Detail(ctx, "SRY1")
@@ -139,7 +142,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	m := &private.Materials.Folders[0].Materials[0]
 	m.Name, m.PublicationDeadline, m.ResourceAvailability = "private placeholder", "unavailable", "unavailable"
 	private.Resources = nil
-	if err := s.Append(ctx, private); err != nil {
+	if _, err := s.Append(ctx, private); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Close(); err != nil {
@@ -168,7 +171,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	if err := s.db.QueryRow("SELECT count(*) FROM material_resource_retrievals").Scan(&count); err != nil || count != 1 {
 		t.Fatalf("private observation became an empty resource retrieval: %d %v", count, err)
 	}
-	if err := s.Append(ctx, snapshot); err != nil {
+	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	detail, err = s.Detail(ctx, "SRY1")
@@ -177,7 +180,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	}
 	// A fetched empty list is a new observation, but it retains past resource metadata.
 	snapshot.Resources = []domain.Resource{}
-	if err := s.Append(ctx, snapshot); err != nil {
+	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	detail, err = s.Detail(ctx, "SRY1")
@@ -195,13 +198,13 @@ func TestLatestRowsDoNotDuplicateRetainedHistory(t *testing.T) {
 	snapshot := archiveSnapshot()
 	snapshot.Courses = append(snapshot.Courses, domain.Course{ID: "KOG2", Name: "old course"})
 	snapshot.Materials.Folders[0].Materials = append(snapshot.Materials.Folders[0].Materials, domain.Material{ID: "SRY2", Name: "removed", Type: "material"})
-	if err := s.Append(ctx, snapshot); err != nil {
+	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	current := archiveSnapshot()
 	current.Resources = current.Resources[:1]
 	current.Resources[0].Name = "updated"
-	if err := s.Append(ctx, current); err != nil {
+	if _, err := s.Append(ctx, current); err != nil {
 		t.Fatal(err)
 	}
 	detail, err := s.Detail(ctx, "SRY1")
@@ -221,14 +224,14 @@ func TestLatestRowsDoNotDuplicateRetainedHistory(t *testing.T) {
 func TestSnapshotConstraintFailureRollsBackAllChanges(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
-	if err := s.Append(ctx, archiveSnapshot()); err != nil {
+	if _, err := s.Append(ctx, archiveSnapshot()); err != nil {
 		t.Fatal(err)
 	}
 	broken := archiveSnapshot()
 	broken.Courses[0].Name = "must roll back"
 	broken.Materials.Folders[0].Name = "must roll back"
 	broken.Resources = append(broken.Resources, broken.Resources[0])
-	if err := s.Append(ctx, broken); err == nil {
+	if _, err := s.Append(ctx, broken); err == nil {
 		t.Fatal("accepted duplicate resource")
 	}
 	detail, err := s.Detail(ctx, "SRY1")
@@ -250,7 +253,7 @@ func TestEmptyAndNeverFetchedListsRemainDistinct(t *testing.T) {
 	if _, err := s.Courses(ctx); !errors.Is(err, domain.ErrMissing) {
 		t.Fatal(err)
 	}
-	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{}}); err != nil {
+	if _, err := s.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: []domain.Course{}}); err != nil {
 		t.Fatal(err)
 	}
 	if courses, err := s.Courses(ctx); err != nil || len(courses) != 0 {
@@ -258,14 +261,14 @@ func TestEmptyAndNeverFetchedListsRemainDistinct(t *testing.T) {
 	}
 	snapshot := archiveSnapshot()
 	snapshot.Resources = nil
-	if err := s.Append(ctx, snapshot); err != nil {
+	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Detail(ctx, "SRY1"); !errors.Is(err, domain.ErrMissing) {
 		t.Fatal(err)
 	}
 	snapshot.Materials.Folders[0].Materials[0].ResourceAvailability = "unavailable"
-	if err := s.Append(ctx, snapshot); err != nil {
+	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	if detail, err := s.Detail(ctx, "SRY1"); err != nil || len(detail.Resources) != 0 {
@@ -276,7 +279,7 @@ func TestEmptyAndNeverFetchedListsRemainDistinct(t *testing.T) {
 func TestCoursesWithoutIDsPreserveTheirPositions(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
-	if err := s.Append(ctx, domain.Snapshot{Courses: []domain.Course{
+	if _, err := s.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: []domain.Course{
 		{Name: "same name", Availability: "unavailable"}, {Name: "same name", Availability: "unavailable"},
 		{ID: "KOG1", Name: "first placement"}, {ID: "KOG1", Name: "second placement"},
 	}}); err != nil {

@@ -18,5 +18,7 @@ func UseSchema(schema string) {
 	Courses = Courses.FromSchema(schema)
 	MaterialResourceRetrievals = MaterialResourceRetrievals.FromSchema(schema)
 	MaterialResources = MaterialResources.FromSchema(schema)
+	ReportDetailRetrievals = ReportDetailRetrievals.FromSchema(schema)
+	ReportDetails = ReportDetails.FromSchema(schema)
 	ResourceStates = ResourceStates.FromSchema(schema)
 }

@@ -8,14 +8,15 @@
 package model
 
 type ResourceStates struct {
-	LmsMaterialID     string `sql:"primary_key"`
-	LmsResourceID     string `sql:"primary_key"`
-	FileID            *string
-	OriginalFilename  *string
-	Sha256            *string
-	FileSize          *int64
-	LastSucceededAt   *int64
-	LastAttemptAt     *int64
-	LastAttemptStatus *string
-	LastAttemptError  *string
+	LmsMaterialID            string `sql:"primary_key"`
+	LmsResourceID            string `sql:"primary_key"`
+	FileID                   *string
+	OriginalFilename         *string
+	Sha256                   *string
+	FileSize                 *int64
+	SavedResourceRetrievalID *int64
+	LastSucceededAt          *int64
+	LastAttemptAt            *int64
+	LastAttemptStatus        *string
+	LastAttemptError         *string
 }

@@ -254,11 +254,19 @@ export interface components {
       status: "unknown" | "authenticated" | "unauthenticated";
     };
     Course: {
+      /** Format: int64 */
+      academicYear?: number;
       archived?: boolean;
       /** @enum {string} */
       availability: "available" | "unavailable";
       lmsCourseId?: string;
       name: string;
+      /** Format: int64 */
+      period?: number;
+      /** @enum {string} */
+      type?: "scheduled" | "other" | "unknown";
+      /** Format: int64 */
+      weekday?: number;
     };
     CourseFailure: {
       error: components["schemas"]["Error"];
@@ -292,6 +300,7 @@ export interface components {
     Detail: {
       course: components["schemas"]["Course"];
       material: components["schemas"]["Material"];
+      report?: components["schemas"]["ReportDetail"];
       resources: components["schemas"]["Resource"][] | null;
     };
     Error: {
@@ -372,8 +381,9 @@ export interface components {
       type: "file";
     };
     Folder: {
-      /** Format: date-time */
+      /** Format: date */
       classDate?: string;
+      descriptionHtml?: string;
       materials: components["schemas"]["Material"][] | null;
       name: string;
     };
@@ -388,12 +398,42 @@ export interface components {
       /** Format: date-time */
       fetchedAt?: string;
       lmsMaterialId: string;
+      materialLinkAvailable: boolean;
       name: string;
       publicationDeadline: string;
+      /** Format: date-time */
+      publicationDeadlineAt?: string;
+      /** @enum {string} */
+      publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
       /** @enum {string} */
       resourceAvailability?: "available" | "unavailable";
       /** @enum {string} */
-      type: "material" | "report" | "test" | "questionnaire" | "e-learning";
+      status:
+        | "unviewed"
+        | "viewed"
+        | "partially-viewed"
+        | "unsubmitted"
+        | "submitted"
+        | "resubmission-required"
+        | "evaluated"
+        | "not-started"
+        | "in-progress"
+        | "completed"
+        | "unanswered"
+        | "answered"
+        | "unposted"
+        | "unevaluated"
+        | "unknown";
+      /** @enum {string} */
+      type:
+        | "material"
+        | "report"
+        | "test"
+        | "questionnaire"
+        | "e-learning"
+        | "board"
+        | "feedback"
+        | "unknown";
     };
     OperationStatus: {
       /** Format: int64 */
@@ -425,16 +465,49 @@ export interface components {
     RegistrationResult: {
       registered: boolean;
     };
+    ReportDetail: {
+      /** Format: int64 */
+      correctionLimit?: number;
+      /** @enum {string} */
+      correctionMode: "unknown" | "not-allowed" | "unlimited" | "limited";
+      /** Format: date-time */
+      fetchedAt?: string;
+      fileAnswerAllowed?: boolean;
+      /** Format: int64 */
+      maxTotalFileBytes?: number;
+      promptHtml?: string;
+      /** @enum {string} */
+      status:
+        | "unviewed"
+        | "unsubmitted"
+        | "submitted"
+        | "resubmission-required"
+        | "evaluated"
+        | "unknown";
+      /** Format: date-time */
+      submissionDueAt?: string;
+      /** @enum {string} */
+      submissionPeriodKind: "at" | "unlisted" | "unknown";
+      /** Format: date-time */
+      submissionStartsAt?: string;
+      textAnswerAllowed?: boolean;
+    };
     Resource: {
       acquisition?: components["schemas"]["Acquisition"];
       /** @enum {string} */
       availability: "current" | "archived";
+      description?: string;
+      /** Format: date */
+      firstViewedOn?: string;
       lmsResourceId: string;
       name: string;
+      /** Format: date */
+      registeredOn?: string;
       savedFile?: components["schemas"]["SavedFile"];
-      sourceKind: string;
       /** @enum {string} */
-      type: "file" | "external" | "unsupported";
+      status?: "unviewed" | "viewed" | "unknown";
+      /** @enum {string} */
+      type: "file" | "external" | "unknown";
       /** Format: uri */
       url?: string;
     };

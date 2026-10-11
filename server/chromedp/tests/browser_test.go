@@ -69,14 +69,17 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 			}
 		case "/lms/homeHoml/doIndex":
 			fmt.Fprint(w, `<a href="/lms/homeRedirect/?sid=fixture">HOME</a>`)
-			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')" href="/lms/homeHoml/doLinkKougi">Course</a></div>`)
+			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"><div class="lms-daybox"><div class="lms-category-title">月曜日</div><div class="lms-flex-container"><div class="lms-card"><div class="courseCardInfo">2限<span class="term">1Q～3Q</span></div><div class="lms-cardcontents"><div class="lms-cardname"><a onclick="formSubmit('KOG1')" href="/lms/homeHoml/doLinkKougi">Course</a></div></div></div>`)
 			w.(http.Flusher).Flush()
 			select {
 			case <-time.After(300 * time.Millisecond):
 			case <-r.Context().Done():
 				return
 			}
-			fmt.Fprint(w, `<div class="lms-cardname">Unavailable course</div></div><script>function formSubmit(){}</script>`)
+			fmt.Fprint(w, `<div class="lms-card"><div class="courseCardInfo">3限<span class="term">前期</span></div><div class="lms-cardcontents"><div class="lms-cardname">Unavailable course</div></div></div></div></div>
+<div class="lms-daybox"><div class="lms-category-title">その他</div><div class="lms-flex-container"><div class="lms-card"><div class="courseCardInfo"><span class="term">その他</span></div><div class="lms-cardcontents"><div class="lms-cardname"><a onclick="formSubmit('KOG2')" href="/lms/homeHoml/doLinkKougi">Other course</a></div></div></div></div></div>
+<div class="lms-daybox"><div class="lms-category-title">金曜日</div><div class="lms-flex-container"><div class="lms-card"><div class="courseCardInfo">6限<span class="term">後期</span></div><div class="lms-cardcontents"><div class="lms-cardname"><a onclick="formSubmit('KOG1')" href="/lms/homeHoml/doLinkKougi">Course</a></div></div></div></div></div>
+</div><script>function formSubmit(){}</script>`)
 		case "/lms/homeHoml/doLinkKougi":
 			requireHomeToken.Store(true)
 			// Navigation exposes the new URL before the document body is parsed.
@@ -135,8 +138,27 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	}
 	allowed.Store(false)
 	courses, err := browser.Courses(ctx)
-	if err != nil || len(courses) != 2 || courses[0].ID != "KOG1" {
+	if err != nil || len(courses.Courses) != 4 || courses.Courses[0].ID != "KOG1" {
 		t.Fatal("persistent authentication", courses, err)
+	}
+	for i, want := range []struct {
+		kind            string
+		weekday, period int64
+	}{{"scheduled", 1, 2}, {"scheduled", 1, 3}, {"other", 0, 0}, {"scheduled", 5, 6}} {
+		course := courses.Courses[i]
+		if courses.AcademicYear != 2026 || course.AcademicYear != 2026 || course.Type != want.kind {
+			t.Fatalf("course %d: incorrect year or kind: %+v", i, course)
+		}
+		if want.kind == "other" {
+			if course.Weekday != nil || course.Period != nil {
+				t.Fatal("other course retained a schedule", course)
+			}
+		} else if course.Weekday == nil || course.Period == nil || *course.Weekday != want.weekday || *course.Period != want.period {
+			t.Fatalf("course %d: incorrect schedule: %+v", i, course)
+		}
+	}
+	if courses.Courses[1].Availability != "unavailable" || courses.Courses[3].ID != "KOG1" {
+		t.Fatal("unavailable or duplicate course placement was lost", courses)
 	}
 	materials, err := browser.Materials(ctx, "KOG1")
 	if err != nil {

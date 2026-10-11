@@ -83,7 +83,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 		case "/lms":
 			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, portalURL)
 		case "/lms/homeHoml/doIndex":
-			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')">Course 1</a></div><div class="lms-cardname"><a onclick="formSubmit('KOG2')">Course 2</a></div></div><script>function formSubmit(id){location.href='/lms/homeHoml/doLinkKougi?id='+id}</script>`)
+			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')">Course 1</a></div><div class="lms-cardname"><a onclick="formSubmit('KOG2')">Course 2</a></div></div><script>function formSubmit(id){location.href='/lms/homeHoml/doLinkKougi?id='+id}</script>`)
 		case "/lms/homeHoml/doLinkKougi":
 			mu.Lock()
 			selected[session] = r.URL.Query().Get("id")

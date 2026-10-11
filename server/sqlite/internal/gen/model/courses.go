@@ -13,4 +13,7 @@ type Courses struct {
 	LmsCourseID  *string
 	Name         string
 	Availability string
+	Type         string
+	Weekday      *int64
+	Period       *int64
 }

@@ -6,7 +6,14 @@ it("orders future deadlines and excludes expired and sentinel values", () => {
   const assignment = (deadline: string): Schema["Assignment"] => ({
     lmsCourseId: "KOG1",
     folderName: "課題",
-    material: { lmsMaterialId: "M1", name: "課題", type: "report", publicationDeadline: deadline },
+    material: {
+      lmsMaterialId: "M1",
+      name: "課題",
+      type: "report",
+      status: "unknown",
+      publicationDeadline: deadline,
+      materialLinkAvailable: false,
+    },
   });
   const values = [
     "no-deadline",

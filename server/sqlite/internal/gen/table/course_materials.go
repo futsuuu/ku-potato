@@ -17,14 +17,17 @@ type courseMaterialsTable struct {
 	sqlite.Table
 
 	// Columns
-	RetrievalID          sqlite.ColumnInteger
-	Position             sqlite.ColumnInteger
-	FolderPosition       sqlite.ColumnInteger
-	LmsMaterialID        sqlite.ColumnString
-	Name                 sqlite.ColumnString
-	Type                 sqlite.ColumnString
-	PublicationDeadline  sqlite.ColumnString
-	ResourceAvailability sqlite.ColumnString
+	RetrievalID             sqlite.ColumnInteger
+	Position                sqlite.ColumnInteger
+	FolderPosition          sqlite.ColumnInteger
+	LmsMaterialID           sqlite.ColumnString
+	Name                    sqlite.ColumnString
+	Type                    sqlite.ColumnString
+	Status                  sqlite.ColumnString
+	MaterialLinkAvailable   sqlite.ColumnInteger
+	PublicationDeadlineKind sqlite.ColumnString
+	PublicationDeadlineAt   sqlite.ColumnInteger
+	ResourceAvailability    sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -66,31 +69,37 @@ func newCourseMaterialsTable(schemaName, tableName, alias string) *CourseMateria
 
 func newCourseMaterialsTableImpl(schemaName, tableName, alias string) courseMaterialsTable {
 	var (
-		RetrievalIDColumn          = sqlite.IntegerColumn("retrieval_id")
-		PositionColumn             = sqlite.IntegerColumn("position")
-		FolderPositionColumn       = sqlite.IntegerColumn("folder_position")
-		LmsMaterialIDColumn        = sqlite.StringColumn("lms_material_id")
-		NameColumn                 = sqlite.StringColumn("name")
-		TypeColumn                 = sqlite.StringColumn("type")
-		PublicationDeadlineColumn  = sqlite.StringColumn("publication_deadline")
-		ResourceAvailabilityColumn = sqlite.StringColumn("resource_availability")
-		allColumns                 = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, FolderPositionColumn, LmsMaterialIDColumn, NameColumn, TypeColumn, PublicationDeadlineColumn, ResourceAvailabilityColumn}
-		mutableColumns             = sqlite.ColumnList{FolderPositionColumn, LmsMaterialIDColumn, NameColumn, TypeColumn, PublicationDeadlineColumn, ResourceAvailabilityColumn}
-		defaultColumns             = sqlite.ColumnList{}
+		RetrievalIDColumn             = sqlite.IntegerColumn("retrieval_id")
+		PositionColumn                = sqlite.IntegerColumn("position")
+		FolderPositionColumn          = sqlite.IntegerColumn("folder_position")
+		LmsMaterialIDColumn           = sqlite.StringColumn("lms_material_id")
+		NameColumn                    = sqlite.StringColumn("name")
+		TypeColumn                    = sqlite.StringColumn("type")
+		StatusColumn                  = sqlite.StringColumn("status")
+		MaterialLinkAvailableColumn   = sqlite.IntegerColumn("material_link_available")
+		PublicationDeadlineKindColumn = sqlite.StringColumn("publication_deadline_kind")
+		PublicationDeadlineAtColumn   = sqlite.IntegerColumn("publication_deadline_at")
+		ResourceAvailabilityColumn    = sqlite.StringColumn("resource_availability")
+		allColumns                    = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, FolderPositionColumn, LmsMaterialIDColumn, NameColumn, TypeColumn, StatusColumn, MaterialLinkAvailableColumn, PublicationDeadlineKindColumn, PublicationDeadlineAtColumn, ResourceAvailabilityColumn}
+		mutableColumns                = sqlite.ColumnList{FolderPositionColumn, LmsMaterialIDColumn, NameColumn, TypeColumn, StatusColumn, MaterialLinkAvailableColumn, PublicationDeadlineKindColumn, PublicationDeadlineAtColumn, ResourceAvailabilityColumn}
+		defaultColumns                = sqlite.ColumnList{}
 	)
 
 	return courseMaterialsTable{
 		Table: sqlite.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		RetrievalID:          RetrievalIDColumn,
-		Position:             PositionColumn,
-		FolderPosition:       FolderPositionColumn,
-		LmsMaterialID:        LmsMaterialIDColumn,
-		Name:                 NameColumn,
-		Type:                 TypeColumn,
-		PublicationDeadline:  PublicationDeadlineColumn,
-		ResourceAvailability: ResourceAvailabilityColumn,
+		RetrievalID:             RetrievalIDColumn,
+		Position:                PositionColumn,
+		FolderPosition:          FolderPositionColumn,
+		LmsMaterialID:           LmsMaterialIDColumn,
+		Name:                    NameColumn,
+		Type:                    TypeColumn,
+		Status:                  StatusColumn,
+		MaterialLinkAvailable:   MaterialLinkAvailableColumn,
+		PublicationDeadlineKind: PublicationDeadlineKindColumn,
+		PublicationDeadlineAt:   PublicationDeadlineAtColumn,
+		ResourceAvailability:    ResourceAvailabilityColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

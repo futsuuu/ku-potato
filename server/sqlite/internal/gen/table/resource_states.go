@@ -17,16 +17,17 @@ type resourceStatesTable struct {
 	sqlite.Table
 
 	// Columns
-	LmsMaterialID     sqlite.ColumnString
-	LmsResourceID     sqlite.ColumnString
-	FileID            sqlite.ColumnString
-	OriginalFilename  sqlite.ColumnString
-	Sha256            sqlite.ColumnString
-	FileSize          sqlite.ColumnInteger
-	LastSucceededAt   sqlite.ColumnInteger
-	LastAttemptAt     sqlite.ColumnInteger
-	LastAttemptStatus sqlite.ColumnString
-	LastAttemptError  sqlite.ColumnString
+	LmsMaterialID            sqlite.ColumnString
+	LmsResourceID            sqlite.ColumnString
+	FileID                   sqlite.ColumnString
+	OriginalFilename         sqlite.ColumnString
+	Sha256                   sqlite.ColumnString
+	FileSize                 sqlite.ColumnInteger
+	SavedResourceRetrievalID sqlite.ColumnInteger
+	LastSucceededAt          sqlite.ColumnInteger
+	LastAttemptAt            sqlite.ColumnInteger
+	LastAttemptStatus        sqlite.ColumnString
+	LastAttemptError         sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -68,35 +69,37 @@ func newResourceStatesTable(schemaName, tableName, alias string) *ResourceStates
 
 func newResourceStatesTableImpl(schemaName, tableName, alias string) resourceStatesTable {
 	var (
-		LmsMaterialIDColumn     = sqlite.StringColumn("lms_material_id")
-		LmsResourceIDColumn     = sqlite.StringColumn("lms_resource_id")
-		FileIDColumn            = sqlite.StringColumn("file_id")
-		OriginalFilenameColumn  = sqlite.StringColumn("original_filename")
-		Sha256Column            = sqlite.StringColumn("sha256")
-		FileSizeColumn          = sqlite.IntegerColumn("file_size")
-		LastSucceededAtColumn   = sqlite.IntegerColumn("last_succeeded_at")
-		LastAttemptAtColumn     = sqlite.IntegerColumn("last_attempt_at")
-		LastAttemptStatusColumn = sqlite.StringColumn("last_attempt_status")
-		LastAttemptErrorColumn  = sqlite.StringColumn("last_attempt_error")
-		allColumns              = sqlite.ColumnList{LmsMaterialIDColumn, LmsResourceIDColumn, FileIDColumn, OriginalFilenameColumn, Sha256Column, FileSizeColumn, LastSucceededAtColumn, LastAttemptAtColumn, LastAttemptStatusColumn, LastAttemptErrorColumn}
-		mutableColumns          = sqlite.ColumnList{FileIDColumn, OriginalFilenameColumn, Sha256Column, FileSizeColumn, LastSucceededAtColumn, LastAttemptAtColumn, LastAttemptStatusColumn, LastAttemptErrorColumn}
-		defaultColumns          = sqlite.ColumnList{}
+		LmsMaterialIDColumn            = sqlite.StringColumn("lms_material_id")
+		LmsResourceIDColumn            = sqlite.StringColumn("lms_resource_id")
+		FileIDColumn                   = sqlite.StringColumn("file_id")
+		OriginalFilenameColumn         = sqlite.StringColumn("original_filename")
+		Sha256Column                   = sqlite.StringColumn("sha256")
+		FileSizeColumn                 = sqlite.IntegerColumn("file_size")
+		SavedResourceRetrievalIDColumn = sqlite.IntegerColumn("saved_resource_retrieval_id")
+		LastSucceededAtColumn          = sqlite.IntegerColumn("last_succeeded_at")
+		LastAttemptAtColumn            = sqlite.IntegerColumn("last_attempt_at")
+		LastAttemptStatusColumn        = sqlite.StringColumn("last_attempt_status")
+		LastAttemptErrorColumn         = sqlite.StringColumn("last_attempt_error")
+		allColumns                     = sqlite.ColumnList{LmsMaterialIDColumn, LmsResourceIDColumn, FileIDColumn, OriginalFilenameColumn, Sha256Column, FileSizeColumn, SavedResourceRetrievalIDColumn, LastSucceededAtColumn, LastAttemptAtColumn, LastAttemptStatusColumn, LastAttemptErrorColumn}
+		mutableColumns                 = sqlite.ColumnList{FileIDColumn, OriginalFilenameColumn, Sha256Column, FileSizeColumn, SavedResourceRetrievalIDColumn, LastSucceededAtColumn, LastAttemptAtColumn, LastAttemptStatusColumn, LastAttemptErrorColumn}
+		defaultColumns                 = sqlite.ColumnList{}
 	)
 
 	return resourceStatesTable{
 		Table: sqlite.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		LmsMaterialID:     LmsMaterialIDColumn,
-		LmsResourceID:     LmsResourceIDColumn,
-		FileID:            FileIDColumn,
-		OriginalFilename:  OriginalFilenameColumn,
-		Sha256:            Sha256Column,
-		FileSize:          FileSizeColumn,
-		LastSucceededAt:   LastSucceededAtColumn,
-		LastAttemptAt:     LastAttemptAtColumn,
-		LastAttemptStatus: LastAttemptStatusColumn,
-		LastAttemptError:  LastAttemptErrorColumn,
+		LmsMaterialID:            LmsMaterialIDColumn,
+		LmsResourceID:            LmsResourceIDColumn,
+		FileID:                   FileIDColumn,
+		OriginalFilename:         OriginalFilenameColumn,
+		Sha256:                   Sha256Column,
+		FileSize:                 FileSizeColumn,
+		SavedResourceRetrievalID: SavedResourceRetrievalIDColumn,
+		LastSucceededAt:          LastSucceededAtColumn,
+		LastAttemptAt:            LastAttemptAtColumn,
+		LastAttemptStatus:        LastAttemptStatusColumn,
+		LastAttemptError:         LastAttemptErrorColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

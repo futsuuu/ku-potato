@@ -6,6 +6,9 @@ export const materialTypes: Record<Schema["Material"]["type"], string> = {
   test: "テスト",
   questionnaire: "アンケート",
   "e-learning": "eラーニング",
+  board: "掲示板",
+  feedback: "フィードバック",
+  unknown: "不明",
 };
 export function formatDate(value: string) {
   if (value === "no-deadline") return "期限なし";
@@ -16,7 +19,7 @@ export function formatDate(value: string) {
     : new Intl.DateTimeFormat("ja-JP", {
         timeZone: "Asia/Tokyo",
         dateStyle: "medium",
-        timeStyle: "short",
+        ...(/^\d{4}-\d{2}-\d{2}$/.test(value) ? {} : { timeStyle: "short" as const }),
       }).format(date);
 }
 export function upcoming(assignments: Schema["Assignment"][], now: number) {

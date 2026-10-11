@@ -200,7 +200,9 @@ func (f *liveFixture) courseList(t *testing.T, ctx context.Context) []domain.Cou
 	t.Helper()
 	if f.courses == nil {
 		var err error
-		f.courses, err = f.browser.Courses(ctx)
+		var listing domain.CourseListing
+		listing, err = f.browser.Courses(ctx)
+		f.courses = listing.Courses
 		if err != nil {
 			t.Fatal("read course list", err)
 		}

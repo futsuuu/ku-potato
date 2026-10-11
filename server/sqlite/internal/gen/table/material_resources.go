@@ -22,7 +22,10 @@ type materialResourcesTable struct {
 	LmsResourceID sqlite.ColumnString
 	Name          sqlite.ColumnString
 	Type          sqlite.ColumnString
-	SourceKind    sqlite.ColumnString
+	Status        sqlite.ColumnString
+	RegisteredOn  sqlite.ColumnString
+	FirstViewedOn sqlite.ColumnString
+	Description   sqlite.ColumnString
 	URL           sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
@@ -70,10 +73,13 @@ func newMaterialResourcesTableImpl(schemaName, tableName, alias string) material
 		LmsResourceIDColumn = sqlite.StringColumn("lms_resource_id")
 		NameColumn          = sqlite.StringColumn("name")
 		TypeColumn          = sqlite.StringColumn("type")
-		SourceKindColumn    = sqlite.StringColumn("source_kind")
+		StatusColumn        = sqlite.StringColumn("status")
+		RegisteredOnColumn  = sqlite.StringColumn("registered_on")
+		FirstViewedOnColumn = sqlite.StringColumn("first_viewed_on")
+		DescriptionColumn   = sqlite.StringColumn("description")
 		URLColumn           = sqlite.StringColumn("url")
-		allColumns          = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, LmsResourceIDColumn, NameColumn, TypeColumn, SourceKindColumn, URLColumn}
-		mutableColumns      = sqlite.ColumnList{LmsResourceIDColumn, NameColumn, TypeColumn, SourceKindColumn, URLColumn}
+		allColumns          = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, LmsResourceIDColumn, NameColumn, TypeColumn, StatusColumn, RegisteredOnColumn, FirstViewedOnColumn, DescriptionColumn, URLColumn}
+		mutableColumns      = sqlite.ColumnList{LmsResourceIDColumn, NameColumn, TypeColumn, StatusColumn, RegisteredOnColumn, FirstViewedOnColumn, DescriptionColumn, URLColumn}
 		defaultColumns      = sqlite.ColumnList{}
 	)
 
@@ -86,7 +92,10 @@ func newMaterialResourcesTableImpl(schemaName, tableName, alias string) material
 		LmsResourceID: LmsResourceIDColumn,
 		Name:          NameColumn,
 		Type:          TypeColumn,
-		SourceKind:    SourceKindColumn,
+		Status:        StatusColumn,
+		RegisteredOn:  RegisteredOnColumn,
+		FirstViewedOn: FirstViewedOnColumn,
+		Description:   DescriptionColumn,
 		URL:           URLColumn,
 
 		AllColumns:     allColumns,

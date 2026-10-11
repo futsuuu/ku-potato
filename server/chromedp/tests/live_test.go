@@ -38,15 +38,32 @@ func TestLiveOperations(t *testing.T) {
 	f.run(t, "Courses", func(t *testing.T, ctx context.Context) {
 		courses := f.courseList(t, ctx)
 		again, err := f.browser.Courses(ctx)
-		if err != nil || !reflect.DeepEqual(courses, again) {
+		if err != nil || !reflect.DeepEqual(courses, again.Courses) {
 			t.Fatal("course list changed across page reuse", err)
 		}
+		counts := map[string]int{}
 		for _, course := range courses {
 			if course.Name == "" || (course.Availability == "available" && course.ID == "") {
 				t.Fatal("incomplete course metadata")
 			}
+			if course.AcademicYear != again.AcademicYear || course.AcademicYear < 1 {
+				t.Errorf("course %s: incorrect academic year", course.ID)
+			}
+			switch course.Type {
+			case "scheduled":
+				if course.Weekday == nil || *course.Weekday < 1 || *course.Weekday > 7 || course.Period == nil || *course.Period < 1 {
+					t.Errorf("course %s: incomplete schedule", course.ID)
+				}
+			case "other":
+				if course.Weekday != nil || course.Period != nil {
+					t.Errorf("course %s: other course retained a schedule", course.ID)
+				}
+			default:
+				t.Errorf("course %s: unrecognized course type %q; inspect the LMS schedule log", course.ID, course.Type)
+			}
+			counts[course.Type]++
 		}
-		t.Logf("read %d courses across requests", len(courses))
+		t.Logf("read %d courses across requests: %d scheduled, %d other, %d unknown", len(courses), counts["scheduled"], counts["other"], counts["unknown"])
 	})
 	f.run(t, "Materials", func(t *testing.T, ctx context.Context) {
 		course := f.availableCourse(t, ctx)

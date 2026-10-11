@@ -75,7 +75,7 @@ function ResourceRow(props: {
           class="app-button"
           disabled={
             operation.pending() ||
-            props.resource.type === "unsupported" ||
+            props.resource.type === "unknown" ||
             props.resource.availability === "archived"
           }
           onClick={() => void download()}

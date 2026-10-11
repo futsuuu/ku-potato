@@ -17,10 +17,11 @@ type courseMaterialFoldersTable struct {
 	sqlite.Table
 
 	// Columns
-	RetrievalID sqlite.ColumnInteger
-	Position    sqlite.ColumnInteger
-	Name        sqlite.ColumnString
-	ClassDate   sqlite.ColumnString
+	RetrievalID     sqlite.ColumnInteger
+	Position        sqlite.ColumnInteger
+	Name            sqlite.ColumnString
+	ClassDate       sqlite.ColumnString
+	DescriptionHTML sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -62,23 +63,25 @@ func newCourseMaterialFoldersTable(schemaName, tableName, alias string) *CourseM
 
 func newCourseMaterialFoldersTableImpl(schemaName, tableName, alias string) courseMaterialFoldersTable {
 	var (
-		RetrievalIDColumn = sqlite.IntegerColumn("retrieval_id")
-		PositionColumn    = sqlite.IntegerColumn("position")
-		NameColumn        = sqlite.StringColumn("name")
-		ClassDateColumn   = sqlite.StringColumn("class_date")
-		allColumns        = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, NameColumn, ClassDateColumn}
-		mutableColumns    = sqlite.ColumnList{NameColumn, ClassDateColumn}
-		defaultColumns    = sqlite.ColumnList{}
+		RetrievalIDColumn     = sqlite.IntegerColumn("retrieval_id")
+		PositionColumn        = sqlite.IntegerColumn("position")
+		NameColumn            = sqlite.StringColumn("name")
+		ClassDateColumn       = sqlite.StringColumn("class_date")
+		DescriptionHTMLColumn = sqlite.StringColumn("description_html")
+		allColumns            = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, NameColumn, ClassDateColumn, DescriptionHTMLColumn}
+		mutableColumns        = sqlite.ColumnList{NameColumn, ClassDateColumn, DescriptionHTMLColumn}
+		defaultColumns        = sqlite.ColumnList{}
 	)
 
 	return courseMaterialFoldersTable{
 		Table: sqlite.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		RetrievalID: RetrievalIDColumn,
-		Position:    PositionColumn,
-		Name:        NameColumn,
-		ClassDate:   ClassDateColumn,
+		RetrievalID:     RetrievalIDColumn,
+		Position:        PositionColumn,
+		Name:            NameColumn,
+		ClassDate:       ClassDateColumn,
+		DescriptionHTML: DescriptionHTMLColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

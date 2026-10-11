@@ -8,12 +8,15 @@
 package model
 
 type CourseMaterials struct {
-	RetrievalID          int64 `sql:"primary_key"`
-	Position             int64 `sql:"primary_key"`
-	FolderPosition       int64
-	LmsMaterialID        string
-	Name                 string
-	Type                 string
-	PublicationDeadline  string
-	ResourceAvailability string
+	RetrievalID             int64 `sql:"primary_key"`
+	Position                int64 `sql:"primary_key"`
+	FolderPosition          int64
+	LmsMaterialID           string
+	Name                    string
+	Type                    string
+	Status                  string
+	MaterialLinkAvailable   int64
+	PublicationDeadlineKind string
+	PublicationDeadlineAt   *int64
+	ResourceAvailability    string
 }

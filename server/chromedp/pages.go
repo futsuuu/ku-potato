@@ -4,8 +4,10 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,43 +25,76 @@ var materialsJS string
 var resourcesJS string
 
 var courseHandler = regexp.MustCompile(`\bformSubmit\(\s*["']([^"']+)["']`)
+var coursePeriod = regexp.MustCompile(`^([1-9][0-9]*)限$`)
 var materialIdentity = regexp.MustCompile(`^[A-Z]+\d+$`)
 var resourceIdentity = regexp.MustCompile(`^SRS\d+$`)
 var fileHandler = regexp.MustCompile(`downloadFile\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]*)['"]`)
 var windowHandler = regexp.MustCompile(`openWindow\s*\(\s*['"]([^'"]+)['"]`)
 var unknownHandler = regexp.MustCompile(`['"](SRS\d+)['"]`)
 
-func (b *Browser) readCourses(ctx context.Context) ([]domain.Course, error) {
+func (b *Browser) readCourses(ctx context.Context) (domain.CourseListing, error) {
+	listing := domain.CourseListing{}
 	if err := poll(ctx, b.homeExpression()); err != nil {
-		return nil, err
+		return listing, err
+	}
+	if err := cd.Run(ctx, cd.Evaluate(`Number(document.querySelector('select[name="nendo"]')?.value || 0)`, &listing.AcademicYear)); err != nil {
+		return listing, err
+	}
+	if listing.AcademicYear < 1 || listing.AcademicYear > 9999 {
+		return listing, domain.Fail("source", "HOMEの選択年度を取得できません。")
 	}
 	var entries []struct {
-		Name    string
-		Handler *string
-		Linked  bool
+		Name             string
+		Handler          *string
+		Linked           bool
+		Category, Period string
 	}
 	if err := cd.Run(ctx, cd.Evaluate(coursesJS, &entries)); err != nil {
-		return nil, err
+		return listing, err
 	}
 	courses := []domain.Course{}
-	seen := map[string]bool{}
 	for _, entry := range entries {
-		c := domain.Course{Name: entry.Name, Availability: "unavailable"}
+		c := domain.Course{Name: entry.Name, Availability: "unavailable", AcademicYear: listing.AcademicYear, Type: "unknown"}
 		if entry.Linked {
 			if entry.Handler == nil {
-				return nil, domain.Fail("source", "講義リンクのIDがありません。")
+				return listing, domain.Fail("source", "講義リンクのIDがありません。")
 			}
 			match := courseHandler.FindStringSubmatch(*entry.Handler)
-			if match == nil || seen[match[1]] {
-				return nil, domain.Fail("source", "講義IDが不正または重複しています。")
+			if match == nil {
+				return listing, domain.Fail("source", "講義IDが不正です。")
 			}
 			c.ID = match[1]
 			c.Availability = "available"
-			seen[c.ID] = true
 		}
+		kind, weekday, period, err := parseCourseSchedule(entry.Category, entry.Period)
+		if err != nil {
+			slog.Error("unrecognized LMS value", "id", c.ID, "field", "schedule", "category", entry.Category, "period", entry.Period)
+		}
+		c.Type, c.Weekday, c.Period = kind, weekday, period
 		courses = append(courses, c)
 	}
-	return courses, nil
+	listing.Courses = courses
+	return listing, nil
+}
+
+func parseCourseSchedule(category, period string) (string, *int64, *int64, error) {
+	if category == "その他" {
+		return "other", nil, nil, nil
+	}
+	weekday := int64(0)
+	for i, name := range []string{"月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"} {
+		if category == name {
+			weekday = int64(i + 1)
+			break
+		}
+	}
+	match := coursePeriod.FindStringSubmatch(period)
+	if weekday != 0 && match != nil {
+		if value, err := strconv.ParseInt(match[1], 10, 64); err == nil {
+			return "scheduled", &weekday, &value, nil
+		}
+	}
+	return "unknown", nil, nil, fmt.Errorf("unrecognized course schedule")
 }
 func (b *Browser) openCourse(ctx context.Context, id string) error {
 	var clicked bool
@@ -90,9 +125,9 @@ func (b *Browser) readMaterials(ctx context.Context, id string) (domain.CourseMa
 	result := domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}}
 	seen := map[string]bool{}
 	for _, raw := range folders {
-		date, err := parseDate(raw.Date)
+		date, err := parseCalendarDate(raw.Date)
 		if err != nil {
-			return result, err
+			slog.Error("unrecognized LMS value", "id", id, "field", "class_date", "value", raw.Date)
 		}
 		folder := domain.Folder{Name: raw.Name, ClassDate: date, Materials: []domain.Material{}}
 		for _, entry := range raw.Materials {
@@ -102,13 +137,15 @@ func (b *Browser) readMaterials(ctx context.Context, id string) (domain.CourseMa
 			seen[entry.ID] = true
 			kind, err := parseType(entry.Type)
 			if err != nil {
-				return result, err
+				slog.Error("unrecognized LMS value", "id", entry.ID, "field", "type", "value", entry.Type)
+				kind = "unknown"
 			}
 			deadline, err := parseDeadline(entry.Deadline)
 			if err != nil {
-				return result, err
+				slog.Error("unrecognized LMS value", "id", entry.ID, "field", "publication_deadline", "value", entry.Deadline)
+				deadline = "unknown"
 			}
-			m := domain.Material{ID: entry.ID, Name: entry.Name, Type: kind, PublicationDeadline: deadline}
+			m := domain.Material{ID: entry.ID, Name: entry.Name, Type: kind, PublicationDeadline: deadline, Status: "unknown", MaterialLinkAvailable: entry.Linked}
 			if kind == "material" {
 				m.ResourceAvailability = "unavailable"
 				if entry.Linked {
@@ -133,11 +170,26 @@ func parseType(raw string) (string, error) {
 		return "test", nil
 	case "Questionnaire", "アンケート":
 		return "questionnaire", nil
+	case "Board", "掲示板":
+		return "board", nil
+	case "Feedback", "フィードバック":
+		return "feedback", nil
 	}
 	return "", domain.Fail("source", "未対応の教材種別です。")
 }
 func optional(raw string) bool {
 	return raw == "" || strings.Trim(raw, "-‐‑‒–—―－ ") == ""
+}
+func parseCalendarDate(raw string) (string, error) {
+	if optional(raw) {
+		return "", nil
+	}
+	for _, layout := range []string{"2006/01/02", "2006-01-02"} {
+		if date, err := time.Parse(layout, raw); err == nil && date.Year() >= 1 {
+			return date.Format("2006-01-02"), nil
+		}
+	}
+	return "", domain.Fail("source", "LMSの日付を解析できません。")
 }
 func parseDate(raw string) (string, error) {
 	if optional(raw) {
@@ -192,7 +244,7 @@ func (b *Browser) readResources(ctx context.Context) ([]domain.Resource, error) 
 	resources := []domain.Resource{}
 	seen := map[string]bool{}
 	for _, entry := range entries {
-		r := domain.Resource{Name: entry.Name, SourceKind: entry.Kind, Type: "unsupported", Availability: "current"}
+		r := domain.Resource{Name: entry.Name, Type: "unknown", Availability: "current", Status: "unknown"}
 		for _, handler := range entry.Handlers {
 			if match := fileHandler.FindStringSubmatch(handler); match != nil {
 				r.ID = match[1]
@@ -232,6 +284,8 @@ func (b *Browser) readResources(ctx context.Context) ([]domain.Resource, error) 
 			if err := httpURL(r.URL); err != nil {
 				return nil, err
 			}
+		default:
+			slog.Error("unrecognized LMS value", "id", r.ID, "field", "type", "value", entry.Kind)
 		}
 		resources = append(resources, r)
 	}
@@ -250,15 +304,18 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 		return domain.Snapshot{}, err
 	}
 	ids := []string{}
+	seenCourses := map[string]bool{}
 	// Keep a successful listing observation even if a previously known material disappeared.
-	missing := domain.Snapshot{Courses: courses, MaterialID: material}
-	for _, c := range courses {
-		if c.ID == preferred && c.Availability == "available" {
+	missing := domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, MaterialID: material}
+	for _, c := range courses.Courses {
+		if c.ID == preferred && c.Availability == "available" && !seenCourses[c.ID] {
+			seenCourses[c.ID] = true
 			ids = append(ids, c.ID)
 		}
 	}
-	for _, c := range courses {
-		if c.ID != preferred && c.Availability == "available" {
+	for _, c := range courses.Courses {
+		if c.ID != preferred && c.Availability == "available" && !seenCourses[c.ID] {
+			seenCourses[c.ID] = true
 			ids = append(ids, c.ID)
 		}
 	}
@@ -281,7 +338,7 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 				if m.ID != material {
 					continue
 				}
-				snapshot := domain.Snapshot{Courses: courses, Materials: &materials, MaterialID: material}
+				snapshot := domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, Materials: &materials, MaterialID: material}
 				if m.Type != "material" || m.ResourceAvailability != "available" {
 					return snapshot, nil
 				}
@@ -301,7 +358,7 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 	}
 	return domain.Snapshot{}, domain.Fail("material-not-found", "教材が現在のLMS一覧にありません。保存済みデータを参照してください。")
 }
-func (b *Browser) Courses(ctx context.Context) (courses []domain.Course, err error) {
+func (b *Browser) Courses(ctx context.Context) (courses domain.CourseListing, err error) {
 	err = b.withPage(ctx, func(tab context.Context) error {
 		var e error
 		courses, e = b.readCourses(tab)
@@ -319,7 +376,7 @@ func (b *Browser) Materials(ctx context.Context, id string) (snapshot domain.Sna
 			return e
 		}
 		materials, e := b.readMaterials(tab, id)
-		snapshot = domain.Snapshot{Courses: courses, Materials: &materials}
+		snapshot = domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, Materials: &materials}
 		return e
 	})
 	return

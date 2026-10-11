@@ -42,26 +42,26 @@ func (s *source) check() error {
 	}
 	return nil
 }
-func (s *source) Courses(ctx context.Context) ([]domain.Course, error) {
+func (s *source) Courses(ctx context.Context) (domain.CourseListing, error) {
 	s.courseCalls.Add(1)
 	if s.release != nil {
 		select {
 		case <-s.release:
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return domain.CourseListing{}, ctx.Err()
 		}
 	}
 	if s.failCourses.Add(-1) >= 0 {
-		return nil, domain.Fail("source", "transient fixture error")
+		return domain.CourseListing{}, domain.Fail("source", "transient fixture error")
 	}
-	return []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}}, s.check()
+	return domain.CourseListing{AcademicYear: 2026, Courses: []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}}}, s.check()
 }
 func (s *source) Materials(ctx context.Context, id string) (domain.Snapshot, error) {
 	if id == "KOG2" {
 		return domain.Snapshot{}, domain.Fail("course-not-found", "missing course fixture")
 	}
 	courses, err := s.Courses(ctx)
-	return domain.Snapshot{Courses: courses, Materials: &domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1", Type: "material"}, {ID: "REP1", Type: "report"}}}}}}, err
+	return domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, Materials: &domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1", Type: "material"}, {ID: "REP1", Type: "report"}}}}}}, err
 }
 func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, error) {
 	snapshot, err := s.Materials(ctx, "KOG1")

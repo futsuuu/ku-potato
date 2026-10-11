@@ -40,7 +40,7 @@ func (a *Application) parallelMaterials(ctx context.Context, ids []string) (doma
 				id := ids[i]
 				snapshot, err := a.source.Materials(ctx, id)
 				if err == nil {
-					err = a.append(ctx, snapshot)
+					_, err = a.append(ctx, snapshot)
 				}
 				if err != nil {
 					var failure *domain.Error

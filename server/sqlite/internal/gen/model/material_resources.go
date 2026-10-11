@@ -13,6 +13,9 @@ type MaterialResources struct {
 	LmsResourceID string
 	Name          string
 	Type          string
-	SourceKind    string
+	Status        string
+	RegisteredOn  *string
+	FirstViewedOn *string
+	Description   *string
 	URL           string
 }

@@ -22,6 +22,9 @@ type coursesTable struct {
 	LmsCourseID  sqlite.ColumnString
 	Name         sqlite.ColumnString
 	Availability sqlite.ColumnString
+	Type         sqlite.ColumnString
+	Weekday      sqlite.ColumnInteger
+	Period       sqlite.ColumnInteger
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -68,8 +71,11 @@ func newCoursesTableImpl(schemaName, tableName, alias string) coursesTable {
 		LmsCourseIDColumn  = sqlite.StringColumn("lms_course_id")
 		NameColumn         = sqlite.StringColumn("name")
 		AvailabilityColumn = sqlite.StringColumn("availability")
-		allColumns         = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, LmsCourseIDColumn, NameColumn, AvailabilityColumn}
-		mutableColumns     = sqlite.ColumnList{LmsCourseIDColumn, NameColumn, AvailabilityColumn}
+		TypeColumn         = sqlite.StringColumn("type")
+		WeekdayColumn      = sqlite.IntegerColumn("weekday")
+		PeriodColumn       = sqlite.IntegerColumn("period")
+		allColumns         = sqlite.ColumnList{RetrievalIDColumn, PositionColumn, LmsCourseIDColumn, NameColumn, AvailabilityColumn, TypeColumn, WeekdayColumn, PeriodColumn}
+		mutableColumns     = sqlite.ColumnList{LmsCourseIDColumn, NameColumn, AvailabilityColumn, TypeColumn, WeekdayColumn, PeriodColumn}
 		defaultColumns     = sqlite.ColumnList{}
 	)
 
@@ -82,6 +88,9 @@ func newCoursesTableImpl(schemaName, tableName, alias string) coursesTable {
 		LmsCourseID:  LmsCourseIDColumn,
 		Name:         NameColumn,
 		Availability: AvailabilityColumn,
+		Type:         TypeColumn,
+		Weekday:      WeekdayColumn,
+		Period:       PeriodColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

@@ -104,8 +104,10 @@ func (a *Application) Assignments(ctx context.Context, ids []string, policy stri
 			if err != nil {
 				return domain.AssignmentsResult{}, err
 			}
+			seen := map[string]bool{}
 			for _, c := range courses {
-				if c.ID != "" {
+				if c.ID != "" && !seen[c.ID] {
+					seen[c.ID] = true
 					selected = append(selected, c.ID)
 				}
 			}

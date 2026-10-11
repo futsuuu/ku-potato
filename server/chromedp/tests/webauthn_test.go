@@ -58,7 +58,7 @@ func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 			}
 			fmt.Fprint(w, "ok")
 		case "/lms/homeHoml/doIndex":
-			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"></div>`)
+			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"></div>`)
 		case "/user/":
 			registered := false
 			label := "Device"
