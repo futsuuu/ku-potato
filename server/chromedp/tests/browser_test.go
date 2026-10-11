@@ -19,20 +19,17 @@ import (
 
 func chrome(t *testing.T) string {
 	t.Helper()
-	if path := os.Getenv("CHROME_PATH"); path != "" {
-		return path
-	}
 	for _, name := range []string{"google-chrome", "chromium", "chromium-browser", "msedge", "chrome"} {
 		if path, err := exec.LookPath(name); err == nil {
 			return path
 		}
 	}
-	for _, path := range []string{`C:\Program Files\Google\Chrome\Application\chrome.exe`, `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`} {
+	for _, path := range []string{filepath.Join(os.Getenv("LOCALAPPDATA"), "Google", "Chrome", "Application", "chrome.exe"), `C:\Program Files\Google\Chrome\Application\chrome.exe`, `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`} {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}
 	}
-	t.Skip("Chrome unavailable; set CHROME_PATH to run browser integration tests")
+	t.Skip("Chrome unavailable")
 	return ""
 }
 func TestBrowserAgainstLocalLMS(t *testing.T) {

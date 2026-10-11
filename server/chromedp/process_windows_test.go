@@ -3,6 +3,7 @@ package chromedp
 import (
 	"bytes"
 	"context"
+	"flag"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,8 +18,9 @@ import (
 )
 
 func TestChromeStopsWhenDetachedOwnerIsKilled(t *testing.T) {
-	if dir := os.Getenv("KU_POTATO_BROWSER_OWNER_TEST_DIR"); dir != "" {
-		b, err := New(Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: os.Getenv("CHROME_PATH")})
+	if args := flag.Args(); len(args) == 2 {
+		dir := args[0]
+		b, err := New(Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: args[1]})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,8 +45,7 @@ func TestChromeStopsWhenDetachedOwnerIsKilled(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, binary, "-test.run=^TestChromeStopsWhenDetachedOwnerIsKilled$", "-test.timeout=40s")
-	command.Env = append(os.Environ(), "KU_POTATO_BROWSER_OWNER_TEST_DIR="+dir, "CHROME_PATH="+executable)
+	command := exec.CommandContext(ctx, binary, "-test.run=^TestChromeStopsWhenDetachedOwnerIsKilled$", "-test.timeout=40s", "--", dir, executable)
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x00000008 | 0x00000200}
 	var output bytes.Buffer
 	command.Stdout, command.Stderr = &output, &output

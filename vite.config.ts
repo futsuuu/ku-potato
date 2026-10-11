@@ -42,8 +42,12 @@ export default defineConfig({
         cache: false,
       },
       test: {
-        command: "go test ./server/... ./desktop/...",
+        command: "go test -count=1 ./server/... ./desktop/...",
         dependsOn: ["frontend:build", "frontend:test"],
+        cache: false,
+      },
+      "server:live-test": {
+        command: "go test ./server/chromedp/tests -run TestLiveOperations -count=1 -v",
         cache: false,
       },
       check: {

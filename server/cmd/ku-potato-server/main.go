@@ -41,7 +41,7 @@ func run() error {
 	cache := flag.String("cache-dir", defaults.Cache, "disposable browser cache directory")
 	temp := flag.String("temp-dir", defaults.Temp, "parent directory for per-process temporary files")
 	parallel := flag.Int("concurrency", 4, "maximum parallel browser contexts and job workers")
-	executable := flag.String("chrome", os.Getenv("CHROME_PATH"), "Chrome or Chromium executable path")
+	executable := flag.String("chrome", "", "Chrome or Chromium executable path")
 	timeout := flag.Duration("job-timeout", 2*time.Minute, "non-interactive job timeout")
 	flag.Parse()
 	if *timeout <= 0 {

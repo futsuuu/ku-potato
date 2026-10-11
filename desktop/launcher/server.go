@@ -98,9 +98,6 @@ func probe(ctx context.Context, endpoint string) (bool, error) {
 }
 
 func findBinary() (string, error) {
-	if override := os.Getenv("KU_POTATO_SERVER_BINARY"); override != "" {
-		return filepath.Abs(override)
-	}
 	name := "ku-potato-server"
 	if runtime.GOOS == "windows" {
 		name += ".exe"

@@ -29,47 +29,34 @@ type liveFixture struct {
 
 func newLiveFixture(t *testing.T) *liveFixture {
 	t.Helper()
-	if os.Getenv("KU_POTATO_LIVE_TESTS") == "0" {
-		t.Skip("live tests disabled by KU_POTATO_LIVE_TESTS=0")
+	if testing.Short() {
+		t.Skip("live tests disabled by -short")
 	}
 	defaults, err := platform.DefaultDirectories()
 	if err != nil {
 		t.Fatal("resolve authentication directory", err)
 	}
-	state := os.Getenv("KU_POTATO_SERVER_TEST_STATE_DIR")
-	if state == "" {
-		state = defaults.State
-	}
-	if !filepath.IsAbs(state) {
-		t.Fatal("KU_POTATO_SERVER_TEST_STATE_DIR must be an absolute state directory")
-	}
+	state := defaults.State
 	source := filepath.Join(state, "auth")
 	if _, err := os.Stat(source); os.IsNotExist(err) {
-		liveUnavailable(t, "no saved server authentication")
+		t.Skip("no saved server authentication")
 	} else if err != nil {
 		t.Fatal("read authentication directory", err)
 	}
-	// The server locks its default state directory even with custom state flags.
-	lockDirs := []string{defaults.State}
-	if !sameDirectory(state, defaults.State) {
-		lockDirs = append(lockDirs, state)
+	if err := os.MkdirAll(state, 0700); err != nil {
+		t.Fatal("create authentication lock directory", err)
 	}
-	for _, dir := range lockDirs {
-		if err := os.MkdirAll(dir, 0700); err != nil {
-			t.Fatal("create authentication lock directory", err)
-		}
-		lock := flock.New(filepath.Join(dir, "server.lock"))
-		locked, err := lock.TryLock()
-		if err != nil {
-			lock.Close()
-			t.Fatal("lock authentication state", err)
-		}
-		if !locked {
-			lock.Close()
-			liveUnavailable(t, "server is running; stop it to run live tests")
-		}
-		t.Cleanup(func() { lock.Close() })
+	lock := flock.New(filepath.Join(state, "server.lock"))
+	locked, err := lock.TryLock()
+	if err != nil {
+		lock.Close()
+		t.Fatal("lock authentication state", err)
 	}
+	if !locked {
+		lock.Close()
+		t.Skip("server is running; stop it to run live tests")
+	}
+	t.Cleanup(func() { lock.Close() })
 	bodies := map[string][]byte{}
 	for _, name := range []string{"cookies.json", "webauthn.json"} {
 		body, err := os.ReadFile(filepath.Join(source, name))
@@ -86,7 +73,7 @@ func newLiveFixture(t *testing.T) *liveFixture {
 		t.Fatal("invalid saved cookie snapshot")
 	}
 	if bodies["webauthn.json"] == nil && len(cookies.Cookies) == 0 {
-		liveUnavailable(t, "no saved server cookies or WebAuthn credentials")
+		t.Skip("no saved server cookies or WebAuthn credentials")
 	}
 	f := &liveFixture{
 		source: source, auth: t.TempDir(), downloads: t.TempDir(), hasKey: bodies["webauthn.json"] != nil,
@@ -113,14 +100,6 @@ func newLiveFixture(t *testing.T) *liveFixture {
 		f.browser.Close()
 	})
 	return f
-}
-
-func liveUnavailable(t *testing.T, reason string) {
-	t.Helper()
-	if os.Getenv("KU_POTATO_LIVE_TESTS") == "1" {
-		t.Fatal(reason)
-	}
-	t.Skip(reason)
 }
 
 func sameDirectory(a, b string) bool {
