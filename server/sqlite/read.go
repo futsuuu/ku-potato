@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/futsuuu/ku-potato/server/domain"
 	"github.com/futsuuu/ku-potato/server/sqlite/internal/gen/model"
@@ -107,6 +108,29 @@ func materialHistory(ctx context.Context, db qrm.DB, course string, accessible b
 	return rows, err
 }
 
+// Listing observations do not mean a material's contents have been fetched.
+func materialContentTimes(ctx context.Context, db qrm.DB, course string) (map[string]*time.Time, error) {
+	t, cr := table.CourseMaterials, table.CourseMaterialRetrievals
+	ids := t.SELECT(t.LmsMaterialID).FROM(t.INNER_JOIN(cr, t.RetrievalID.EQ(cr.ID))).
+		WHERE(cr.LmsCourseID.EQ(sqlite.String(course)))
+	r := table.MaterialResourceRetrievals
+	var rows []struct {
+		MaterialID string
+		FetchedAt  int64
+	}
+	err := r.SELECT(r.LmsMaterialID.AS("material_id"), r.FetchedAt.AS("fetched_at")).
+		WHERE(sqlite.ROW(r.LmsMaterialID, r.ID).IN(r.SELECT(r.LmsMaterialID, sqlite.MAX(r.ID)).
+			WHERE(r.LmsMaterialID.IN(ids)).GROUP_BY(r.LmsMaterialID))).QueryContext(ctx, db, &rows)
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]*time.Time{}
+	for _, row := range rows {
+		result[row.MaterialID] = millisTime(&row.FetchedAt)
+	}
+	return result, nil
+}
+
 func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterials, error) {
 	result := domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}}
 	r := table.CourseMaterialRetrievals
@@ -147,24 +171,30 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 	for _, row := range accessible {
 		byID[row.LmsMaterialID] = row
 	}
+	contentTimes, err := materialContentTimes(ctx, db, id)
+	if err != nil {
+		return result, err
+	}
 	for _, row := range rows {
 		observation := row.CourseMaterials
 		content := observation
-		fetchedAt := row.FetchedAt
 		private := observation.ResourceAvailability == "unavailable" || observation.PublicationDeadlineKind == "closed"
 		if private {
 			// Preserve the last accessible metadata, while exposing the latest public state.
 			if prior, ok := byID[observation.LmsMaterialID]; ok {
 				content = prior.CourseMaterials
-				fetchedAt = prior.FetchedAt
 			}
+		}
+		var fetchedAt *time.Time
+		if content.Type == "material" {
+			fetchedAt = contentTimes[content.LmsMaterialID]
 		}
 		material := domain.Material{
 			ID: content.LmsMaterialID, Name: content.Name, Type: content.Type,
 			PublicationDeadline: displayedDeadline(content.PublicationDeadlineKind, content.PublicationDeadlineAt), ResourceAvailability: observation.ResourceAvailability,
 			PublicationDeadlineKind: content.PublicationDeadlineKind, PublicationDeadlineAt: millisTime(content.PublicationDeadlineAt),
 			Status: observation.Status, MaterialLinkAvailable: observation.MaterialLinkAvailable != 0,
-			FetchedAt: millisTime(&fetchedAt),
+			FetchedAt: fetchedAt,
 			Archived:  courseArchived || observation.RetrievalID != latest || private,
 		}
 		index, current := currentFolders[observation.FolderPosition]

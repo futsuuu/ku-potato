@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/futsuuu/ku-potato/server/domain"
 )
@@ -271,8 +272,96 @@ func TestEmptyAndNeverFetchedListsRemainDistinct(t *testing.T) {
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if detail, err := s.Detail(ctx, "SRY1"); err != nil || len(detail.Resources) != 0 {
+	if detail, err := s.Detail(ctx, "SRY1"); err != nil || len(detail.Resources) != 0 || detail.Material.FetchedAt != nil {
 		t.Fatal(detail, err)
+	}
+}
+
+func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	snapshot := archiveSnapshot()
+	snapshot.Resources = nil
+	snapshot.Materials.Folders[0].Materials = append(snapshot.Materials.Folders[0].Materials,
+		domain.Material{ID: "REP1", Type: "report", PublicationDeadline: "no-deadline"})
+	if _, err := s.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	listing, err := s.Materials(ctx, "KOG1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, material := range listing.Folders[0].Materials {
+		if material.FetchedAt != nil {
+			t.Fatalf("listing-only material has a content timestamp: %#v", material)
+		}
+	}
+	// Even an empty resource list is a successfully fetched material detail.
+	if _, err := s.Append(ctx, domain.Snapshot{MaterialID: "SRY1", Resources: []domain.Resource{}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Append(ctx, domain.Snapshot{MaterialID: "REP1", Report: &domain.ReportDetail{}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec("UPDATE material_resource_retrievals SET fetched_at=1000"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec("UPDATE report_detail_retrievals SET fetched_at=2000"); err != nil {
+		t.Fatal(err)
+	}
+	for _, private := range []bool{false, true} {
+		for i := range snapshot.Materials.Folders[0].Materials {
+			if private {
+				snapshot.Materials.Folders[0].Materials[i].ResourceAvailability = "unavailable"
+			}
+		}
+		if _, err := s.Append(ctx, snapshot); err != nil {
+			t.Fatal(err)
+		}
+		listing, err = s.Materials(ctx, "KOG1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, material := range listing.Folders[0].Materials {
+			if material.Type == "report" {
+				if material.FetchedAt != nil {
+					t.Fatalf("report claims fetched material contents: %#v", material)
+				}
+				continue
+			}
+			want := time.UnixMilli(1000)
+			if material.FetchedAt == nil || !material.FetchedAt.Equal(want) || material.Archived != private {
+				t.Fatalf("listing replaced content acquisition state: %#v, want %v", material, want)
+			}
+		}
+	}
+}
+
+func TestUnsupportedMaterialTypesDoNotClaimFetchedContents(t *testing.T) {
+	for _, kind := range []string{"report", "test", "questionnaire", "e-learning", "board", "feedback", "unknown"} {
+		t.Run(kind, func(t *testing.T) {
+			s := newStore(t)
+			ctx := context.Background()
+			snapshot := archiveSnapshot()
+			snapshot.Materials.Folders[0].Materials[0].Type = kind
+			// Legacy resource observations must not stand in for unsupported content.
+			if _, err := s.Append(ctx, snapshot); err != nil {
+				t.Fatal(err)
+			}
+			snapshot.Resources = nil
+			snapshot.Materials.Folders[0].Materials[0].ResourceAvailability = "unavailable"
+			if _, err := s.Append(ctx, snapshot); err != nil {
+				t.Fatal(err)
+			}
+			listing, err := s.Materials(ctx, "KOG1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			material := listing.Folders[0].Materials[0]
+			if !material.Archived || material.FetchedAt != nil {
+				t.Fatalf("unsupported material claims fetched contents: %#v", material)
+			}
+		})
 	}
 }
 
