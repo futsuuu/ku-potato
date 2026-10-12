@@ -1,0 +1,101 @@
+import { createEffect, For, Show } from "solid-js";
+import { useParams } from "@solidjs/router";
+import type { Result, Sync } from "../../../api";
+import { formatDate } from "../../../format";
+import { createOperation } from "../../../operation";
+import { decodeRouteParam, materialPath, useWorkspace } from "../../../workspace";
+import MaterialInfo from "../../../MaterialInfo";
+import MaterialName from "../../../MaterialName";
+import PageHeader from "../../../PageHeader";
+import ParentLink from "../../../ParentLink";
+import Progress from "../../../Progress";
+
+export default function Materials() {
+  const workspace = useWorkspace();
+  const params = useParams<{ courseId: string }>();
+  const courseId = () => decodeRouteParam(params.courseId);
+  const materials = createOperation<Result<"listMaterials">>();
+  const load = (id: string, sync: Sync) =>
+    materials.run((observe) => workspace.api.materials(id, sync, observe));
+  createEffect(courseId, (id) => {
+    materials.clear();
+    void load(id, "auto");
+  });
+  return (
+    <>
+      <PageHeader title={workspace.courseName(courseId())}>
+        <button
+          class="app-button"
+          disabled={materials.pending()}
+          onClick={() => void load(courseId(), "true")}
+        >
+          <span class="i-lucide-refresh-cw" aria-hidden="true" />
+          教材を同期
+        </button>
+      </PageHeader>
+      <div class="page-content">
+        <ParentLink href="/" label="講義一覧" />
+        <div class="section-intro">
+          <h2>教材一覧</h2>
+          <span class="meta tnum">{materials.data()?.folders?.length ?? 0}件のフォルダ</span>
+        </div>
+        <Progress
+          pending={materials.pending()}
+          error={materials.error()}
+          status={materials.status()}
+        />
+        <For
+          each={materials.data()?.folders ?? []}
+          fallback={
+            <p class="empty">
+              {materials.pending() ? "教材を読み込んでいます。" : "教材がありません。"}
+            </p>
+          }
+        >
+          {(folder) => (
+            <section class="folder-section">
+              <div class="folder-heading">
+                <h3>{folder.name}</h3>
+                <Show when={folder.classDate}>
+                  <small class="meta tnum">授業日: {formatDate(folder.classDate!)}</small>
+                </Show>
+              </div>
+              <ul class="list">
+                <For
+                  each={folder.materials ?? []}
+                  fallback={<li class="empty">このフォルダに教材はありません。</li>}
+                >
+                  {(material) => (
+                    <li>
+                      <Show
+                        when={material.type === "material" || material.type === "report"}
+                        fallback={
+                          <div class="item-link">
+                            <div class="item-content">
+                              <MaterialName material={material} />
+                              <MaterialInfo material={material} />
+                            </div>
+                          </div>
+                        }
+                      >
+                        <a
+                          class="item-link"
+                          href={materialPath(courseId(), material.lmsMaterialId)}
+                        >
+                          <div class="item-content">
+                            <MaterialName material={material} />
+                            <MaterialInfo material={material} />
+                          </div>
+                        </a>
+                      </Show>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </section>
+          )}
+        </For>
+      </div>
+    </>
+  );
+}

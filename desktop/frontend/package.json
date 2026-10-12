@@ -3,14 +3,19 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@solidjs/router": "2.0.0-next.38",
     "@solidjs/web": "2.0.0-rc.14",
+    "dompurify": "^3.4.16",
+    "gen-interface-jp": "0.8.0",
     "openapi-fetch": "0.17.0",
     "solid-js": "2.0.0-rc.14"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "1.2.142",
     "@ku-potato/api-codegen": "workspace:*",
     "@solidjs/vite-plugin": "3.0.0-next.49",
     "@types/node": "^24.0.0",
+    "filesystem-routing": "0.4.0",
     "jsdom": "^30.1.2",
     "unocss": "^66.10.5"
   }

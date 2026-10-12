@@ -12,7 +12,7 @@ export default function Progress(props: { pending: boolean; error: string; statu
             {props.status?.progress ? stages[props.status.progress.stage] : "読み込み中"}
           </span>
           <Show when={(props.status?.progress?.total ?? 0) > 0}>
-            <span>
+            <span class="tnum">
               {props.status?.progress?.completed} / {props.status?.progress?.total}
             </span>
           </Show>
