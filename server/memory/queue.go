@@ -1,4 +1,4 @@
-// Package memory implements the process-local job queue.
+// Package memory implements process-local adapters.
 package memory
 
 import (
