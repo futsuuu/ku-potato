@@ -32,8 +32,11 @@ type source struct {
 	path            string
 }
 
-func (s *source) Login(context.Context, bool) error    { s.authenticated.Store(true); return nil }
-func (s *source) Logout(context.Context) error         { s.authenticated.Store(false); return nil }
+func (s *source) Login(context.Context, bool) error { s.authenticated.Store(true); return nil }
+func (s *source) WebAuthn(context.Context) (domain.RegistrationResult, error) {
+	return domain.RegistrationResult{Registered: false}, nil
+}
+func (s *source) DeleteWebAuthn(context.Context) error { return nil }
 func (s *source) Register(context.Context, bool) error { return nil }
 func (s *source) Status(context.Context) (bool, error) { return s.authenticated.Load(), nil }
 func (s *source) check() error {
@@ -101,7 +104,7 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	fake := &source{path: filepath.Join(dir, "staging")}
-	app := core.New(fake, store, store, memory.NewQueue(), files, time.Second, 4)
+	app := core.New(fake, store, memory.NewAuthenticationState(), memory.NewQueue(), files, time.Second, 4)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
@@ -267,9 +270,9 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	if res := request("GET", downloadResult.DownloadURL, ""); res.Code != 200 || res.Body.String() != "saved bytes" {
 		t.Fatal("private material file became inaccessible", res.Code, res.Body)
 	}
-	loggedOut := wait(request("DELETE", "/auth", ""))
-	if loggedOut.Status != "succeeded" || !bytes.Contains(loggedOut.Result, []byte(`"status":"unauthenticated"`)) {
-		t.Fatal(loggedOut)
+	deletedWebAuthn := wait(request("DELETE", "/auth/webauthn", ""))
+	if deletedWebAuthn.Status != "succeeded" || !bytes.Contains(deletedWebAuthn.Result, []byte(`"registered":false`)) {
+		t.Fatal(deletedWebAuthn)
 	}
 	if res = request("POST", "/jobs", `{"kind":"unknown"}`); res.Code != 404 {
 		t.Fatal(res.Code)
@@ -287,7 +290,7 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		t.Fatal(res.Code)
 	}
 	for _, headers := range []map[string]string{{"Host": "attacker.example:8787"}, {"Origin": "https://attacker.example"}, {"Sec-Fetch-Site": "cross-site"}} {
-		req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8787/jobs", strings.NewReader(`{"kind":"logout"}`))
+		req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8787/jobs", strings.NewReader(`{"kind":"unknown"}`))
 		req.Header.Set("Content-Type", "application/json")
 		for key, value := range headers {
 			if key == "Host" {

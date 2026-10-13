@@ -52,6 +52,13 @@ func (s *operationService) Register(ctx context.Context, interactive bool, p inp
 	s.submitted = append(s.submitted, domain.Request{Kind: "register-webauthn", Interactive: interactive})
 	return domain.RegistrationResult{Registered: true}, nil
 }
+func (s *operationService) WebAuthn(context.Context) (domain.RegistrationResult, error) {
+	return domain.RegistrationResult{Registered: true}, nil
+}
+func (s *operationService) DeleteWebAuthn(context.Context, inport.Progress) (domain.RegistrationResult, error) {
+	s.submitted = append(s.submitted, domain.Request{Kind: "delete-webauthn"})
+	return domain.RegistrationResult{Registered: false}, nil
+}
 
 func apiRequest(handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, "http://127.0.0.1:8787"+path, strings.NewReader(body))
@@ -88,6 +95,19 @@ func TestHumaInputsAndQueryResponses(t *testing.T) {
 		request := service.submitted[len(service.submitted)-1]
 		if res.Code != 200 || res.Header().Get("Location") != "" || request.Kind != check.kind || !request.Interactive {
 			t.Fatal(res.Code, request, res.Body)
+		}
+	}
+	res = apiRequest(handler, http.MethodGet, "/auth/webauthn", "")
+	if res.Code != 200 || !strings.Contains(res.Body.String(), `"registered":true`) {
+		t.Fatal("WebAuthn state missing", res.Code, res.Body)
+	}
+	res = apiRequest(handler, http.MethodDelete, "/auth/webauthn", "")
+	if res.Code != 200 || !strings.Contains(res.Body.String(), `"registered":false`) || service.submitted[len(service.submitted)-1].Kind != "delete-webauthn" {
+		t.Fatal("WebAuthn deletion missing", res.Code, res.Body)
+	}
+	for _, path := range []string{"/auth", "/auth/google"} {
+		if res = apiRequest(handler, http.MethodDelete, path, ""); res.Code != http.StatusNotFound {
+			t.Fatal("provider logout still available", path, res.Code)
 		}
 	}
 	if res = apiRequest(handler, http.MethodGet, "/v1/courses", ""); res.Code != 404 {

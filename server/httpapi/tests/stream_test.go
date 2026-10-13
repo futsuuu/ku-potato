@@ -26,7 +26,7 @@ func streamingServer(t *testing.T, source *source) *httptest.Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	app := core.New(source, store, store, memory.NewQueue(), nil, 5*time.Second, 2)
+	app := core.New(source, store, memory.NewAuthenticationState(), memory.NewQueue(), nil, 5*time.Second, 2)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()

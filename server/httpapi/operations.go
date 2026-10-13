@@ -83,12 +83,17 @@ func (h *Handler) register(api huma.API) {
 	registerStream(api, huma.Operation{OperationID: "registerWebAuthn", Method: http.MethodPost, Path: "/auth/webauthn", Summary: "Register virtual WebAuthn credential"}, func(ctx context.Context, input *AuthInput, p inport.Progress) (domain.RegistrationResult, error) {
 		return h.service.Register(ctx, input.Body.Interactive, p)
 	})
+	register(api, huma.Operation{OperationID: "getWebAuthn", Method: http.MethodGet, Path: "/auth/webauthn", Summary: "Read saved WebAuthn credential state"}, func(ctx context.Context, input *struct{}) (*dataResponse[domain.RegistrationResult], error) {
+		state, err := h.service.WebAuthn(ctx)
+		return &dataResponse[domain.RegistrationResult]{Body: dataBody[domain.RegistrationResult]{Data: state}}, failure(err)
+	})
+	registerStream(api, huma.Operation{OperationID: "deleteWebAuthn", Method: http.MethodDelete, Path: "/auth/webauthn", Summary: "Delete saved WebAuthn credential"}, func(ctx context.Context, input *struct{}, p inport.Progress) (domain.RegistrationResult, error) {
+		return h.service.DeleteWebAuthn(ctx, p)
+	})
 	registerStream(api, huma.Operation{OperationID: "checkAuthentication", Method: http.MethodPost, Path: "/auth/check", Summary: "Check LMS authentication"}, func(ctx context.Context, input *struct{}, p inport.Progress) (domain.AuthState, error) {
 		return h.service.CheckAuth(ctx, p)
 	})
-	registerStream(api, huma.Operation{OperationID: "logout", Method: http.MethodDelete, Path: "/auth", Summary: "Remove local authentication"}, func(ctx context.Context, input *struct{}, p inport.Progress) (domain.AuthState, error) {
-		return h.service.Logout(ctx, p)
-	})
+	h.registerGoogle(api)
 	registerStream(api, huma.Operation{OperationID: "listCourses", Method: http.MethodGet, Path: "/courses", Summary: "Read or synchronize courses"}, func(ctx context.Context, input *QueryInput, p inport.Progress) ([]domain.Course, error) {
 		return h.service.Courses(ctx, input.Sync, p)
 	})
