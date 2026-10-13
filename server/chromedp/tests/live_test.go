@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"crypto/sha256"
 	"io"
 	"os"
 	"path/filepath"
@@ -115,9 +114,9 @@ func TestLiveOperations(t *testing.T) {
 			t.Fatal("open downloaded file", err)
 		}
 		defer file.Close()
-		size, err := io.Copy(sha256.New(), file)
-		if err != nil {
-			t.Fatal("read downloaded bytes", err)
+		size, err := io.Copy(io.Discard, file)
+		if err != nil || size == 0 {
+			t.Fatal("downloaded file is empty or unreadable", size, err)
 		}
 		t.Logf("downloaded and read %d bytes", size)
 	})

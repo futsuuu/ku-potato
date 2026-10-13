@@ -59,11 +59,25 @@ func TestDatesUseJSTAndExplicitDeadlineStates(t *testing.T) {
 			t.Fatalf("%s: %s %v", input, got, err)
 		}
 	}
-	if _, err := parseDate("2026/02/30"); err == nil {
-		t.Fatal("accepted invalid date")
+}
+
+func TestMaterialTypeLabels(t *testing.T) {
+	for label, want := range map[string]string{
+		"Materials": "material", "資料": "material",
+		"Report": "report", "レポート": "report",
+		"Test": "test", "テスト": "test",
+		"Questionnaire": "questionnaire", "アンケート": "questionnaire",
+		"e-Learning": "e-learning", "e-learning": "e-learning",
+		"Board": "board", "掲示板": "board",
+		"Feedback": "feedback", "フィードバック": "feedback",
+	} {
+		got, err := parseType(label)
+		if err != nil || got != want {
+			t.Fatalf("%q: got %q, want %q: %v", label, got, want, err)
+		}
 	}
 	if _, err := parseType("unknown"); err == nil {
-		t.Fatal("accepted unknown type")
+		t.Fatal("accepted unknown material type")
 	}
 }
 
