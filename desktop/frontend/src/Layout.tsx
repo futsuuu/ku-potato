@@ -1,9 +1,10 @@
-import { createEffect, Loading, Show } from "solid-js";
+import { createEffect, Loading } from "solid-js";
 import { useLocation } from "@solidjs/router";
 import type { JSX } from "@solidjs/web";
 import { useWorkspace } from "./workspace";
 import Progress from "./Progress";
 import PageHeader from "./PageHeader";
+import Authentication from "./Authentication";
 
 export default function Layout(props: { children: JSX.Element }) {
   const workspace = useWorkspace();
@@ -46,60 +47,16 @@ export default function Layout(props: { children: JSX.Element }) {
             期限前の課題
           </a>
         </nav>
-        <section class="auth" aria-label="認証">
-          <span>
-            {workspace.auth().status === "authenticated"
-              ? "ログイン済み"
-              : workspace.auth().status === "unauthenticated"
-                ? "未ログイン"
-                : "認証未確認"}
-          </span>
-          <button
-            class="app-button"
-            disabled={workspace.authentication.pending()}
-            onClick={() => void workspace.authenticate("login")}
+        <div class="mt-auto flex flex-col gap-section">
+          <Authentication
+            api={workspace.api}
+            title="工学院 統合認証"
+            onLogin={() => void workspace.loadCourses("true")}
           >
-            <span class="i-lucide-log-in" aria-hidden="true" />
-            ブラウザでログイン
-          </button>
-          <button
-            class="quiet-button"
-            disabled={workspace.authentication.pending()}
-            onClick={() => void workspace.authenticate("check")}
-          >
-            認証状態を確認
-          </button>
-          <details>
-            <summary>認証の設定</summary>
-            <div class="auth-settings">
-              <button
-                class="quiet-button"
-                disabled={workspace.authentication.pending()}
-                onClick={() => void workspace.authenticate("register")}
-              >
-                認証デバイスを登録
-              </button>
-              <button
-                class="quiet-button"
-                disabled={workspace.authentication.pending()}
-                onClick={() => {
-                  if (window.confirm("保存済みのログイン情報と認証デバイスの鍵を削除しますか？"))
-                    void workspace.authenticate("logout");
-                }}
-              >
-                ログアウト
-              </button>
-            </div>
-          </details>
-          <Progress
-            pending={workspace.authentication.pending()}
-            error={workspace.authentication.error()}
-            status={workspace.authentication.status()}
-          />
-          <Show when={workspace.auth().status !== "authenticated"}>
             <p class="meta">保存済みの講義・教材はログイン前も閲覧できます。</p>
-          </Show>
-        </section>
+          </Authentication>
+          <Authentication api={workspace.api.google} title="Google（@g.kogakuin.jp）" />
+        </div>
       </aside>
       <main id="main-content" class="main-content" tabindex="-1">
         <Loading

@@ -55,6 +55,29 @@ async function stream<K extends keyof operations>(
 export function createAPI(baseUrl: string) {
   const client = createClient<paths>({ baseUrl, credentials: "omit" });
   return {
+    google: {
+      async auth() {
+        const { data, error } = await client.GET("/auth/google");
+        if (!data) throw new Error(errorMessage(error));
+        return data.data;
+      },
+      login(options: Observe = {}) {
+        return stream<"googleLogin">(
+          client.POST("/auth/google/login", {
+            body: { interactive: true },
+            parseAs: "stream",
+            signal: options.signal,
+          }),
+          options,
+        );
+      },
+      check(options: Observe = {}) {
+        return stream<"checkGoogleAuthentication">(
+          client.POST("/auth/google/check", { parseAs: "stream", signal: options.signal }),
+          options,
+        );
+      },
+    },
     async auth() {
       const { data, error } = await client.GET("/auth");
       if (!data) throw new Error(errorMessage(error));
@@ -126,9 +149,14 @@ export function createAPI(baseUrl: string) {
         options,
       );
     },
-    logout(options: Observe = {}) {
-      return stream<"logout">(
-        client.DELETE("/auth", { parseAs: "stream", signal: options.signal }),
+    async webauthn() {
+      const { data, error } = await client.GET("/auth/webauthn");
+      if (!data) throw new Error(errorMessage(error));
+      return data.data;
+    },
+    deleteWebAuthn(options: Observe = {}) {
+      return stream<"deleteWebAuthn">(
+        client.DELETE("/auth/webauthn", { parseAs: "stream", signal: options.signal }),
         options,
       );
     },

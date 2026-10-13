@@ -96,7 +96,7 @@ export default defineConfig<PresetMiniTheme>({
     app: "overflow-hidden",
     sidebar:
       "min-h-none p-section border-r-thin border-solid border-line bg-canvas flex flex-col gap-xl overflow-y-auto",
-    auth: "mt-auto pt-section border-t-thin border-solid border-line flex flex-col gap-md text-small",
+    auth: "pt-section border-t-thin border-solid border-line flex flex-col gap-md text-small",
     "app-button":
       "inline-flex items-center justify-center gap-sm px-md py-sm border-thin border-solid border-line rounded-none bg-canvas text-small font-normal disabled:text-muted disabled:cursor-default hover:bg-surface",
     "quiet-button":

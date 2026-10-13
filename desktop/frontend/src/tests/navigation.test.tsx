@@ -37,6 +37,12 @@ const report: Schema["ReportDetail"] = {
 const api = {
   ...createAPI("http://localhost"),
   auth: vi.fn(async () => ({ status: "unauthenticated" as const })),
+  webauthn: vi.fn(async () => ({ registered: false })),
+  google: {
+    ...createAPI("http://localhost").google,
+    auth: vi.fn(async () => ({ status: "authenticated" as const })),
+    check: vi.fn(async () => ({ status: "unauthenticated" as const })),
+  },
   courses: vi.fn(async () => [course]),
   assignments: vi.fn(async () => ({ assignments: [], failures: [] })),
   materials: vi.fn(async () => ({
@@ -80,6 +86,30 @@ function mount(path: string, native = false) {
 async function title(expected: string) {
   await vi.waitFor(() => expect(document.querySelector("h1")?.textContent).toBe(expected));
 }
+
+it("keeps Google and LMS authentication independent across route changes", async () => {
+  mount("/");
+  await title("講義一覧");
+  const google = document.querySelector('section[aria-label="Google（@g.kogakuin.jp）"]');
+  const lms = document.querySelector('section[aria-label="工学院 統合認証"]');
+  await vi.waitFor(() => expect(google?.textContent).toContain("ログイン済み"));
+  expect(lms?.textContent).toContain("未ログイン");
+  const check = [...(google?.querySelectorAll("button") ?? [])].find((button) =>
+    button.textContent?.includes("認証状態を確認"),
+  );
+  expect(check).toBeDefined();
+  check?.click();
+  await vi.waitFor(() => expect(google?.textContent).toContain("未ログイン"));
+  expect(api.google.check).toHaveBeenCalledOnce();
+  expect(lms?.textContent).toContain("未ログイン");
+  document.querySelector<HTMLAnchorElement>('nav a[href="/assignments"]')?.click();
+  await title("期限前の課題");
+  expect(
+    document.querySelector('section[aria-label="Google（@g.kogakuin.jp）"]')?.textContent,
+  ).toContain("未ログイン");
+  expect(api.google.auth).toHaveBeenCalledOnce();
+  expect(api.auth).toHaveBeenCalledOnce();
+});
 
 function click(selector: string) {
   const link = document.querySelector<HTMLAnchorElement>(selector);
