@@ -363,7 +363,15 @@ func TestCoursesWithoutIDsPreserveTheirPositions(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if courses, err := s.Courses(ctx); err != nil || len(courses) != 4 || courses[3].Name != "second placement" {
+	courses, err := s.Courses(ctx)
+	if err != nil || len(courses) != 4 {
 		t.Fatal(courses, err)
+	}
+	for i, want := range []struct{ id, name string }{
+		{"", "same name"}, {"", "same name"}, {"KOG1", "first placement"}, {"KOG1", "second placement"},
+	} {
+		if courses[i].ID != want.id || courses[i].Name != want.name {
+			t.Fatalf("course %d = %#v, want id=%q name=%q", i, courses[i], want.id, want.name)
+		}
 	}
 }

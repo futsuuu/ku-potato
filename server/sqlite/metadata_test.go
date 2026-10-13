@@ -37,6 +37,13 @@ func TestCourseHistoryIsScopedByYearAndRetainsPlacements(t *testing.T) {
 			t.Fatal(c)
 		}
 	}
+	for i, want := range []struct{ id, name string }{
+		{"KOG1", "first"}, {"KOG1", "second"}, {"", "same"}, {"", "same"},
+	} {
+		if courses[i].ID != want.id || courses[i].Name != want.name {
+			t.Fatalf("course %d = %#v, want id=%q name=%q", i, courses[i], want.id, want.name)
+		}
+	}
 	if courses[1].Weekday == nil || *courses[1].Weekday != 2 || courses[2].Weekday != nil || courses[2].Period != nil {
 		t.Fatal(courses)
 	}
@@ -134,6 +141,10 @@ func TestUnknownValuesAreLoggedWithoutPersistingRawText(t *testing.T) {
 	var date *string
 	if err := s.db.QueryRow("SELECT class_date FROM course_material_folders").Scan(&date); err != nil || date != nil {
 		t.Fatal(date, err)
+	}
+	var resourceStatus string
+	if err := s.db.QueryRow("SELECT status, registered_on FROM material_resources WHERE lms_resource_id = 'SRS1'").Scan(&resourceStatus, &date); err != nil || resourceStatus != "unknown" || date != nil {
+		t.Fatal(resourceStatus, date, err)
 	}
 	for _, raw := range []string{"invalid-date-marker", "new-type-marker", "new-status-marker", "invalid-deadline-marker", "partially-viewed", "invalid-resource-date-marker"} {
 		if !strings.Contains(logs.String(), raw) {
