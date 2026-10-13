@@ -134,9 +134,3 @@ CREATE TABLE IF NOT EXISTS report_details (
     CHECK (submission_starts_at IS NULL OR submission_due_at IS NULL OR submission_due_at >= submission_starts_at),
     CHECK ((correction_mode = 'limited') = (correction_limit IS NOT NULL))
 );
-
-CREATE TABLE IF NOT EXISTS authentication_state (
-    id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
-    status TEXT NOT NULL CHECK (status IN ('unknown', 'authenticated', 'unauthenticated')),
-    checked_at INTEGER NOT NULL
-);

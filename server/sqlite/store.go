@@ -19,7 +19,6 @@ import (
 type Store struct{ db *sql.DB }
 
 var _ outport.Archive = (*Store)(nil)
-var _ outport.AuthenticationState = (*Store)(nil)
 
 func Open(path string) (*Store, error) {
 	absolute, err := filepath.Abs(path)

@@ -177,23 +177,3 @@ func (s *Store) Acquired(ctx context.Context, material, resource string, retriev
 	}
 	return tx.Commit()
 }
-
-func (s *Store) Auth(ctx context.Context) (domain.AuthState, error) {
-	t := table.AuthenticationState
-	var row model.AuthenticationState
-	err := t.SELECT(t.AllColumns).WHERE(t.ID.EQ(sqlite.Int(1))).QueryContext(ctx, s.db, &row)
-	if errors.Is(err, qrm.ErrNoRows) {
-		return domain.AuthState{Status: "unknown"}, nil
-	}
-	if err != nil {
-		return domain.AuthState{}, err
-	}
-	return domain.AuthState{Status: row.Status, CheckedAt: millisTime(&row.CheckedAt)}, nil
-}
-
-func (s *Store) SetAuth(ctx context.Context, status string) error {
-	t := table.AuthenticationState
-	_, err := t.INSERT(t.AllColumns).MODEL(model.AuthenticationState{ID: 1, Status: status, CheckedAt: time.Now().UnixMilli()}).
-		ON_CONFLICT(t.ID).DO_UPDATE(sqlite.SET(t.Status.SET(t.EXCLUDED.Status), t.CheckedAt.SET(t.EXCLUDED.CheckedAt))).ExecContext(ctx, s.db)
-	return err
-}

@@ -10,20 +10,14 @@ import (
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-func TestStoreReopensAndKeepsAuthenticationState(t *testing.T) {
+func TestStoreReopensAndKeepsArchive(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "資料 #%.sqlite")
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state, err := s.Auth(ctx); err != nil || state.Status != "unknown" {
-		t.Fatal(state, err)
-	}
 	if _, err := s.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: []domain.Course{{ID: "KOG1", Name: "saved course"}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SetAuth(ctx, "authenticated"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Close(); err != nil {
@@ -38,15 +32,10 @@ func TestStoreReopensAndKeepsAuthenticationState(t *testing.T) {
 	if err != nil || len(courses) != 1 || courses[0].ID != "KOG1" {
 		t.Fatal(courses, err)
 	}
-	if state, err := s.Auth(ctx); err != nil || state.Status != "authenticated" || state.CheckedAt == nil {
-		t.Fatal(state, err)
-	}
-	if err := s.SetAuth(ctx, "unauthenticated"); err != nil {
-		t.Fatal(err)
-	}
-	if state, err := s.Auth(ctx); err != nil || state.Status != "unauthenticated" {
-		t.Fatal(state, err)
-	}
+}
+
+func TestStoreEnablesForeignKeys(t *testing.T) {
+	s := newStore(t)
 	var enabled int
 	if err := s.db.QueryRow("PRAGMA foreign_keys").Scan(&enabled); err != nil || enabled != 1 {
 		t.Fatalf("foreign keys not enabled: %d %v", enabled, err)
