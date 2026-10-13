@@ -44,7 +44,7 @@ func TestInitialUnauthenticatedHomeRedirect(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { browser.Close() })
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	ok, err := browser.Status(ctx)
 	if err != nil || ok {

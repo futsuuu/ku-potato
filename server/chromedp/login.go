@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -201,36 +198,4 @@ func (b *Browser) Status(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
-}
-func (b *Browser) Logout(ctx context.Context) error {
-	b.gate.Lock()
-	defer b.gate.Unlock()
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	b.stopRuntime()
-	b.interactive = false
-	var removeErr error
-	for range 20 {
-		removeErr = os.RemoveAll(filepath.Join(b.opts.StateDir, "profile"))
-		if removeErr == nil || runtime.GOOS != "windows" {
-			break
-		}
-		// Windows browser helpers can briefly retain file handles after Chrome exits.
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(50 * time.Millisecond):
-		}
-	}
-	if removeErr != nil {
-		return domain.Fail("authentication-storage", "Chrome の認証プロファイルを削除できません。")
-	}
-	var result error
-	for _, path := range []string{b.cookiePath(), b.credentialPath()} {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			result = errors.Join(result, err)
-		}
-	}
-	return result
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -76,13 +75,10 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 		if b.interactive == interactive {
 			return nil
 		}
-		if err := b.saveCookies(ctx); err != nil {
-			return err
-		}
 		b.stopRuntime()
 	}
 	opts := append([]cd.ExecAllocatorOption{}, cd.DefaultExecAllocatorOptions[:]...)
-	opts = append(opts, cd.UserDataDir(filepath.Join(b.opts.StateDir, "profile")), cd.Flag("disk-cache-dir", b.opts.CacheDir), cd.Flag("headless", !interactive), cd.Flag("disable-dev-shm-usage", true))
+	opts = append(opts, cd.UserDataDir(b.opts.ProfileDir), cd.Flag("disk-cache-dir", b.opts.CacheDir), cd.Flag("headless", !interactive), cd.Flag("disable-dev-shm-usage", true), cd.Flag("allow-browser-signin", "false"), cd.Flag("restore-last-session", true))
 	if !interactive {
 		opts = append(opts, cd.Flag("headless", "new"))
 	}
@@ -111,14 +107,20 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 		return domain.Fail("browser-start", "Chrome のプロセス管理を設定できません。")
 	}
 	b.closeProcess = closeProcess
-	if err := b.restoreCookies(ctx); err != nil {
-		b.stopRuntime()
-		return err
-	}
 	return nil
 }
 
 func (b *Browser) withAuth(ctx context.Context, interactive, dedicated bool, use func(context.Context, *credentials, webauthn.AuthenticatorID) error) error {
+	return b.withSessionAuth(ctx, interactive, dedicated, func(tab context.Context) error {
+		return b.authenticated(tab, func(stored *credentials, id webauthn.AuthenticatorID) error { return use(tab, stored, id) })
+	})
+}
+
+func (b *Browser) withSessionAuth(ctx context.Context, interactive, dedicated bool, use func(context.Context) error) error {
+	return b.withProviderAuth(ctx, interactive, dedicated, false, use)
+}
+
+func (b *Browser) withProviderAuth(ctx context.Context, interactive, dedicated, google bool, use func(context.Context) error) error {
 	b.gate.Lock()
 	defer b.gate.Unlock()
 	b.authMu.Lock()
@@ -133,9 +135,11 @@ func (b *Browser) withAuth(ctx context.Context, interactive, dedicated bool, use
 		return sourceError(ctx, err)
 	}
 	b.interactive = interactive
-	// Authentication can change the account/session; do not retain obsolete workers.
-	for _, slot := range b.slots {
-		b.reset(slot)
+	if !google {
+		// Authentication can change the LMS session; discard obsolete workers.
+		for _, slot := range b.slots {
+			b.reset(slot)
+		}
 	}
 	page := b.root
 	if dedicated {
@@ -155,11 +159,10 @@ func (b *Browser) withAuth(ctx context.Context, interactive, dedicated bool, use
 		if err := target.ActivateTarget(cd.FromContext(tab).Target.TargetID).Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
 			return err
 		}
-		return b.authenticated(tab, func(stored *credentials, id webauthn.AuthenticatorID) error { return use(tab, stored, id) })
+		return use(tab)
 	}))
 	if err == nil {
-		err = b.saveCookies(ctx)
-		if err == nil && interactive {
+		if interactive {
 			b.stopRuntime()
 			b.interactive = false
 		}
@@ -220,21 +223,15 @@ func (b *Browser) copySSO(ctx context.Context, from, to cdp.BrowserContextID) er
 }
 
 func (b *Browser) withPage(ctx context.Context, use func(context.Context) error) error {
-	// A failed interactive operation may still have a headed browser. Preserve
-	// its cookies before switching to the headless runtime used for normal work.
+	// A failed interactive operation may still have a headed browser.
 	b.gate.RLock()
 	if b.interactive {
 		b.gate.RUnlock()
 		b.gate.Lock()
 		var modeErr error
 		if b.interactive {
-			if b.root != nil && b.root.Err() == nil {
-				modeErr = b.saveCookies(ctx)
-			}
-			if modeErr == nil {
-				b.stopRuntime()
-				b.interactive = false
-			}
+			b.stopRuntime()
+			b.interactive = false
 		}
 		b.gate.Unlock()
 		if modeErr != nil {
@@ -294,12 +291,11 @@ func (b *Browser) usePage(ctx context.Context, use func(context.Context) error) 
 		if err := b.authenticated(tab, func(stored *credentials, _ webauthn.AuthenticatorID) error { return b.session(tab, false, stored) }); err != nil {
 			return err
 		}
-		// SSO can rotate its cookies. Publish the latest state before another
-		// context authenticates and retain it in the persistent profile.
+		// SSO can rotate its cookies. Publish the latest state to the profile.
 		if err := b.copySSO(tab, id, ""); err != nil {
 			return err
 		}
-		return b.saveCookies(ctx)
+		return nil
 	}))
 	b.authMu.Unlock()
 	if err == nil {

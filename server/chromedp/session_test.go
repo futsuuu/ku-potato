@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -118,14 +117,5 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	}
 	if err := b.withPage(ctx, func(context.Context) error { return nil }); err != nil {
 		t.Fatal("rotated SSO session was not saved", err)
-	}
-	if err := b.Logout(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(opts.StateDir, "cookies.json")); !os.IsNotExist(err) {
-		t.Fatal("cookie snapshot retained after logout", err)
-	}
-	if ok, err := b.Status(ctx); err != nil || ok {
-		t.Fatal("logged-out session was restored", ok, err)
 	}
 }

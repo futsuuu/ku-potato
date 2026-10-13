@@ -3,7 +3,6 @@ package tests
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -21,7 +20,7 @@ import (
 type liveFixture struct {
 	browser                 *adapter.Browser
 	source, auth, downloads string
-	hasKey, loggedOut       bool
+	hasKey                  bool
 	courses                 []domain.Course
 	materials               map[string]domain.Snapshot
 	resources               map[string]domain.Snapshot
@@ -37,7 +36,7 @@ func newLiveFixture(t *testing.T) *liveFixture {
 		t.Fatal("resolve authentication directory", err)
 	}
 	state := defaults.State
-	source := filepath.Join(state, "auth")
+	source := filepath.Join(state, "auth", "kogakuin")
 	if _, err := os.Stat(source); os.IsNotExist(err) {
 		t.Skip("no saved server authentication")
 	} else if err != nil {
@@ -57,32 +56,19 @@ func newLiveFixture(t *testing.T) *liveFixture {
 		t.Skip("server is running; stop it to run live tests")
 	}
 	t.Cleanup(func() { lock.Close() })
-	bodies := map[string][]byte{}
-	for _, name := range []string{"cookies.json", "webauthn.json"} {
-		body, err := os.ReadFile(filepath.Join(source, name))
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			t.Fatal("read saved authentication", err)
-		}
-		bodies[name] = body
+	body, err := os.ReadFile(filepath.Join(source, "webauthn.json"))
+	if os.IsNotExist(err) {
+		t.Skip("no saved WebAuthn credential")
 	}
-	var cookies struct{ Cookies []json.RawMessage }
-	if body := bodies["cookies.json"]; body != nil && json.Unmarshal(body, &cookies) != nil {
-		t.Fatal("invalid saved cookie snapshot")
-	}
-	if bodies["webauthn.json"] == nil && len(cookies.Cookies) == 0 {
-		t.Skip("no saved server cookies or WebAuthn credentials")
+	if err != nil {
+		t.Fatal("read saved WebAuthn credential", err)
 	}
 	f := &liveFixture{
-		source: source, auth: t.TempDir(), downloads: t.TempDir(), hasKey: bodies["webauthn.json"] != nil,
+		source: source, auth: t.TempDir(), downloads: t.TempDir(), hasKey: true,
 		materials: map[string]domain.Snapshot{}, resources: map[string]domain.Snapshot{},
 	}
-	for name, body := range bodies {
-		if err := replaceAuthentication(filepath.Join(f.auth, name), body); err != nil {
-			t.Fatal("prepare test authentication", err)
-		}
+	if err := replaceAuthentication(filepath.Join(f.auth, "webauthn.json"), body); err != nil {
+		t.Fatal("prepare test authentication", err)
 	}
 	f.browser, err = adapter.New(adapter.Options{
 		StateDir: f.auth, CacheDir: t.TempDir(), DownloadDir: f.downloads,
@@ -92,10 +78,8 @@ func newLiveFixture(t *testing.T) *liveFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !f.loggedOut {
-			if err := f.persistAuthentication(); err != nil {
-				t.Error("persist authentication after live tests", err)
-			}
+		if err := f.persistAuthentication(); err != nil {
+			t.Error("persist authentication after live tests", err)
 		}
 		f.browser.Close()
 	})
@@ -133,7 +117,7 @@ func replaceAuthentication(path string, body []byte) error {
 }
 
 func (f *liveFixture) persistAuthentication() error {
-	for _, name := range []string{"webauthn.json", "cookies.json"} {
+	for _, name := range []string{"webauthn.json"} {
 		body, err := os.ReadFile(filepath.Join(f.auth, name))
 		if os.IsNotExist(err) {
 			continue
@@ -154,10 +138,8 @@ func (f *liveFixture) run(t *testing.T, name string, use func(*testing.T, contex
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
 		t.Cleanup(func() {
-			if !f.loggedOut {
-				if err := f.persistAuthentication(); err != nil {
-					t.Fatal("persist live authentication counters and cookies", err)
-				}
+			if err := f.persistAuthentication(); err != nil {
+				t.Fatal("persist live authentication counters", err)
 			}
 		})
 		use(t, ctx)
@@ -244,7 +226,7 @@ func requireReason(t *testing.T, err error, reason string) {
 	}
 }
 
-func TestLiveAuthenticationCopiesRetainCountersAfterLogout(t *testing.T) {
+func TestLiveAuthenticationCopiesRetainCountersAfterWebAuthnDeletion(t *testing.T) {
 	f := &liveFixture{source: t.TempDir(), auth: t.TempDir(), downloads: t.TempDir()}
 	initial := []byte(`{"version":1,"username":"fixture@example.invalid","credentials":[{"signCount":1}]}`)
 	updated := []byte(`{"version":1,"username":"fixture@example.invalid","credentials":[{"signCount":2}]}`)
@@ -264,14 +246,14 @@ func TestLiveAuthenticationCopiesRetainCountersAfterLogout(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { b.Close() })
-	if err := b.Logout(context.Background()); err != nil {
+	if err := b.DeleteWebAuthn(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(f.auth, "webauthn.json")); !os.IsNotExist(err) {
-		t.Fatal("test key retained after logout", err)
+		t.Fatal("test key retained after deletion", err)
 	}
 	actual, err := os.ReadFile(filepath.Join(f.source, "webauthn.json"))
 	if err != nil || !bytes.Equal(actual, updated) {
-		t.Fatal("original key and updated signature counter lost after logout", err)
+		t.Fatal("original key and updated signature counter lost after deletion", err)
 	}
 }

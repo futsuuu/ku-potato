@@ -1,4 +1,4 @@
-// Package chromedp implements the LMS outbound port using a dedicated Chrome profile.
+// Package chromedp provides the browser-backed LMS and authentication adapters.
 package chromedp
 
 import (
@@ -18,6 +18,7 @@ import (
 
 type Options struct {
 	StateDir    string
+	ProfileDir  string
 	CacheDir    string
 	DownloadDir string
 	Executable  string
@@ -41,11 +42,15 @@ type Browser struct {
 	closed       bool
 	slots        []*pageSlot
 	available    chan *pageSlot
+	google       *Google
 }
 
 var _ outport.Source = (*Browser)(nil)
 
 func New(opts Options) (*Browser, error) {
+	if opts.ProfileDir == "" {
+		opts.ProfileDir = filepath.Join(opts.StateDir, "profile")
+	}
 	for _, path := range []*string{&opts.StateDir, &opts.CacheDir, &opts.DownloadDir} {
 		if *path == "" {
 			return nil, errors.New("state, cache and download directories are required")
@@ -58,6 +63,14 @@ func New(opts Options) (*Browser, error) {
 		if err := os.MkdirAll(*path, 0700); err != nil {
 			return nil, err
 		}
+	}
+	profile, err := filepath.Abs(opts.ProfileDir)
+	if err != nil {
+		return nil, err
+	}
+	opts.ProfileDir = profile
+	if err := os.MkdirAll(filepath.Dir(profile), 0700); err != nil {
+		return nil, err
 	}
 	if opts.LMSURL == "" {
 		opts.LMSURL = "https://study.ns.kogakuin.ac.jp"
@@ -87,6 +100,28 @@ type credentials struct {
 }
 
 func (b *Browser) credentialPath() string { return filepath.Join(b.opts.StateDir, "webauthn.json") }
+func (b *Browser) WebAuthn(ctx context.Context) (domain.RegistrationResult, error) {
+	b.authMu.Lock()
+	defer b.authMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return domain.RegistrationResult{}, err
+	}
+	stored, err := b.loadCredentials()
+	return domain.RegistrationResult{Registered: stored != nil}, err
+}
+func (b *Browser) DeleteWebAuthn(ctx context.Context) error {
+	b.gate.Lock()
+	defer b.gate.Unlock()
+	b.authMu.Lock()
+	defer b.authMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := os.Remove(b.credentialPath()); err != nil && !os.IsNotExist(err) {
+		return domain.Fail("authentication-storage", "WebAuthn認証情報を削除できません。")
+	}
+	return nil
+}
 func (b *Browser) loadCredentials() (*credentials, error) {
 	body, err := os.ReadFile(b.credentialPath())
 	if os.IsNotExist(err) {

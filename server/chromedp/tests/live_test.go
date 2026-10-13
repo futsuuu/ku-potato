@@ -134,37 +134,6 @@ func TestLiveOperations(t *testing.T) {
 			t.Fatal("external resource did not return its URL", err)
 		}
 	})
-	f.run(t, "Logout", func(t *testing.T, ctx context.Context) {
-		if err := f.persistAuthentication(); err != nil {
-			t.Fatal("preserve authentication before testing logout", err)
-		}
-		preserved := map[string][32]byte{}
-		for _, name := range []string{"cookies.json", "webauthn.json"} {
-			body, err := os.ReadFile(filepath.Join(f.source, name))
-			if os.IsNotExist(err) {
-				continue
-			}
-			if err != nil {
-				t.Fatal("read original authentication before logout", err)
-			}
-			preserved[name] = sha256.Sum256(body)
-		}
-		f.loggedOut = true
-		if err := f.browser.Logout(ctx); err != nil {
-			t.Fatal("logout of temporary test profile", err)
-		}
-		for _, name := range []string{"profile", "cookies.json", "webauthn.json"} {
-			if _, err := os.Stat(filepath.Join(f.auth, name)); !os.IsNotExist(err) {
-				t.Fatal("test authentication retained after logout", err)
-			}
-		}
-		for name, digest := range preserved {
-			body, err := os.ReadFile(filepath.Join(f.source, name))
-			if err != nil || sha256.Sum256(body) != digest {
-				t.Fatal("original authentication changed during test logout", err)
-			}
-		}
-	})
 }
 
 func liveAssignments(t *testing.T, ctx context.Context, f *liveFixture) {
@@ -173,7 +142,7 @@ func liveAssignments(t *testing.T, ctx context.Context, f *liveFixture) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	app := core.New(f.browser, store, store, memory.NewQueue(), nil, 5*time.Minute, 4)
+	app := core.New(f.browser, store, memory.NewAuthenticationState(), memory.NewQueue(), nil, 5*time.Minute, 4)
 	workers, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	go func() { done <- app.Run(workers) }()

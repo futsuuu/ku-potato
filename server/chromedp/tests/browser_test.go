@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	adapter "github.com/futsuuu/ku-potato/server/chromedp"
-	"github.com/futsuuu/ku-potato/server/domain"
 )
 
 func chrome(t *testing.T) string {
@@ -200,20 +198,5 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	stop()
 	if err == nil {
 		t.Fatal("accepted malformed page as empty")
-	}
-	if err = browser.Logout(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = os.Stat(filepath.Join(data, "profile")); !os.IsNotExist(err) {
-		t.Fatal("profile retained", err)
-	}
-	ok, err := browser.Status(ctx)
-	if err != nil || ok {
-		t.Fatal("expired authentication", ok, err)
-	}
-	_, err = browser.Courses(ctx)
-	var failure *domain.Error
-	if !errors.As(err, &failure) || failure.Reason != "authentication-required" {
-		t.Fatal(err)
 	}
 }

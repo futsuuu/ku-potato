@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/browser"
+	"github.com/chromedp/cdproto/cdp"
 	cd "github.com/chromedp/chromedp"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
@@ -30,6 +32,31 @@ func testChrome(t *testing.T) string {
 	}
 	t.Skip("Chrome unavailable")
 	return ""
+}
+
+func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
+	b, err := New(Options{StateDir: t.TempDir(), CacheDir: t.TempDir(), DownloadDir: t.TempDir(), Executable: testChrome(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := b.start(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	op, stop := operationContext(b.root, ctx)
+	defer stop()
+	arguments, err := browser.GetBrowserCommandLine().Do(cdp.WithExecutor(op, cd.FromContext(b.root).Browser))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, argument := range arguments {
+		if argument == "--allow-browser-signin=false" {
+			return
+		}
+	}
+	t.Fatal("browser account linking was not disabled")
 }
 
 func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {

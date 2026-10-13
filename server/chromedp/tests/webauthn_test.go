@@ -181,7 +181,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	if accepted.Load() != 1 {
 		t.Fatal("duplicate remote registration")
 	}
-	if err = browser.Logout(ctx); err != nil {
+	if err = browser.DeleteWebAuthn(ctx); err != nil {
 		t.Fatal(err)
 	}
 	blockStorage.Store(true)
