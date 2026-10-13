@@ -85,21 +85,17 @@ func run() error {
 		return err
 	}
 	defer store.Close()
-	stateStore, err := sqlite.Open(filepath.Join(*state, "state.sqlite"))
-	if err != nil {
-		return err
-	}
-	defer stateStore.Close()
 	files, err := filesystem.New(filepath.Join(root, "resources"))
 	if err != nil {
 		return err
 	}
-	browser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "auth"), CacheDir: filepath.Join(*cache, "browser"), DownloadDir: filepath.Join(processTemp, "downloads"), Executable: *executable, Parallelism: *parallel})
+	browser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "auth", "kogakuin"), ProfileDir: filepath.Join(*state, "profile"), CacheDir: filepath.Join(*cache, "browser"), DownloadDir: filepath.Join(processTemp, "downloads"), Executable: *executable, Parallelism: *parallel})
 	if err != nil {
 		return err
 	}
 	defer browser.Close()
-	application := core.New(browser, store, stateStore, memory.NewQueue(), files, *timeout, *parallel)
+	google := chromedp.NewGoogle(browser)
+	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithGoogle(google, memory.NewAuthenticationState()))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err

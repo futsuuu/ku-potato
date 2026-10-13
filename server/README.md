@@ -7,7 +7,7 @@ The server follows Hexagonal Architecture (Ports & Adapters).
 - `core/inport/`: Application features exposed to inbound adapters
 - `core/outport/`: Interfaces for browser access, storage, jobs, and files
 - `httpapi/`: Huma HTTP adapter; operation status and results stream over SSE
-- `chromedp/`: KU-LMS browser adapter
+- `chromedp/`: KU-LMS and Google session browser adapters
 - `sqlite/`: Archive/authentication-state storage
 - `memory/`: In-memory job queue
 - `filesystem/`: Acquired files
