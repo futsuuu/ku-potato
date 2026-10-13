@@ -14,18 +14,30 @@ import (
 )
 
 type Application struct {
-	source  outport.Source
-	archive outport.Archive
-	state   outport.AuthenticationState
-	queue   outport.Queue
-	files   outport.Files
-	timeout time.Duration
-	workers int
-	auth    sync.RWMutex
+	source      outport.Source
+	archive     outport.Archive
+	state       outport.AuthenticationState
+	queue       outport.Queue
+	files       outport.Files
+	timeout     time.Duration
+	workers     int
+	auth        sync.RWMutex
+	google      outport.Authentication
+	googleState outport.AuthenticationState
 }
 
-func New(source outport.Source, archive outport.Archive, state outport.AuthenticationState, queue outport.Queue, files outport.Files, timeout time.Duration, workers int) *Application {
-	return &Application{source: source, archive: archive, state: state, queue: queue, files: files, timeout: timeout, workers: max(1, workers)}
+type Option func(*Application)
+
+func WithGoogle(authentication outport.Authentication, state outport.AuthenticationState) Option {
+	return func(a *Application) { a.google, a.googleState = authentication, state }
+}
+
+func New(source outport.Source, archive outport.Archive, state outport.AuthenticationState, queue outport.Queue, files outport.Files, timeout time.Duration, workers int, options ...Option) *Application {
+	a := &Application{source: source, archive: archive, state: state, queue: queue, files: files, timeout: timeout, workers: max(1, workers)}
+	for _, option := range options {
+		option(a)
+	}
+	return a
 }
 
 var _ inport.Service = (*Application)(nil)
@@ -60,7 +72,7 @@ func validate(r domain.Request) error {
 		return domain.Fail("invalid-input", "too many courses")
 	}
 	switch r.Kind {
-	case "login", "logout", "auth-check", "register-webauthn", "sync-courses", "sync-materials":
+	case "login", "auth-check", "register-webauthn", "delete-webauthn", "google-login", "google-auth-check", "sync-courses", "sync-materials":
 	case "sync-resources", "download-resource":
 		if !materialID.MatchString(r.MaterialID) {
 			return domain.Fail("invalid-input", "invalid material ID")
@@ -71,7 +83,7 @@ func validate(r domain.Request) error {
 	if r.Kind == "download-resource" && !resourceID.MatchString(r.ResourceID) {
 		return domain.Fail("invalid-input", "invalid resource ID")
 	}
-	if r.Interactive && r.Kind != "login" && r.Kind != "register-webauthn" {
+	if r.Interactive && r.Kind != "login" && r.Kind != "google-login" && r.Kind != "register-webauthn" {
 		return domain.Fail("invalid-input", "interaction is only available for authentication jobs")
 	}
 	if len(r.CourseIDs) > 0 && r.Kind != "sync-materials" {
@@ -163,7 +175,7 @@ func (a *Application) work(ctx context.Context) error {
 
 func (a *Application) executeJob(ctx context.Context, r domain.Request) (any, error) {
 	switch r.Kind {
-	case "login", "logout", "auth-check", "register-webauthn":
+	case "login", "auth-check", "register-webauthn", "delete-webauthn", "google-login", "google-auth-check":
 		a.auth.Lock()
 		defer a.auth.Unlock()
 	default:
@@ -176,6 +188,9 @@ func (a *Application) executeJob(ctx context.Context, r domain.Request) (any, er
 	return a.execute(ctx, r)
 }
 func (a *Application) execute(ctx context.Context, r domain.Request) (result any, err error) {
+	if r.Kind == "google-login" || r.Kind == "google-auth-check" {
+		return a.executeGoogle(ctx, r)
+	}
 	defer func() {
 		var e *domain.Error
 		if errors.As(err, &e) && e.Reason == "authentication-required" {
@@ -192,13 +207,6 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 			err = a.state.SetAuth(ctx, "authenticated")
 		}
 		return domain.AuthState{Status: "authenticated"}, err
-	case "logout":
-		report(ctx, domain.Progress{Stage: "logging-out"})
-		err = a.source.Logout(ctx)
-		if err == nil {
-			err = a.state.SetAuth(ctx, "unauthenticated")
-		}
-		return domain.AuthState{Status: "unauthenticated"}, err
 	case "register-webauthn":
 		report(ctx, domain.Progress{Stage: "registering"})
 		err = a.source.Register(ctx, r.Interactive)
@@ -206,6 +214,9 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 			err = a.state.SetAuth(ctx, "authenticated")
 		}
 		return domain.RegistrationResult{Registered: err == nil}, err
+	case "delete-webauthn":
+		err = a.source.DeleteWebAuthn(ctx)
+		return domain.RegistrationResult{Registered: false}, err
 	case "auth-check":
 		report(ctx, domain.Progress{Stage: "authenticating"})
 		ok, e := a.source.Status(ctx)

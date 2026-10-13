@@ -29,7 +29,7 @@ func TestRequestValidationRejectsConflictingJobInputs(t *testing.T) {
 	for _, r := range []domain.Request{
 		{Kind: "unknown"}, {Kind: "sync-resources", MaterialID: "SRY1');alert(1)"},
 		{Kind: "download-resource", MaterialID: "SRY1", ResourceID: "../file"},
-		{Kind: "sync-courses", Interactive: true}, {Kind: "logout", MaterialID: "SRY1"},
+		{Kind: "sync-courses", Interactive: true}, {Kind: "delete-webauthn", MaterialID: "SRY1"},
 		{Kind: "login", CourseIDs: []string{"KOG1"}}, {Kind: "sync-resources", MaterialID: "SRY1", ResourceID: "SRS1"},
 	} {
 		if err := validate(r); err == nil {

@@ -22,8 +22,12 @@ type Service interface {
 	Auth(context.Context) (domain.AuthState, error)
 	Login(context.Context, bool, Progress) (domain.AuthState, error)
 	Register(context.Context, bool, Progress) (domain.RegistrationResult, error)
+	WebAuthn(context.Context) (domain.RegistrationResult, error)
+	DeleteWebAuthn(context.Context, Progress) (domain.RegistrationResult, error)
 	CheckAuth(context.Context, Progress) (domain.AuthState, error)
-	Logout(context.Context, Progress) (domain.AuthState, error)
+	GoogleAuth(context.Context) (domain.AuthState, error)
+	GoogleLogin(context.Context, bool, Progress) (domain.AuthState, error)
+	GoogleCheckAuth(context.Context, Progress) (domain.AuthState, error)
 	Download(context.Context, string, string, Progress) (domain.DownloadResult, error)
 	File(context.Context, string, string) (File, error)
 }

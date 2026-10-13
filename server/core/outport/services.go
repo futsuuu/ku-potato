@@ -7,11 +7,16 @@ import (
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-type Source interface {
+type Authentication interface {
 	Login(context.Context, bool) error
-	Logout(context.Context) error
-	Register(context.Context, bool) error
 	Status(context.Context) (bool, error)
+}
+
+type Source interface {
+	Authentication
+	Register(context.Context, bool) error
+	WebAuthn(context.Context) (domain.RegistrationResult, error)
+	DeleteWebAuthn(context.Context) error
 	Courses(context.Context) (domain.CourseListing, error)
 	Materials(context.Context, string) (domain.Snapshot, error)
 	Resources(context.Context, string, string) (domain.Snapshot, error)

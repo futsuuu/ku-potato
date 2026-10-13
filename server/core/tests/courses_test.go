@@ -45,7 +45,7 @@ func TestCoursePlacementsDoNotDuplicateMaterialSyncOrAssignments(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	source := &placementSource{}
-	app := core.New(source, store, store, memory.NewQueue(), nil, time.Second, 2)
+	app := core.New(source, store, memory.NewAuthenticationState(), memory.NewQueue(), nil, time.Second, 2)
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
 	t.Cleanup(func() {
@@ -100,7 +100,7 @@ func TestCourseSyncReturnsRetainedHistory(t *testing.T) {
 			if _, err := store.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: previous}); err != nil {
 				t.Fatal(err)
 			}
-			app := core.New(courseSource{courses: test.current}, store, store, memory.NewQueue(), nil, time.Second, 1)
+			app := core.New(courseSource{courses: test.current}, store, memory.NewAuthenticationState(), memory.NewQueue(), nil, time.Second, 1)
 			done := make(chan error, 1)
 			go func() { done <- app.Run(ctx) }()
 			t.Cleanup(func() {
