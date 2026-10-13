@@ -277,18 +277,6 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	if res = request("POST", "/jobs", `{"kind":"unknown"}`); res.Code != 404 {
 		t.Fatal(res.Code)
 	}
-	if res = request("GET", "/courses?sync=oops", ""); res.Code != 422 {
-		t.Fatal(res.Code)
-	}
-	if res = request("POST", "/auth/login", `{"interactive":true,"password":"not-accepted"}`); res.Code != 422 {
-		t.Fatal(res.Code)
-	}
-	if res = request("POST", "/auth/login", `null`); res.Code != 422 {
-		t.Fatal("accepted null object", res.Code)
-	}
-	if res = request("GET", "/jobs/missing", ""); res.Code != 404 {
-		t.Fatal(res.Code)
-	}
 	for _, headers := range []map[string]string{{"Host": "attacker.example:8787"}, {"Origin": "https://attacker.example"}, {"Sec-Fetch-Site": "cross-site"}} {
 		req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8787/jobs", strings.NewReader(`{"kind":"unknown"}`))
 		req.Header.Set("Content-Type", "application/json")

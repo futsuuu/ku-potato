@@ -44,9 +44,11 @@ func TestMaterialTypeConstrainsStatus(t *testing.T) {
 				if valid := validate(value); valid != slices.Contains(allowed, status) {
 					t.Fatalf("unexpected validation for type=%s status=%s: valid=%v", kind, status, valid)
 				}
-				delete(value, "status")
-				if validate(value) {
-					t.Fatal("missing status was accepted")
+				if status == "unknown" {
+					delete(value, "status")
+					if validate(value) {
+						t.Fatal("missing status was accepted")
+					}
 				}
 			})
 		}

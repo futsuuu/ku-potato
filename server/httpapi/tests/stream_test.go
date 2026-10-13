@@ -139,9 +139,14 @@ func TestRetryIsStreamedBeforeTypedResult(t *testing.T) {
 	defer response.Body.Close()
 	scanner := bufio.NewScanner(response.Body)
 	retried := false
+	succeeded := false
 	for {
 		event, body := readFrame(t, scanner)
 		if event == "result" {
+			var result struct{ Data []domain.Course }
+			if !succeeded || json.Unmarshal(body, &result) != nil || len(result.Data) != 1 || result.Data[0].ID != "KOG1" {
+				t.Fatal("result arrived without a successful retry", string(body))
+			}
 			break
 		}
 		var status domain.OperationStatus
@@ -154,11 +159,14 @@ func TestRetryIsStreamedBeforeTypedResult(t *testing.T) {
 			}
 			retried = true
 		}
-		if status.Status == "succeeded" && status.Attempt != 2 {
-			t.Fatal(status)
+		if status.Status == "succeeded" {
+			if !retried || status.Attempt != 2 {
+				t.Fatal(status)
+			}
+			succeeded = true
 		}
 	}
-	if !retried || fake.courseCalls.Load() != 2 {
+	if !retried || !succeeded || fake.courseCalls.Load() != 2 || scanner.Scan() || scanner.Err() != nil {
 		t.Fatal("missing retry", retried, fake.courseCalls.Load())
 	}
 }

@@ -18,12 +18,15 @@ import (
 
 type operationService struct {
 	inport.Service
+	called    string
+	id        string
 	sync      string
 	courseIDs []string
 	submitted []domain.Request
 }
 
 func (s *operationService) Courses(ctx context.Context, policy string, p inport.Progress) ([]domain.Course, error) {
+	s.called = "courses"
 	s.sync = policy
 	if policy == "true" {
 		if err := p(domain.OperationStatus{Status: "running", Attempt: 1, Progress: &domain.Progress{Stage: "fetching-courses"}}); err != nil {
@@ -33,14 +36,17 @@ func (s *operationService) Courses(ctx context.Context, policy string, p inport.
 	return []domain.Course{}, nil
 }
 func (s *operationService) Materials(ctx context.Context, id, policy string, p inport.Progress) (domain.CourseMaterials, error) {
+	s.called, s.id = "materials", id
 	s.sync = policy
 	return domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}}, nil
 }
 func (s *operationService) Assignments(ctx context.Context, ids []string, policy string, p inport.Progress) (domain.AssignmentsResult, error) {
+	s.called = "assignments"
 	s.sync, s.courseIDs = policy, ids
 	return domain.AssignmentsResult{Assignments: []domain.Assignment{}, Failures: []domain.CourseFailure{}}, nil
 }
 func (s *operationService) Detail(ctx context.Context, id, policy string, p inport.Progress) (domain.Detail, error) {
+	s.called, s.id = "detail", id
 	s.sync = policy
 	return domain.Detail{Material: domain.Material{ID: id}, Resources: []domain.Resource{}}, nil
 }
@@ -73,10 +79,16 @@ func apiRequest(handler http.Handler, method, path, body string) *httptest.Respo
 func TestHumaInputsAndQueryResponses(t *testing.T) {
 	service := &operationService{}
 	handler := New(service, "127.0.0.1:8787")
-	for _, path := range []string{"/courses", "/courses/KOG1/materials", "/assignments", "/materials/SRY1"} {
-		res := apiRequest(handler, http.MethodGet, path, "")
-		if res.Code != 200 || service.sync != "auto" || !strings.Contains(res.Body.String(), `"data":`) {
-			t.Fatalf("%s: %d %s, sync=%q", path, res.Code, res.Body, service.sync)
+	for _, check := range []struct{ path, called, id, result string }{
+		{"/courses", "courses", "", `"data":[]`},
+		{"/courses/KOG1/materials", "materials", "KOG1", `"lmsCourseId":"KOG1"`},
+		{"/assignments", "assignments", "", `"assignments":[]`},
+		{"/materials/SRY1", "detail", "SRY1", `"lmsMaterialId":"SRY1"`},
+	} {
+		service.called, service.id = "", ""
+		res := apiRequest(handler, http.MethodGet, check.path, "")
+		if res.Code != 200 || service.called != check.called || service.id != check.id || service.sync != "auto" || !strings.Contains(res.Body.String(), check.result) {
+			t.Fatalf("%s: status=%d call=%s id=%s sync=%s body=%s", check.path, res.Code, service.called, service.id, service.sync, res.Body)
 		}
 		if strings.Contains(res.Body.String(), `"$schema"`) || res.Header().Get("Location") != "" {
 			t.Fatal("unexpected response envelope or Location", res.Body, res.Header())
