@@ -37,12 +37,13 @@ export default function Courses() {
     <>
       <PageHeader title="講義一覧">
         <button
-          class="app-button"
+          class="icon-button"
+          aria-label="講義を同期"
+          title="講義を同期"
           disabled={workspace.courses.pending()}
           onClick={() => void workspace.loadCourses("true")}
         >
           <span class="i-lucide-refresh-cw" aria-hidden="true" />
-          講義を同期
         </button>
       </PageHeader>
       <div class="page-content">

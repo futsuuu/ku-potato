@@ -7,7 +7,6 @@ import { decodeRouteParam, materialPath, useWorkspace } from "../../../workspace
 import MaterialInfo from "../../../MaterialInfo";
 import MaterialName from "../../../MaterialName";
 import PageHeader from "../../../PageHeader";
-import ParentLink from "../../../ParentLink";
 import Progress from "../../../Progress";
 
 export default function Materials() {
@@ -23,18 +22,21 @@ export default function Materials() {
   });
   return (
     <>
-      <PageHeader title={workspace.courseName(courseId())}>
+      <PageHeader
+        title={workspace.courseName(courseId())}
+        ancestors={[{ label: "講義一覧", href: "/" }]}
+      >
         <button
-          class="app-button"
+          class="icon-button"
+          aria-label="教材を同期"
+          title="教材を同期"
           disabled={materials.pending()}
           onClick={() => void load(courseId(), "true")}
         >
           <span class="i-lucide-refresh-cw" aria-hidden="true" />
-          教材を同期
         </button>
       </PageHeader>
       <div class="page-content">
-        <ParentLink href="/" label="講義一覧" />
         <div class="section-intro">
           <h2>教材一覧</h2>
           <span class="meta tnum">{materials.data()?.folders?.length ?? 0}件のフォルダ</span>

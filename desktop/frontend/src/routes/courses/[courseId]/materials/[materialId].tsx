@@ -7,7 +7,6 @@ import MaterialInfo from "../../../../MaterialInfo";
 import MaterialIcon from "../../../../MaterialIcon";
 import ResourceRow from "../../../../ResourceRow";
 import PageHeader from "../../../../PageHeader";
-import ParentLink from "../../../../ParentLink";
 import Progress from "../../../../Progress";
 import ReportContent from "../../../../ReportContent";
 
@@ -17,6 +16,8 @@ export default function MaterialDetail() {
   const courseId = () => decodeRouteParam(params.courseId);
   const materialId = () => decodeRouteParam(params.materialId);
   const detail = createOperation<Result<"getMaterial">>();
+  const syncLabel = () =>
+    detail.data()?.material.type === "report" ? "レポートを同期" : "資料を同期";
   const load = (id: string, sync: Sync) =>
     detail.run((observe) => workspace.api.detail(id, sync, observe));
   createEffect(materialId, (id) => {
@@ -27,6 +28,13 @@ export default function MaterialDetail() {
     <>
       <PageHeader
         title={detail.data()?.material.name ?? "教材の詳細"}
+        ancestors={[
+          { label: "講義一覧", href: "/" },
+          {
+            label: detail.data()?.course.name ?? workspace.courseName(courseId()),
+            href: coursePath(courseId()),
+          },
+        ]}
         icon={
           <Show when={detail.data()?.material}>
             {(material) => <MaterialIcon type={material().type} />}
@@ -34,16 +42,16 @@ export default function MaterialDetail() {
         }
       >
         <button
-          class="app-button"
+          class="icon-button"
+          aria-label={syncLabel()}
+          title={syncLabel()}
           disabled={detail.pending()}
           onClick={() => void load(materialId(), "true")}
         >
           <span class="i-lucide-refresh-cw" aria-hidden="true" />
-          {detail.data()?.material.type === "report" ? "レポートを同期" : "資料を同期"}
         </button>
       </PageHeader>
       <div class="page-content">
-        <ParentLink href={coursePath(courseId())} label={workspace.courseName(courseId())} />
         <Show when={detail.data()?.material}>
           {(material) => <MaterialInfo material={material()} />}
         </Show>

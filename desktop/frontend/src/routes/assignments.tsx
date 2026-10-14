@@ -26,12 +26,13 @@ export default function Assignments() {
     <>
       <PageHeader title="期限前の課題">
         <button
-          class="app-button"
+          class="icon-button"
+          aria-label="課題を同期"
+          title="課題を同期"
           disabled={assignments.pending()}
           onClick={() => void load("true")}
         >
           <span class="i-lucide-refresh-cw" aria-hidden="true" />
-          課題を同期
         </button>
       </PageHeader>
       <div class="page-content">

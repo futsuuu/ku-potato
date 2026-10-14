@@ -46,6 +46,7 @@ export const theme = {
     xl: "2rem",
     page: "2.5rem",
     toolbar: "4rem",
+    headerFade: "4rem",
     navigation: "4rem",
   },
   width: { sidebar: "15rem", icon: "1.125rem" },
@@ -63,6 +64,10 @@ export const theme = {
   lineWidth: { none: "0", thin: "1px", focus: "2px" },
   breakpoints: { sm: "640px", md: "896px" },
 } satisfies PresetMiniTheme;
+
+// Keep the blur radius fixed; fade the entire backdrop's opacity with the mask.
+const headerBackdropMask =
+  "linear-gradient(to bottom, black 40%, rgb(0 0 0 / 0.972) 46%, rgb(0 0 0 / 0.896) 52%, rgb(0 0 0 / 0.784) 58%, rgb(0 0 0 / 0.648) 64%, rgb(0 0 0 / 0.5) 70%, rgb(0 0 0 / 0.352) 76%, rgb(0 0 0 / 0.216) 82%, rgb(0 0 0 / 0.104) 88%, rgb(0 0 0 / 0.028) 94%, transparent 100%)";
 
 const names = (...scales: object[]) => scales.flatMap(Object.keys);
 const restrict = (prefix: string, tokens: string[]) =>
@@ -99,6 +104,8 @@ export default defineConfig<PresetMiniTheme>({
     auth: "pt-section border-t-thin border-solid border-line flex flex-col gap-md text-small",
     "app-button":
       "inline-flex items-center justify-center gap-sm px-md py-sm border-thin border-solid border-line rounded-none bg-canvas text-small font-normal disabled:text-muted disabled:cursor-default hover:bg-surface",
+    "icon-button":
+      "inline-flex items-center justify-center p-sm rounded-none text-ink disabled:cursor-default hover:enabled:bg-surface",
     "quiet-button":
       "inline-flex items-center gap-sm py-xs text-left text-small text-muted hover:text-ink disabled:cursor-default",
     list: "p-none m-none list-none",
@@ -171,6 +178,7 @@ export default defineConfig<PresetMiniTheme>({
       button, a { -webkit-tap-highlight-color: transparent; }
       button { font: inherit; color: inherit; cursor: pointer; background: transparent; border: ${theme.lineWidth.none}; padding: ${theme.spacing.none}; }
       button:disabled { cursor: default; }
+      .icon-button [class*="i-"] { opacity: 1; }
       a { color: inherit; text-decoration: none; }
       a:focus-visible, button:focus-visible, summary:focus-visible { outline: ${theme.lineWidth.focus} solid ${theme.colors.accent}; outline-offset: ${theme.lineWidth.focus}; }
       main:focus { outline: none; }
@@ -181,15 +189,22 @@ export default defineConfig<PresetMiniTheme>({
       h1 { font-size: ${theme.fontSize.title}; }
       h2, h3 { font-size: ${theme.fontSize.heading}; }
       summary { cursor: pointer; color: ${theme.colors.muted}; }
-      .main-content { min-width: ${theme.spacing.none}; min-height: ${theme.spacing.none}; display: flex; flex-direction: column; }
-      .page-header { flex-shrink: 0; min-height: ${theme.spacing.toolbar}; padding: ${theme.spacing.lg} ${theme.spacing.page}; background: ${theme.colors.canvas}; border-bottom: ${theme.lineWidth.thin} solid ${theme.colors.line}; display: flex; align-items: center; justify-content: space-between; gap: ${theme.spacing.lg}; }
-      .header-title { min-width: ${theme.spacing.none}; display: flex; align-items: center; gap: ${theme.spacing.lg}; }
+      .sidebar { position: fixed; inset: ${theme.spacing.none} auto ${theme.spacing.none} ${theme.spacing.none}; width: ${theme.width.sidebar}; }
+      .main-content { grid-column: 2; min-width: ${theme.spacing.none}; min-height: ${theme.spacing.none}; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+      .page-header { position: fixed; top: ${theme.spacing.none}; left: ${theme.width.sidebar}; width: calc(100% - ${theme.width.sidebar}); z-index: 2; min-height: ${theme.spacing.toolbar}; padding: ${theme.spacing.lg} ${theme.spacing.page}; display: flex; align-items: center; gap: ${theme.spacing.lg}; }
+      .page-header::before { content: ""; position: absolute; inset: ${theme.spacing.none} ${theme.spacing.none} calc(-1 * ${theme.spacing.headerFade}); z-index: -1; pointer-events: none; background: color-mix(in srgb, ${theme.colors.canvas} 85%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); mask-image: ${headerBackdropMask}; -webkit-mask-image: ${headerBackdropMask}; }
+      .breadcrumbs { flex: 1; min-width: ${theme.spacing.none}; }
+      .breadcrumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: ${theme.spacing.sm}; margin: ${theme.spacing.none}; padding: ${theme.spacing.none}; list-style: none; }
+      .breadcrumb-parent, .breadcrumb-current { display: flex; align-items: center; gap: ${theme.spacing.sm}; min-width: ${theme.spacing.none}; max-width: 100%; }
+      .breadcrumb-parent { color: ${theme.colors.muted}; font-size: ${theme.fontSize.small}; }
+      .breadcrumb-parent a { min-width: ${theme.spacing.none}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .breadcrumb-parent a:hover, .breadcrumb-parent a:focus-visible { color: ${theme.colors.accent}; text-decoration: underline; }
+      .breadcrumb-current { flex: 1 1 auto; }
       .page-header h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .page-header .actions { flex-shrink: 0; }
-      .parent-link { display: inline-block; margin-bottom: ${theme.spacing.section}; color: ${theme.colors.muted}; font-size: ${theme.fontSize.small}; }
-      .parent-link, a.course-link .link-label, a.item-link .link-label, .resource-link .link-label, .report-content a[href] { text-decoration: underline; text-decoration-color: ${theme.colors.linkUnderline}; text-decoration-thickness: ${theme.lineWidth.thin}; text-underline-offset: ${theme.lineWidth.focus}; }
-      .parent-link:hover, .parent-link:focus-visible, .report-content a[href]:hover, .report-content a[href]:focus-visible { color: ${theme.colors.accent}; }
-      .page-content { flex: 1; min-height: ${theme.spacing.none}; overflow: auto; padding: ${theme.spacing.xl} ${theme.spacing.page}; }
+      .header-actions { display: flex; flex-shrink: 0; gap: ${theme.spacing.sm}; margin-left: calc(-1 * ${theme.spacing.lg}); }
+      a.course-link .link-label, a.item-link .link-label, .resource-link .link-label, .report-content a[href] { text-decoration: underline; text-decoration-color: ${theme.colors.linkUnderline}; text-decoration-thickness: ${theme.lineWidth.thin}; text-underline-offset: ${theme.lineWidth.focus}; }
+      .report-content a[href]:hover, .report-content a[href]:focus-visible { color: ${theme.colors.accent}; }
+      .page-content { grid-area: 1 / 1; min-height: ${theme.spacing.none}; overflow: auto; scroll-padding-top: calc(${theme.spacing.toolbar} + ${theme.spacing.xl}); padding: calc(${theme.spacing.toolbar} + ${theme.spacing.xl}) ${theme.spacing.page} ${theme.spacing.xl}; }
       .page-content > * { max-width: ${theme.maxWidth.content}; }
       .section-intro { display: flex; align-items: baseline; justify-content: space-between; gap: ${theme.spacing.lg}; margin-bottom: ${theme.spacing.section}; }
       .brand { display: block; }
@@ -238,18 +253,19 @@ export default defineConfig<PresetMiniTheme>({
       @media (max-width: ${theme.breakpoints.md}) {
         .sidebar { padding: ${theme.spacing.lg}; }
         .page-header { padding-left: ${theme.spacing.section}; padding-right: ${theme.spacing.section}; }
-        .page-content { padding: ${theme.spacing.section}; }
+        .page-content { scroll-padding-top: calc(${theme.spacing.toolbar} + ${theme.spacing.section}); padding: calc(${theme.spacing.toolbar} + ${theme.spacing.section}) ${theme.spacing.section} ${theme.spacing.section}; }
         .folder-section { grid-template-columns: minmax(0, 1fr); }
         .folder-heading { padding-bottom: ${theme.spacing.md}; }
       }
       @media (max-width: ${theme.breakpoints.sm}) {
         .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-        .sidebar { max-height: 30dvh; padding: ${theme.spacing.section}; border-right: none; border-bottom: ${theme.lineWidth.thin} solid ${theme.colors.line}; gap: ${theme.spacing.section}; }
+        .sidebar { position: static; width: auto; max-height: 30dvh; padding: ${theme.spacing.section}; border-right: none; border-bottom: ${theme.lineWidth.thin} solid ${theme.colors.line}; gap: ${theme.spacing.section}; }
+        .main-content { grid-column: 1; }
         .navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); background: ${theme.colors.canvas}; }
         .nav-link { justify-content: center; }
         .auth { margin-top: ${theme.spacing.none}; }
-        .page-header { padding: ${theme.spacing.md} ${theme.spacing.lg}; }
-        .header-title { gap: ${theme.spacing.sm}; }
+        .page-header { left: ${theme.spacing.none}; width: 100%; padding: ${theme.spacing.md} ${theme.spacing.lg}; }
+        .header-actions { margin-left: calc(-1 * ${theme.spacing.sm}); }
         .page-header h1 { font-size: ${theme.fontSize.heading}; }
       }
     `,
