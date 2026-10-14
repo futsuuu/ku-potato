@@ -194,7 +194,15 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 	defer func() {
 		var e *domain.Error
 		if errors.As(err, &e) && e.Reason == "authentication-required" {
-			if authErr := a.state.SetAuth(ctx, "unauthenticated"); authErr != nil {
+			state := a.state
+			var provider *outport.AuthenticationError
+			if errors.As(err, &provider) && provider.Provider == "google" {
+				state = a.googleState
+			}
+			if state == nil {
+				return
+			}
+			if authErr := state.SetAuth(ctx, "unauthenticated"); authErr != nil {
 				slog.Error("persist authentication state", "error", authErr)
 			}
 		}

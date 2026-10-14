@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,6 +15,49 @@ type googleAuthentication struct {
 	err         error
 	loggedIn    bool
 	interactive bool
+}
+
+type providerDownloadSource struct {
+	outport.Source
+	err error
+}
+
+func (s providerDownloadSource) Download(context.Context, string, string, string) (domain.Download, error) {
+	return domain.Download{Snapshot: domain.Snapshot{MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Type: "external"}}}}, s.err
+}
+
+type providerDownloadArchive struct{ outport.Archive }
+
+func (providerDownloadArchive) FindCourse(context.Context, string) (string, error) {
+	return "KOG1", nil
+}
+func (providerDownloadArchive) Append(context.Context, domain.Snapshot) (domain.ObservationIDs, error) {
+	return domain.ObservationIDs{Resources: 1}, nil
+}
+func (providerDownloadArchive) Acquired(context.Context, string, string, int64, *domain.SavedFile, error) error {
+	return nil
+}
+
+func TestExternalDownloadAuthenticationFailureKeepsLMSSession(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		err         error
+		lms, google string
+	}{
+		{"google-expired", &outport.AuthenticationError{Provider: "google", Err: domain.Fail("authentication-required", "Google login required")}, "authenticated", "unauthenticated"},
+		{"lms-expired", domain.Fail("authentication-required", "LMS login required"), "unauthenticated", "authenticated"},
+		{"network", domain.Fail("source", "network failed"), "authenticated", "authenticated"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			lms := &savedAuthentication{status: "authenticated"}
+			google := &savedAuthentication{status: "authenticated"}
+			app := New(providerDownloadSource{err: test.err}, providerDownloadArchive{}, lms, nil, nil, time.Second, 1, WithGoogle(&googleAuthentication{}, google))
+			_, err := app.executeJob(context.Background(), domain.Request{Kind: "download-resource", MaterialID: "SRY1", ResourceID: "SRS1"})
+			if !errors.Is(err, test.err) || lms.status != test.lms || google.status != test.google {
+				t.Fatal("wrong provider invalidated", err, lms, google)
+			}
+		})
+	}
 }
 
 func (g *googleAuthentication) Login(_ context.Context, interactive bool) error {
