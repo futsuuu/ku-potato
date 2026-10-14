@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"embed"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -17,9 +16,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
-
-//go:embed all:frontend/dist/client
-var assets embed.FS
 
 type App struct {
 	ctx context.Context
