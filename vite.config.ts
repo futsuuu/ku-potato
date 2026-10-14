@@ -30,9 +30,9 @@ export default defineConfig({
         cache: false,
       },
       dev: {
-        command: "go tool wails dev",
+        command: "go tool wails dev -s -m",
         cwd: "desktop",
-        dependsOn: ["server:build", "frontend:build"],
+        dependsOn: ["server:build", "frontend:install"],
         cache: false,
       },
       build: {
