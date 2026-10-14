@@ -20,7 +20,8 @@ type Source interface {
 	Courses(context.Context) (domain.CourseListing, error)
 	Materials(context.Context, string) (domain.Snapshot, error)
 	Resources(context.Context, string, string) (domain.Snapshot, error)
-	Download(context.Context, string, string, string) (domain.Download, error)
+	// The final argument is an archived external URL, used only speculatively.
+	Download(context.Context, string, string, string, string) (domain.Download, error)
 }
 type Archive interface {
 	Courses(context.Context) ([]domain.Course, error)

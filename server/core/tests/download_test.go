@@ -18,11 +18,13 @@ import (
 
 type externalFileSource struct {
 	outport.Source
-	snapshot domain.Snapshot
-	path     string
+	snapshot  domain.Snapshot
+	path      string
+	cachedURL chan string
 }
 
-func (s externalFileSource) Download(context.Context, string, string, string) (domain.Download, error) {
+func (s externalFileSource) Download(_ context.Context, _, _, _, cachedURL string) (domain.Download, error) {
+	s.cachedURL <- cachedURL
 	return domain.Download{Snapshot: s.snapshot, Path: s.path, Filename: "handout.pdf"}, nil
 }
 
@@ -49,7 +51,8 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := core.New(externalFileSource{snapshot: snapshot, path: staging}, store, memory.NewAuthenticationState(), memory.NewQueue(), files, time.Second, 1)
+	cachedURL := make(chan string, 1)
+	app := core.New(externalFileSource{snapshot: snapshot, path: staging, cachedURL: cachedURL}, store, memory.NewAuthenticationState(), memory.NewQueue(), files, time.Second, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
@@ -64,6 +67,9 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	result, err := app.Download(request, "SRY1", "SRS1", nil)
 	if err != nil || result.Type != "file" || result.File == nil || result.File.Size != 12 {
 		t.Fatal("external resource was not saved as file", result, err)
+	}
+	if got := <-cachedURL; got != snapshot.Resources[0].URL {
+		t.Fatal("archived URL was not passed to the source", got)
 	}
 	detail, err := store.Detail(request, "SRY1")
 	if err != nil || len(detail.Resources) != 1 || detail.Resources[0].Type != "external" || detail.Resources[0].SavedFile == nil || detail.Resources[0].URL != snapshot.Resources[0].URL {

@@ -12,7 +12,13 @@ import (
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-func (b *Browser) Download(ctx context.Context, material, resource, preferred string) (download domain.Download, err error) {
+func (b *Browser) Download(ctx context.Context, material, resource, preferred, cachedURL string) (domain.Download, error) {
+	return downloadWithCachedURL(ctx, cachedURL, func(ctx context.Context) (domain.Download, error) {
+		return b.downloadCurrent(ctx, material, resource, preferred)
+	}, b.startDriveDownload)
+}
+
+func (b *Browser) downloadCurrent(ctx context.Context, material, resource, preferred string) (download domain.Download, err error) {
 	err = b.withPage(ctx, func(tab context.Context) error {
 		snapshot, err := b.materialSnapshot(tab, material, preferred)
 		if err != nil {
@@ -110,15 +116,5 @@ func (b *Browser) Download(ctx context.Context, material, resource, preferred st
 			}
 		}
 	})
-	// CookieJar takes the browser's exclusive authentication gate. Release the
-	// LMS page lease before acquiring Google cookies or doing HTTP transfers.
-	if err == nil && download.URL != "" && b.google != nil {
-		if _, ok := driveDownloadURL(download.URL); ok {
-			download.Path, download.Filename, err = b.google.downloadFile(ctx, download.URL)
-			if err == nil {
-				download.URL = ""
-			}
-		}
-	}
 	return
 }

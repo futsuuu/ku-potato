@@ -296,20 +296,6 @@ func htmlAttribute(node *html.Node, name string) string {
 	return ""
 }
 
-func (g *Google) downloadFile(ctx context.Context, rawURL string) (string, string, error) {
-	destination, ok := driveDownloadURL(rawURL)
-	if !ok {
-		return "", "", domain.Fail("unsupported-resource", "この外部資料のダウンロードには対応していません。")
-	}
-	d, err := g.driveClient(ctx)
-	if err != nil {
-		return "", "", googleDownloadError(ctx, err)
-	}
-	defer d.client.CloseIdleConnections()
-	file, filename, err := d.download(ctx, destination, g.browser.opts.DownloadDir)
-	return file, filename, googleDownloadError(ctx, err)
-}
-
 func googleDownloadError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil

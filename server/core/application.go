@@ -300,8 +300,19 @@ func (a *Application) download(ctx context.Context, r domain.Request) (any, erro
 	if err != nil {
 		return nil, err
 	}
+	cachedURL := ""
+	cached, err := a.archive.Detail(ctx, r.MaterialID)
+	if err != nil && !errors.Is(err, domain.ErrMissing) {
+		return nil, err
+	}
+	for _, resource := range cached.Resources {
+		if resource.ID == r.ResourceID && resource.Type == "external" {
+			cachedURL = resource.URL
+			break
+		}
+	}
 	report(ctx, domain.Progress{Stage: "downloading"})
-	download, err := a.source.Download(ctx, r.MaterialID, r.ResourceID, preferred)
+	download, err := a.source.Download(ctx, r.MaterialID, r.ResourceID, preferred, cachedURL)
 	if download.Path != "" {
 		defer func() {
 			if e := a.files.Discard(download.Path); e != nil {

@@ -78,7 +78,7 @@ func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, 
 	snapshot.Resources = []domain.Resource{{ID: "SRS1", Name: "file.txt", Type: "file"}}
 	return snapshot, err
 }
-func (s *source) Download(ctx context.Context, material, resource, preferred string) (domain.Download, error) {
+func (s *source) Download(ctx context.Context, material, resource, preferred, _ string) (domain.Download, error) {
 	snapshot, err := s.Resources(ctx, material, preferred)
 	if err != nil {
 		return domain.Download{}, err

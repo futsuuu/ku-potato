@@ -102,7 +102,7 @@ func TestLiveOperations(t *testing.T) {
 	})
 	f.run(t, "Download/file", func(t *testing.T, ctx context.Context) {
 		selected, _ := f.resource(t, ctx, "file")
-		download, err := f.browser.Download(ctx, selected.material, selected.id, selected.course)
+		download, err := f.browser.Download(ctx, selected.material, selected.id, selected.course, "")
 		if err != nil {
 			t.Fatal("download file", err)
 		}
@@ -128,7 +128,7 @@ func TestLiveOperations(t *testing.T) {
 				expected = resource
 			}
 		}
-		download, err := f.browser.Download(ctx, selected.material, selected.id, selected.course)
+		download, err := f.browser.Download(ctx, selected.material, selected.id, selected.course, "")
 		if err != nil || download.URL == "" || download.URL != expected.URL || download.Path != "" {
 			t.Fatal("external resource did not return its URL", err)
 		}

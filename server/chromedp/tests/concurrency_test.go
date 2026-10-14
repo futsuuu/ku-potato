@@ -177,7 +177,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	paths := make(chan string, 2)
 	parallel("/file", func(i int) error {
 		course := fmt.Sprintf("KOG%d", i)
-		download, err := b.Download(ctx, fmt.Sprintf("SRY%d", i), fmt.Sprintf("SRS%d", i), course)
+		download, err := b.Download(ctx, fmt.Sprintf("SRY%d", i), fmt.Sprintf("SRS%d", i), course, "")
 		if err != nil {
 			return err
 		}

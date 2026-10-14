@@ -22,7 +22,7 @@ type providerDownloadSource struct {
 	err error
 }
 
-func (s providerDownloadSource) Download(context.Context, string, string, string) (domain.Download, error) {
+func (s providerDownloadSource) Download(context.Context, string, string, string, string) (domain.Download, error) {
 	return domain.Download{Snapshot: domain.Snapshot{MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Type: "external"}}}}, s.err
 }
 
@@ -30,6 +30,9 @@ type providerDownloadArchive struct{ outport.Archive }
 
 func (providerDownloadArchive) FindCourse(context.Context, string) (string, error) {
 	return "KOG1", nil
+}
+func (providerDownloadArchive) Detail(context.Context, string) (domain.Detail, error) {
+	return domain.Detail{}, domain.ErrMissing
 }
 func (providerDownloadArchive) Append(context.Context, domain.Snapshot) (domain.ObservationIDs, error) {
 	return domain.ObservationIDs{Resources: 1}, nil

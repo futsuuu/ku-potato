@@ -166,7 +166,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	if err != nil || len(resources.Resources) != 2 || resources.Resources[0].ID != "SRS1" {
 		t.Fatal("resources", resources, err)
 	}
-	download, err := browser.Download(ctx, "SRY1", "SRS1", "KOG1")
+	download, err := browser.Download(ctx, "SRY1", "SRS1", "KOG1", "")
 	if err != nil {
 		t.Fatal("download", err)
 	}
@@ -178,7 +178,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 		t.Fatal(string(body), download, err)
 	}
 	os.Remove(download.Path)
-	external, err := browser.Download(ctx, "SRY1", "SRS2", "KOG1")
+	external, err := browser.Download(ctx, "SRY1", "SRS2", "KOG1", "")
 	if err != nil || external.URL != "https://example.org/resource#anchor" {
 		t.Fatal(external, err)
 	}
