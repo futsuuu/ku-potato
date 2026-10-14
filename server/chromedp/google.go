@@ -115,7 +115,7 @@ func (g *Google) Status(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 
-// CookieJar reads current cookies from the shared browser profile for a future Drive HTTP downloader.
+// CookieJar reads current cookies from the shared browser profile for Drive HTTP requests.
 // Domain, path, expiry and Secure rules also apply to redirected requests.
 func (g *Google) CookieJar(ctx context.Context) (http.CookieJar, error) {
 	var cookies []*network.Cookie

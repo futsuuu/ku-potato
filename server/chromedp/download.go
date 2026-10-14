@@ -110,5 +110,15 @@ func (b *Browser) Download(ctx context.Context, material, resource, preferred st
 			}
 		}
 	})
+	// CookieJar takes the browser's exclusive authentication gate. Release the
+	// LMS page lease before acquiring Google cookies or doing HTTP transfers.
+	if err == nil && download.URL != "" && b.google != nil {
+		if _, ok := driveDownloadURL(download.URL); ok {
+			download.Path, download.Filename, err = b.google.downloadFile(ctx, download.URL)
+			if err == nil {
+				download.URL = ""
+			}
+		}
+	}
 	return
 }
