@@ -1,18 +1,18 @@
 import { execFileSync } from "node:child_process";
-import { writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { readFile, writeFile } from "node:fs/promises";
 import openapiTS, { astToString } from "openapi-typescript";
 
-const repository = fileURLToPath(new URL("../../", import.meta.url));
-const frontend = fileURLToPath(new URL("../../desktop/frontend/", import.meta.url));
+const frontend = new URL("../../desktop/frontend/", import.meta.url);
 
-// Consume Huma's runtime schema without storing an OpenAPI document.
-const schema = JSON.parse(
-  execFileSync("go", ["run", "./tools/api-codegen/schema"], {
-    cwd: repository,
-    encoding: "utf8",
-  }),
-);
+if (process.argv.length !== 3) {
+  throw new Error("usage: node generate.mjs <openapi.json>");
+}
+
+const schema = JSON.parse(await readFile(process.argv[2], "utf8"));
 const source = astToString(await openapiTS(schema));
-await writeFile(new URL("../../desktop/frontend/src/api.generated.ts", import.meta.url), source);
-execFileSync("vp", ["fmt", "src/api.generated.ts"], { cwd: frontend, stdio: "inherit" });
+const formatted = execFileSync("vp", ["fmt", "--stdin-filepath=src/api.generated.ts"], {
+  cwd: frontend,
+  input: source,
+  encoding: "utf8",
+});
+await writeFile(new URL("src/api.generated.ts", frontend), formatted);

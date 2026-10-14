@@ -20,23 +20,19 @@ export default defineConfig({
         command: "vp install --frozen-lockfile",
         cache: false,
       },
-      "api:generate": {
-        command: "node generate.mjs",
-        cwd: "tools/api-codegen",
-        dependsOn: ["frontend:install"],
+      "openapi:generate": {
+        command:
+          "go run ./server/cmd/ku-potato-server openapi -out tools/api-codegen/openapi.generated.json",
         cache: {
-          input: [
-            "tools/api-codegen/**/*",
-            "server/**/*",
-            "go.mod",
-            "go.sum",
-            "mise.toml",
-            "pnpm-lock.yaml",
-            "vite.config.ts",
-          ],
-          output: ["desktop/frontend/src/api.generated.ts"],
+          input: ["server/**/*", "go.mod", "go.sum", "mise.toml"],
+          output: ["tools/api-codegen/openapi.generated.json"],
           env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
         },
+      },
+      "api:generate": {
+        command: "node generate.mjs openapi.generated.json",
+        cwd: "tools/api-codegen",
+        dependsOn: ["frontend:install", "openapi:generate"],
       },
       "db:generate": {
         command: "go run ./tools/db-codegen",

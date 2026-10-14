@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "node generate.mjs"
+    "generate": "vp run --workspace-root api:generate"
   },
   "dependencies": {
     "openapi-typescript": "7.13.0",
