@@ -10,16 +10,33 @@ export default defineConfig({
       },
       "server:build": {
         command: "go build -o ./desktop/build/bin/ ./server/cmd/ku-potato-server",
-        cache: false,
+        cache: {
+          input: ["server/**/*", "go.mod", "go.sum", "mise.toml"],
+          output: ["desktop/build/bin/ku-potato-server*"],
+          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+        },
       },
       "frontend:install": {
         command: "vp install --frozen-lockfile",
         cache: false,
       },
       "api:generate": {
-        command: "vp run @ku-potato/api-codegen#generate",
+        command: "node generate.mjs",
+        cwd: "tools/api-codegen",
         dependsOn: ["frontend:install"],
-        cache: false,
+        cache: {
+          input: [
+            "tools/api-codegen/**/*",
+            "server/**/*",
+            "go.mod",
+            "go.sum",
+            "mise.toml",
+            "pnpm-lock.yaml",
+            "vite.config.ts",
+          ],
+          output: ["desktop/frontend/src/api.generated.ts"],
+          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+        },
       },
       "db:generate": {
         command: "go run ./tools/db-codegen",
@@ -27,7 +44,18 @@ export default defineConfig({
       },
       "db:check": {
         command: "go run ./tools/db-codegen -check",
-        cache: false,
+        cache: {
+          input: [
+            "tools/db-codegen/**/*",
+            "server/sqlite/schema/**/*",
+            "server/sqlite/internal/gen/**/*",
+            "go.mod",
+            "go.sum",
+            "mise.toml",
+          ],
+          output: [],
+          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+        },
       },
       dev: {
         command: "go tool wails dev -s -m",
