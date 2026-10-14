@@ -110,8 +110,6 @@ func (b *Browser) WebAuthn(ctx context.Context) (domain.RegistrationResult, erro
 	return domain.RegistrationResult{Registered: stored != nil}, err
 }
 func (b *Browser) DeleteWebAuthn(ctx context.Context) error {
-	b.gate.Lock()
-	defer b.gate.Unlock()
 	b.authMu.Lock()
 	defer b.authMu.Unlock()
 	if err := ctx.Err(); err != nil {

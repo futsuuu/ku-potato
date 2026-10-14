@@ -121,25 +121,44 @@ func (b *Browser) withSessionAuth(ctx context.Context, interactive, dedicated bo
 }
 
 func (b *Browser) withProviderAuth(ctx context.Context, interactive, dedicated, google bool, use func(context.Context) error) error {
+	// A healthy headless runtime can authenticate on its root tab while worker
+	// pages keep running. Mode changes and crash cleanup still need exclusivity.
+	if !interactive {
+		b.gate.RLock()
+		b.authMu.Lock()
+		if b.root != nil && b.root.Err() == nil && !b.interactive {
+			err := b.runProviderAuth(ctx, interactive, dedicated, google, false, use)
+			b.authMu.Unlock()
+			b.gate.RUnlock()
+			return sourceError(ctx, err)
+		}
+		b.authMu.Unlock()
+		b.gate.RUnlock()
+	}
 	b.gate.Lock()
 	defer b.gate.Unlock()
 	b.authMu.Lock()
 	defer b.authMu.Unlock()
+	return sourceError(ctx, b.runProviderAuth(ctx, interactive, dedicated, google, true, use))
+}
+
+// Caller holds authMu and either the shared gate for a healthy headless
+// runtime or the exclusive gate for startup and mode changes.
+func (b *Browser) runProviderAuth(ctx context.Context, interactive, dedicated, google, exclusive bool, use func(context.Context) error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	if b.root != nil && b.root.Err() != nil {
+		if !exclusive {
+			return b.root.Err()
+		}
 		b.stopRuntime()
 	}
 	if err := b.start(ctx, interactive); err != nil {
-		return sourceError(ctx, err)
+		return err
 	}
-	b.interactive = interactive
-	if !google {
-		// Authentication can change the LMS session; discard obsolete workers.
-		for _, slot := range b.slots {
-			b.reset(slot)
-		}
+	if interactive {
+		b.interactive = true
 	}
 	page := b.root
 	if dedicated {
@@ -150,7 +169,7 @@ func (b *Browser) withProviderAuth(ctx context.Context, interactive, dedicated, 
 		err := cd.Run(page)
 		stop()
 		if err != nil {
-			return sourceError(ctx, err)
+			return err
 		}
 	}
 	op, cancel := operationContext(page, ctx)
@@ -165,9 +184,48 @@ func (b *Browser) withProviderAuth(ctx context.Context, interactive, dedicated, 
 		if interactive {
 			b.stopRuntime()
 			b.interactive = false
+			if !google && !dedicated {
+				err = b.start(ctx, false)
+			}
+		}
+		if err == nil && !google && !dedicated {
+			err = b.prepareWorkers(ctx)
 		}
 	}
-	return sourceError(ctx, err)
+	return err
+}
+
+func (b *Browser) prepareWorkers(ctx context.Context) error {
+	// Only inspect idle slots; leased pages can finish while authentication runs.
+	var idle []*pageSlot
+drain:
+	for range b.slots {
+		select {
+		case slot := <-b.available:
+			idle = append(idle, slot)
+		default:
+			break drain
+		}
+	}
+	var missing []*pageSlot
+	for _, slot := range idle {
+		if slot.ctx == nil {
+			missing = append(missing, slot)
+		} else {
+			b.available <- slot
+		}
+	}
+	defer func() {
+		for _, slot := range missing {
+			b.available <- slot
+		}
+	}()
+	for _, slot := range missing {
+		if err := b.preparePage(ctx, slot); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Credentials and counters are loaded and saved under authMu in all contexts.
@@ -266,21 +324,66 @@ func (b *Browser) usePage(ctx context.Context, use func(context.Context) error) 
 		return ctx.Err()
 	}
 	defer func() { b.available <- slot }()
-	b.authMu.Lock()
-	err := b.start(ctx, false)
-	if err == nil && slot.ctx == nil {
-		err = b.createPage(ctx, slot)
+	prepared := slot.ctx != nil
+	if !prepared {
+		b.authMu.Lock()
+		err := b.start(ctx, false)
+		if err == nil {
+			err = b.preparePage(ctx, slot)
+		}
+		b.authMu.Unlock()
+		if err != nil {
+			if slot.ctx != nil {
+				b.reset(slot)
+			}
+			return err
+		}
+	}
+	op, cancel := operationContext(slot.ctx, ctx)
+	defer func() { cancel() }()
+	var err error
+	if prepared {
+		err = b.home(op)
+		var failure *domain.Error
+		if errors.As(err, &failure) && failure.Reason == "authentication-required" && ctx.Err() == nil {
+			cancel()
+			b.authMu.Lock()
+			err = b.authenticatePage(ctx, slot)
+			b.authMu.Unlock()
+			if err == nil {
+				op, cancel = operationContext(slot.ctx, ctx)
+			}
+		}
+	}
+	if err == nil {
+		err = use(op)
 	}
 	if err != nil {
+		b.reset(slot)
+	}
+	return err
+}
+
+// Give each worker its own LMS session before it serves a request. Later
+// requests only navigate that worker back to HOME.
+func (b *Browser) preparePage(ctx context.Context, slot *pageSlot) error {
+	if err := b.createPage(ctx, slot); err != nil {
 		if slot.ctx != nil {
 			b.reset(slot)
 		}
-		b.authMu.Unlock()
 		return err
 	}
+	err := b.authenticatePage(ctx, slot)
+	if err != nil {
+		b.reset(slot)
+	}
+	return err
+}
+
+func (b *Browser) authenticatePage(ctx context.Context, slot *pageSlot) error {
 	op, cancel := operationContext(slot.ctx, ctx)
 	defer cancel()
-	err = cd.Run(op, cd.ActionFunc(func(tab context.Context) error {
+	return cd.Run(op, cd.ActionFunc(func(tab context.Context) error {
 		if err := target.ActivateTarget(cd.FromContext(tab).Target.TargetID).Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
 			return err
 		}
@@ -292,19 +395,8 @@ func (b *Browser) usePage(ctx context.Context, use func(context.Context) error) 
 			return err
 		}
 		// SSO can rotate its cookies. Publish the latest state to the profile.
-		if err := b.copySSO(tab, id, ""); err != nil {
-			return err
-		}
-		return nil
+		return b.copySSO(tab, id, "")
 	}))
-	b.authMu.Unlock()
-	if err == nil {
-		err = use(op)
-	}
-	if err != nil {
-		b.reset(slot)
-	}
-	return err
 }
 
 func (b *Browser) createPage(ctx context.Context, slot *pageSlot) error {

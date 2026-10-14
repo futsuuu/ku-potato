@@ -51,7 +51,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	var lmsAddress atomic.Value
 	portal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sso")
-		if (err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) && !initialLogin.Load() {
+		if !initialLogin.Swap(false) && (err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) {
 			http.Error(w, "SSO state missing", http.StatusUnauthorized)
 			return
 		}
@@ -127,7 +127,11 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	if err = b.Login(ctx, false); err != nil {
 		t.Fatal(err)
 	}
-	initialLogin.Store(false)
+	preparedSessions := sessions.Load()
+	preparedSSO := ssoVersion.Load()
+	if preparedSessions != 3 {
+		t.Fatalf("login prepared %d LMS sessions; want root plus two workers", preparedSessions)
+	}
 	parallel := func(path string, use func(int) error) {
 		t.Helper()
 		release := make(chan struct{})
@@ -197,5 +201,8 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	}
 	if sessions.Load() != 3 {
 		t.Fatalf("created %d LMS sessions; want root plus two reusable contexts", sessions.Load())
+	}
+	if ssoVersion.Load() != preparedSSO {
+		t.Fatal("parallel material requests repeated SSO login")
 	}
 }

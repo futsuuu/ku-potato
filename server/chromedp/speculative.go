@@ -89,8 +89,8 @@ func (b *Browser) startDriveDownload(ctx context.Context, rawURL string) *pendin
 	if !supported || b.google == nil {
 		return nil
 	}
-	// CookieJar takes the exclusive browser gate. Prepare the HTTP client before
-	// leasing an LMS page; the file transfer itself needs no browser locks.
+	// Prepare the HTTP client before leasing an LMS page; the file transfer
+	// itself needs no browser locks.
 	d, err := b.google.driveClient(ctx)
 	if err != nil {
 		return beginDownload(ctx, rawURL, func(context.Context) (string, string, error) {

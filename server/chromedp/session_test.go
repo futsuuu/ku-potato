@@ -17,6 +17,7 @@ import (
 func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	executable := testChrome(t)
 	var lmsAddress atomic.Value
+	var expiredSession atomic.Value
 	var sessions, ssoVersion atomic.Int32
 	var firstLogin atomic.Bool
 	firstLogin.Store(true)
@@ -40,7 +41,8 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "lms-session", Value: fmt.Sprint(sessions.Add(1)), Path: "/", HttpOnly: true})
 			http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 		case "/lms/homeRedirect/":
-			if err != nil {
+			expired, _ := expiredSession.Load().(string)
+			if err != nil || cookie.Value == expired {
 				http.Redirect(w, r, "/lms/error/notLogin", http.StatusFound)
 			} else {
 				http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
@@ -50,8 +52,9 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 		case "/lms":
 			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, portalURL)
 		case "/lms/homeHoml/doIndex":
-			if err != nil {
-				http.Error(w, "Not logged in", http.StatusUnauthorized)
+			expired, _ := expiredSession.Load().(string)
+			if err != nil || cookie.Value == expired {
+				http.Redirect(w, r, "/lms/error/notLogin", http.StatusFound)
 				return
 			}
 			fmt.Fprintf(w, `<body data-session="%s"><span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"></div></body>`, cookie.Value)
@@ -80,14 +83,14 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	if err := b.Login(ctx, true); err != nil {
 		t.Fatal(err)
 	}
-	if b.root != nil || b.interactive || loginRoot.Err() == nil {
-		t.Fatal("login browser was retained after HOME was verified")
+	if b.root == nil || b.root == loginRoot || b.interactive || loginRoot.Err() == nil {
+		t.Fatal("interactive login browser was not replaced by a headless worker browser")
 	}
 	if ok, err := b.Status(ctx); err != nil || !ok {
 		t.Fatal("session lost after login", ok, err)
 	}
-	if sessions.Load() != 1 {
-		t.Fatal("authentication check did not retain the LMS session", sessions.Load())
+	if sessions.Load() != 3 {
+		t.Fatal("authentication check did not prepare isolated worker sessions", sessions.Load())
 	}
 	workerSessions := map[string]bool{}
 	for range 2 {
@@ -104,6 +107,19 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	}
 	if len(workerSessions) != 2 || workerSessions["1"] {
 		t.Fatal("LMS cookies were shared with workers", workerSessions)
+	}
+	expiredSession.Store("2")
+	if err := b.withPage(ctx, func(tab context.Context) error {
+		var session string
+		if err := cd.Run(tab, cd.Evaluate("document.body.dataset.session", &session)); err != nil {
+			return err
+		}
+		if session == "2" {
+			return fmt.Errorf("expired worker session was reused")
+		}
+		return nil
+	}); err != nil || sessions.Load() != 4 {
+		t.Fatal("expired worker session was not recovered", err, sessions.Load())
 	}
 	if err := b.Close(); err != nil {
 		t.Fatal(err)
