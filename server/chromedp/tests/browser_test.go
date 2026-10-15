@@ -98,7 +98,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 			case <-r.Context().Done():
 				return
 			}
-			fmt.Fprint(w, `<tr><td><table>`)
+			fmt.Fprint(w, `<tr><td><div><input type="hidden" name="folder"><p>今週の教材<br>予習してください。</p><table>`)
 			if !materialRemoved.Load() {
 				if materialPrivate.Load() {
 					fmt.Fprint(w, `<tr><td class="kyozaititleCell" id="SRY1"><i title="資料"></i>Handout</td><td>公開終了</td></tr>`)
@@ -106,7 +106,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 					fmt.Fprint(w, `<tr><td class="kyozaititleCell" id="SRY1"><i title="資料"></i><a href="/lms/corsColl/doLinkKyozaiTitle">Handout</a></td><td>2026/10/31 24:00</td></tr>`)
 				}
 			}
-			fmt.Fprint(w, `<tr><td class="kyozaititleCell" id="REP1"><i title="レポート"></i>Report</td><td>－</td></tr></table></td></tr></table>`)
+			fmt.Fprint(w, `<tr><td class="kyozaititleCell" id="REP1"><i title="レポート"></i>Report</td><td>－</td></tr></table></div></td></tr></table>`)
 		case "/lms/corsColl/doLinkKyozaiTitle":
 			fmt.Fprint(w, `<a href="/lms/homeRedirect/?sid=fixture">HOME</a>`)
 			fmt.Fprint(w, `<table><tr><th>資料名</th></tr><tr><td data-label="資料名"><i title="ファイル資料"></i><a href="javascript:downloadFile('FIL1','SRS1')">handout.txt</a></td></tr><tr><td data-label="資料名"><i title="外部資料"></i><a href="/external?syosaiId=SRS2&amp;fileurl=https%3A%2F%2Fexample.org%2Fresource%23anchor">External</a></td></tr></table><script>function downloadFile(){location.href='/file'}</script>`)
@@ -161,6 +161,9 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	}
 	if len(materials.Materials.Folders) != 1 || materials.Materials.Folders[0].Materials[0].PublicationDeadline != "2026-10-31T15:00:00Z" {
 		t.Fatal(materials)
+	}
+	if got := materials.Materials.Folders[0].DescriptionHTML; got == nil || *got != "<p>今週の教材<br>予習してください。</p>" {
+		t.Fatalf("folder description = %v", got)
 	}
 	resources, err := browser.Resources(ctx, "SRY1", "KOG1")
 	if err != nil || len(resources.Resources) != 2 || resources.Resources[0].ID != "SRS1" {

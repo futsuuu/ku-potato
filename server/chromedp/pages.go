@@ -113,8 +113,9 @@ type rawMaterial struct {
 	Linked                   bool
 }
 type rawFolder struct {
-	Name, Date string
-	Materials  []rawMaterial
+	Name, Date      string
+	DescriptionHTML *string
+	Materials       []rawMaterial
 }
 
 func (b *Browser) readMaterials(ctx context.Context, id string) (domain.CourseMaterials, error) {
@@ -129,7 +130,7 @@ func (b *Browser) readMaterials(ctx context.Context, id string) (domain.CourseMa
 		if err != nil {
 			slog.Error("unrecognized LMS value", "id", id, "field", "class_date", "value", raw.Date)
 		}
-		folder := domain.Folder{Name: raw.Name, ClassDate: date, Materials: []domain.Material{}}
+		folder := domain.Folder{Name: raw.Name, ClassDate: date, DescriptionHTML: raw.DescriptionHTML, Materials: []domain.Material{}}
 		for _, entry := range raw.Materials {
 			if !materialIdentity.MatchString(entry.ID) || seen[entry.ID] {
 				return result, domain.Fail("source", "教材IDが不正または重複しています。")
