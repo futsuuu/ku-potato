@@ -1,6 +1,6 @@
 import { For, Show } from "solid-js";
-import PageHeader from "../PageHeader";
-import Progress from "../Progress";
+import PageHeader from "../components/PageHeader";
+import Progress from "../components/Progress";
 import { groupCourses } from "../course-groups";
 import { coursePath, useWorkspace } from "../workspace";
 import type { Schema } from "../api";

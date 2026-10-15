@@ -1,6 +1,6 @@
 import { Match, Switch } from "solid-js";
-import type { Schema } from "./api";
-import { materialTypes } from "./format";
+import type { Schema } from "../api";
+import { materialTypes } from "../format";
 
 export default function MaterialIcon(props: { type: Schema["Material"]["type"] }) {
   return (

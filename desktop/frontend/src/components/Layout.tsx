@@ -1,7 +1,7 @@
 import { createEffect, Loading } from "solid-js";
 import { useLocation } from "@solidjs/router";
 import type { JSX } from "@solidjs/web";
-import { useWorkspace } from "./workspace";
+import { useWorkspace } from "../workspace";
 import Progress from "./Progress";
 import PageHeader from "./PageHeader";
 import Authentication from "./Authentication";

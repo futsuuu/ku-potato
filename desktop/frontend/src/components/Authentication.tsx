@@ -1,7 +1,7 @@
 import { createEffect, createSignal, Show, untrack } from "solid-js";
 import type { JSX } from "@solidjs/web";
-import type { API, Schema } from "./api";
-import { createOperation } from "./operation";
+import type { API, Schema } from "../api";
+import { createOperation } from "../operation";
 import Progress from "./Progress";
 
 type AuthenticationAPI = Pick<API, "auth" | "login" | "check"> &

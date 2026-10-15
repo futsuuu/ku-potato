@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render } from "@solidjs/web";
 import { afterEach, expect, it } from "vite-plus/test";
-import type { Schema } from "./api";
+import type { Schema } from "../api";
 import MaterialInfo from "./MaterialInfo";
 
 let dispose: (() => void) | undefined;

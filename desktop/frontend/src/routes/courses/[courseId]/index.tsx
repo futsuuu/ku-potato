@@ -5,10 +5,10 @@ import type { Result, Sync } from "../../../api";
 import { formatDate } from "../../../format";
 import { createOperation } from "../../../operation";
 import { decodeRouteParam, materialPath, useWorkspace } from "../../../workspace";
-import MaterialInfo from "../../../MaterialInfo";
-import MaterialName from "../../../MaterialName";
-import PageHeader from "../../../PageHeader";
-import Progress from "../../../Progress";
+import MaterialInfo from "../../../components/MaterialInfo";
+import MaterialName from "../../../components/MaterialName";
+import PageHeader from "../../../components/PageHeader";
+import Progress from "../../../components/Progress";
 import { compactFolderDescriptionHtml, openLmsHtmlLink } from "../../../lms-html";
 
 export default function Materials() {

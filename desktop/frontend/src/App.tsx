@@ -6,8 +6,8 @@ import { createAPI, type API } from "./api";
 import { createOperation } from "./operation";
 import { serverURL } from "./native";
 import { WorkspaceProvider } from "./workspace";
-import Layout from "./Layout";
-import Progress from "./Progress";
+import Layout from "./components/Layout";
+import Progress from "./components/Progress";
 import "virtual:app-fonts";
 import "virtual:uno.css";
 

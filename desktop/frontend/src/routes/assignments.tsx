@@ -3,10 +3,10 @@ import type { Result, Sync } from "../api";
 import { upcoming } from "../format";
 import { createOperation } from "../operation";
 import { coursePath, materialPath, useWorkspace } from "../workspace";
-import MaterialInfo from "../MaterialInfo";
-import MaterialName from "../MaterialName";
-import PageHeader from "../PageHeader";
-import Progress from "../Progress";
+import MaterialInfo from "../components/MaterialInfo";
+import MaterialName from "../components/MaterialName";
+import PageHeader from "../components/PageHeader";
+import Progress from "../components/Progress";
 
 export default function Assignments() {
   const workspace = useWorkspace();

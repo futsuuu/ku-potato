@@ -1,4 +1,4 @@
-import type { Schema } from "./api";
+import type { Schema } from "../api";
 import MaterialIcon from "./MaterialIcon";
 
 export default function MaterialName(props: { material: Schema["Material"] }) {

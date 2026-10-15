@@ -6,7 +6,7 @@ import { fileRoutes } from "@solidjs/router/fs";
 import { pageRoutes } from "virtual:file-routes";
 import { createAPI, type API, type Schema } from "../api";
 import { WorkspaceProvider } from "../workspace";
-import Layout from "../Layout";
+import Layout from "../components/Layout";
 
 const course: Schema["Course"] = {
   name: "情報科学",

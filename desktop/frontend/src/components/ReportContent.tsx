@@ -1,8 +1,8 @@
 /* oxlint-disable solid/no-innerhtml -- Render only the allowlisted HTML sanitized by DOMPurify below. */
 import { Show } from "solid-js";
-import type { Schema } from "./api";
-import { formatDate } from "./format";
-import { openLmsHtmlLink, sanitizeLmsHtml } from "./lms-html";
+import type { Schema } from "../api";
+import { formatDate } from "../format";
+import { openLmsHtmlLink, sanitizeLmsHtml } from "../lms-html";
 
 const statuses: Record<Schema["ReportDetail"]["status"], string> = {
   unviewed: "未閲覧",

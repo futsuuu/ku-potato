@@ -1,7 +1,7 @@
 import { Show, untrack } from "solid-js";
-import type { API, Schema } from "./api";
-import { createOperation } from "./operation";
-import { openExternal, saveFile } from "./native";
+import type { API, Schema } from "../api";
+import { createOperation } from "../operation";
+import { openExternal, saveFile } from "../native";
 import Progress from "./Progress";
 
 export default function ResourceRow(props: {

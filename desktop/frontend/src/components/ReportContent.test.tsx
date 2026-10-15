@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render } from "@solidjs/web";
 import { afterEach, expect, it, vi } from "vite-plus/test";
-import type { Schema } from "./api";
+import type { Schema } from "../api";
 import ReportContent from "./ReportContent";
 
 const report: Schema["ReportDetail"] = {

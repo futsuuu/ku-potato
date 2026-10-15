@@ -1,5 +1,5 @@
-import type { Schema } from "./api";
-import { formatDate } from "./format";
+import type { Schema } from "../api";
+import { formatDate } from "../format";
 
 export default function MaterialInfo(props: { material: Schema["Material"] }) {
   return (

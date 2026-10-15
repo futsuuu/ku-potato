@@ -3,12 +3,12 @@ import { useParams } from "@solidjs/router";
 import type { Result, Sync } from "../../../../api";
 import { createOperation } from "../../../../operation";
 import { coursePath, decodeRouteParam, useWorkspace } from "../../../../workspace";
-import MaterialInfo from "../../../../MaterialInfo";
-import MaterialIcon from "../../../../MaterialIcon";
-import ResourceRow from "../../../../ResourceRow";
-import PageHeader from "../../../../PageHeader";
-import Progress from "../../../../Progress";
-import ReportContent from "../../../../ReportContent";
+import MaterialInfo from "../../../../components/MaterialInfo";
+import MaterialIcon from "../../../../components/MaterialIcon";
+import ResourceRow from "../../../../components/ResourceRow";
+import PageHeader from "../../../../components/PageHeader";
+import Progress from "../../../../components/Progress";
+import ReportContent from "../../../../components/ReportContent";
 
 export default function MaterialDetail() {
   const workspace = useWorkspace();

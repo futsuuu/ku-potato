@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
-import type { Status } from "./api";
-import { stages } from "./format";
+import type { Status } from "../api";
+import { stages } from "../format";
 
 export default function Progress(props: { pending: boolean; error: string; status?: Status }) {
   return (
