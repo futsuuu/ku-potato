@@ -1,3 +1,4 @@
+/* oxlint-disable solid/no-innerhtml -- Render only the allowlisted HTML sanitized by DOMPurify below. */
 import { createEffect, For, Show } from "solid-js";
 import { useParams } from "@solidjs/router";
 import type { Result, Sync } from "../../../api";
@@ -8,6 +9,7 @@ import MaterialInfo from "../../../MaterialInfo";
 import MaterialName from "../../../MaterialName";
 import PageHeader from "../../../PageHeader";
 import Progress from "../../../Progress";
+import { compactFolderDescriptionHtml, openLmsHtmlLink } from "../../../lms-html";
 
 export default function Materials() {
   const workspace = useWorkspace();
@@ -60,6 +62,13 @@ export default function Materials() {
                 <h3>{folder.name}</h3>
                 <Show when={folder.classDate}>
                   <small class="meta tnum">授業日: {formatDate(folder.classDate!)}</small>
+                </Show>
+                <Show when={folder.descriptionHtml?.trim()}>
+                  <div
+                    class="folder-description report-links:i-lucide-external-link"
+                    innerHTML={compactFolderDescriptionHtml(folder.descriptionHtml!)}
+                    onClick={openLmsHtmlLink}
+                  />
                 </Show>
               </div>
               <ul class="list">

@@ -202,8 +202,8 @@ export default defineConfig<PresetMiniTheme>({
       .breadcrumb-current { flex: 1 1 auto; }
       .page-header h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .header-actions { display: flex; flex-shrink: 0; gap: ${theme.spacing.sm}; margin-left: calc(-1 * ${theme.spacing.lg}); }
-      a.course-link .link-label, a.item-link .link-label, .resource-link .link-label, .report-content a[href] { text-decoration: underline; text-decoration-color: ${theme.colors.linkUnderline}; text-decoration-thickness: ${theme.lineWidth.thin}; text-underline-offset: ${theme.lineWidth.focus}; }
-      .report-content a[href]:hover, .report-content a[href]:focus-visible { color: ${theme.colors.accent}; }
+      a.course-link .link-label, a.item-link .link-label, .resource-link .link-label, .report-content a[href], .folder-description a[href] { text-decoration: underline; text-decoration-color: ${theme.colors.linkUnderline}; text-decoration-thickness: ${theme.lineWidth.thin}; text-underline-offset: ${theme.lineWidth.focus}; }
+      .report-content a[href]:hover, .report-content a[href]:focus-visible, .folder-description a[href]:hover, .folder-description a[href]:focus-visible { color: ${theme.colors.accent}; }
       .page-content { grid-area: 1 / 1; min-height: ${theme.spacing.none}; overflow: auto; scroll-padding-top: calc(${theme.spacing.toolbar} + ${theme.spacing.xl}); padding: calc(${theme.spacing.toolbar} + ${theme.spacing.xl}) ${theme.spacing.page} ${theme.spacing.xl}; }
       .page-content > * { max-width: ${theme.maxWidth.content}; }
       .section-intro { display: flex; align-items: baseline; justify-content: space-between; gap: ${theme.spacing.lg}; margin-bottom: ${theme.spacing.section}; }
@@ -222,7 +222,7 @@ export default defineConfig<PresetMiniTheme>({
       .resource-row { position: relative; padding-left: ${theme.spacing.section}; padding-right: ${theme.spacing.section}; }
       .resource-link { display: inline; }
       .external-link-icon { margin-left: ${theme.spacing.xs}; vertical-align: middle; }
-      .report-content a[href]::after { content: ""; margin-left: ${theme.spacing.xs}; vertical-align: middle; }
+      .report-content a[href]::after, .folder-description a[href]::after { content: ""; margin-left: ${theme.spacing.xs}; vertical-align: middle; }
       .resource-link::after { content: ""; position: absolute; inset: ${theme.spacing.none}; }
       .resource-row:has(.resource-link):hover { background: ${theme.colors.surface}; }
       .resource-row:has(.resource-link):hover .resource-link, .resource-link:focus-visible { color: ${theme.colors.accent}; }
@@ -230,12 +230,16 @@ export default defineConfig<PresetMiniTheme>({
       .resource-row .actions button { position: relative; z-index: 1; }
       .list { border-top: ${theme.lineWidth.thin} solid ${theme.colors.line}; }
       .item-content { overflow-wrap: anywhere; }
-      .folder-section { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); border-top: ${theme.lineWidth.thin} solid ${theme.colors.line}; }
+      .folder-section { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); border-top: ${theme.lineWidth.thin} solid ${theme.colors.line}; }
       .folder-section > .list { border-top: none; display: flex; flex-direction: column; }
+      .folder-section > .list > li > .item-link { border-bottom-width: ${theme.lineWidth.none}; }
       .folder-section > .list > li:last-child { flex: 1; display: flex; flex-direction: column; }
-      .folder-section > .list > li:last-child > .item-link { flex: 1; border-bottom-width: ${theme.lineWidth.none}; }
+      .folder-section > .list > li:last-child > .item-link { flex: 1; align-items: flex-start; }
       .folder-heading { padding: ${theme.spacing.section} ${theme.spacing.lg} ${theme.spacing.section} ${theme.spacing.none}; }
       .folder-heading .meta { margin-top: ${theme.spacing.sm}; }
+      .folder-description { margin-top: ${theme.spacing.lg}; font-size: ${theme.fontSize.small}; overflow-wrap: anywhere; }
+      .folder-description > * + * { margin-top: ${theme.spacing.sm}; }
+      .folder-description-gap { display: block; height: ${theme.spacing.sm}; }
       .report-section { margin-top: ${theme.spacing.section}; }
       .report-section h2 { margin-bottom: ${theme.spacing.md}; }
       .report-metadata { margin: ${theme.spacing.section} ${theme.spacing.none}; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: ${theme.spacing.sm} ${theme.spacing.section}; }

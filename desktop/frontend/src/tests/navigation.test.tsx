@@ -47,7 +47,14 @@ const api = {
   assignments: vi.fn(async () => ({ assignments: [], failures: [] })),
   materials: vi.fn(async () => ({
     lmsCourseId: "C 1",
-    folders: [{ name: "第1回", materials: [material, reportMaterial] }],
+    folders: [
+      {
+        name: "第1回",
+        descriptionHtml:
+          '<p>今週の教材です。</p><a href="https://example.com/guide">案内</a><script>alert(1)</script>',
+        materials: [material, reportMaterial],
+      },
+    ],
   })),
   detail: vi.fn<API["detail"]>(async (id) =>
     id === reportMaterial.lmsMaterialId
@@ -140,6 +147,16 @@ it("navigates full course/material links and restores browser back/forward", asy
   window.history.forward();
   await title(material.name);
   expect(document.querySelector(".page-content")?.scrollTop).toBe(0);
+});
+
+it("shows a sanitized folder description beneath its name", async () => {
+  mount("/courses/C%201");
+  await title(course.name);
+  await vi.waitFor(() => expect(document.querySelector(".folder-description")).not.toBeNull());
+  const heading = document.querySelector(".folder-heading")!;
+  expect(heading.querySelector("h3")?.textContent).toBe("第1回");
+  expect(heading.querySelector(".folder-description")?.textContent).toBe("今週の教材です。案内");
+  expect(heading.querySelector(".folder-description script")).toBeNull();
 });
 
 it("loads a deep link from URL parameters without a previous selection", async () => {

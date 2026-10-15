@@ -1,9 +1,8 @@
 /* oxlint-disable solid/no-innerhtml -- Render only the allowlisted HTML sanitized by DOMPurify below. */
 import { Show } from "solid-js";
-import DOMPurify from "dompurify";
 import type { Schema } from "./api";
 import { formatDate } from "./format";
-import { openExternal } from "./native";
+import { openLmsHtmlLink, sanitizeLmsHtml } from "./lms-html";
 
 const statuses: Record<Schema["ReportDetail"]["status"], string> = {
   unviewed: "未閲覧",
@@ -18,37 +17,7 @@ export default function ReportContent(props: {
   report: Schema["ReportDetail"];
   archived: boolean;
 }) {
-  const prompt = () =>
-    DOMPurify.sanitize(props.report.promptHtml ?? "", {
-      ALLOWED_TAGS: [
-        "p",
-        "br",
-        "div",
-        "span",
-        "h2",
-        "h3",
-        "h4",
-        "ul",
-        "ol",
-        "li",
-        "strong",
-        "b",
-        "em",
-        "i",
-        "code",
-        "pre",
-        "blockquote",
-        "table",
-        "thead",
-        "tbody",
-        "tr",
-        "th",
-        "td",
-        "a",
-      ],
-      ALLOWED_ATTR: ["href", "title", "colspan", "rowspan"],
-      ALLOWED_URI_REGEXP: /^https?:\/\//i,
-    });
+  const prompt = () => sanitizeLmsHtml(props.report.promptHtml ?? "");
   return (
     <section class="report-section">
       <h2>課題内容</h2>
@@ -56,13 +25,7 @@ export default function ReportContent(props: {
         <div
           class="report-content report-links:i-lucide-external-link"
           innerHTML={prompt()}
-          onClick={(event) => {
-            const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
-            if (link instanceof HTMLAnchorElement) {
-              event.preventDefault();
-              openExternal(link.href);
-            }
-          }}
+          onClick={openLmsHtmlLink}
         />
       </Show>
       <dl class="report-metadata">
