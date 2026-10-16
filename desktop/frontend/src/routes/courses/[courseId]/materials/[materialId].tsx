@@ -9,6 +9,7 @@ import ResourceRow from "../../../../components/ResourceRow";
 import PageHeader from "../../../../components/PageHeader";
 import Progress from "../../../../components/Progress";
 import ReportContent from "../../../../components/ReportContent";
+import RefreshButton from "../../../../components/RefreshButton";
 
 export default function MaterialDetail() {
   const workspace = useWorkspace();
@@ -41,15 +42,11 @@ export default function MaterialDetail() {
           </Show>
         }
       >
-        <button
-          class="icon-button"
-          aria-label={syncLabel()}
-          title={syncLabel()}
+        <RefreshButton
+          label={syncLabel()}
           disabled={detail.pending()}
           onClick={() => void load(materialId(), "true")}
-        >
-          <span class="i-lucide-refresh-cw" aria-hidden="true" />
-        </button>
+        />
       </PageHeader>
       <div class="page-content">
         <Show when={detail.data()?.material}>
@@ -62,13 +59,13 @@ export default function MaterialDetail() {
             <>
               <div class="section-intro">
                 <h2>資料</h2>
-                <span class="meta tnum">{detail.data()?.resources?.length ?? 0}件</span>
+                <span class="muted-note tnum">{detail.data()?.resources?.length ?? 0}件</span>
               </div>
-              <ul class="list">
+              <ul class="item-list">
                 <For
                   each={detail.data()?.resources ?? []}
                   fallback={
-                    <li class="empty">
+                    <li class="no-content">
                       {detail.pending()
                         ? "資料を読み込んでいます。"
                         : detail.data()?.material.archived
@@ -93,7 +90,7 @@ export default function MaterialDetail() {
           <Show
             when={detail.data()?.report}
             fallback={
-              <p class="empty">
+              <p class="no-content">
                 {detail.pending()
                   ? "レポートを読み込んでいます。"
                   : detail.data()?.material.archived

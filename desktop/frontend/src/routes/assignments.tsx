@@ -3,10 +3,10 @@ import type { Result, Sync } from "../api";
 import { upcoming } from "../format";
 import { createOperation } from "../operation";
 import { coursePath, materialPath, useWorkspace } from "../workspace";
-import MaterialInfo from "../components/MaterialInfo";
-import MaterialName from "../components/MaterialName";
+import MaterialSummary from "../components/MaterialSummary";
 import PageHeader from "../components/PageHeader";
 import Progress from "../components/Progress";
+import RefreshButton from "../components/RefreshButton";
 
 export default function Assignments() {
   const workspace = useWorkspace();
@@ -25,20 +25,16 @@ export default function Assignments() {
   return (
     <>
       <PageHeader title="期限前の課題">
-        <button
-          class="icon-button"
-          aria-label="課題を同期"
-          title="課題を同期"
+        <RefreshButton
+          label="課題を同期"
           disabled={assignments.pending()}
           onClick={() => void load("true")}
-        >
-          <span class="i-lucide-refresh-cw" aria-hidden="true" />
-        </button>
+        />
       </PageHeader>
       <div class="page-content">
         <div class="section-intro">
           <h2>提出予定</h2>
-          <span class="meta">締切が近い順</span>
+          <span class="muted-note">締切が近い順</span>
         </div>
         <Progress
           pending={assignments.pending()}
@@ -47,16 +43,16 @@ export default function Assignments() {
         />
         <For each={assignments.data()?.failures ?? []}>
           {(failure) => (
-            <p class="error" role="alert">
+            <p class="error-message" role="alert">
               {workspace.courseName(failure.lmsCourseId)}: {failure.error.message}
             </p>
           )}
         </For>
-        <ul class="list">
+        <ul class="item-list">
           <For
             each={upcoming(assignments.data()?.assignments ?? [], now())}
             fallback={
-              <li class="empty">
+              <li class="no-content">
                 {assignments.pending() ? "課題を読み込んでいます。" : "期限前の課題はありません。"}
               </li>
             }
@@ -64,20 +60,18 @@ export default function Assignments() {
             {(assignment) => (
               <li>
                 <a
-                  class="item-link"
+                  class="item-link linked-item"
                   href={
                     assignment.material.type === "report"
                       ? materialPath(assignment.lmsCourseId, assignment.material.lmsMaterialId)
                       : coursePath(assignment.lmsCourseId)
                   }
                 >
-                  <div class="item-content">
-                    <MaterialName material={assignment.material} />
-                    <MaterialInfo material={assignment.material} />
-                    <span class="meta">
+                  <MaterialSummary material={assignment.material}>
+                    <span class="muted-note">
                       {workspace.courseName(assignment.lmsCourseId)} · {assignment.folderName}
                     </span>
-                  </div>
+                  </MaterialSummary>
                 </a>
               </li>
             )}

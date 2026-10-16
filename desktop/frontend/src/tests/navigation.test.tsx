@@ -133,7 +133,9 @@ it("navigates full course/material links and restores browser back/forward", asy
   click(".course-link");
   await title(course.name);
   expect(document.querySelector(".page-content")?.scrollTop).toBe(0);
-  expect(document.querySelector('.breadcrumbs a[href="/"]')?.textContent).toBe("講義一覧");
+  expect(document.querySelector('nav[aria-label="パンくずリスト"] a[href="/"]')?.textContent).toBe(
+    "講義一覧",
+  );
   expect(window.location.pathname).toBe("/courses/C%201");
   await vi.waitFor(() => expect(document.querySelector("a.item-link")).not.toBeNull());
   click("a.item-link");
@@ -153,7 +155,7 @@ it("shows a sanitized folder description beneath its name", async () => {
   mount("/courses/C%201");
   await title(course.name);
   await vi.waitFor(() => expect(document.querySelector(".folder-description")).not.toBeNull());
-  const heading = document.querySelector(".folder-heading")!;
+  const heading = document.querySelector(".folder-section > div")!;
   expect(heading.querySelector("h3")?.textContent).toBe("第1回");
   expect(heading.querySelector(".folder-description")?.textContent).toBe("今週の教材です。案内");
   expect(heading.querySelector(".folder-description script")).toBeNull();
@@ -164,7 +166,7 @@ it("loads a deep link from URL parameters without a previous selection", async (
   await title(material.name);
   expect(api.detail).toHaveBeenCalledWith("M 1", "auto", expect.anything());
   expect(
-    [...document.querySelectorAll(".breadcrumbs a")].map((link) => [
+    [...document.querySelectorAll('nav[aria-label="パンくずリスト"] a')].map((link) => [
       link.textContent,
       link.getAttribute("href"),
     ]),
@@ -172,14 +174,14 @@ it("loads a deep link from URL parameters without a previous selection", async (
     ["講義一覧", "/"],
     [course.name, "/courses/C%201"],
   ]);
-  expect(document.querySelector('.breadcrumbs [aria-current="page"]')?.textContent).toBe(
-    material.name,
-  );
+  expect(
+    document.querySelector('nav[aria-label="パンくずリスト"] [aria-current="page"]')?.textContent,
+  ).toBe(material.name);
   expect(document.querySelector(".page-content")?.textContent).not.toContain("へ戻る");
-  click('.breadcrumbs a[href="/courses/C%201"]');
+  click('nav[aria-label="パンくずリスト"] a[href="/courses/C%201"]');
   await title(course.name);
   expect(api.materials).toHaveBeenCalledWith("C 1", "auto", expect.anything());
-  click('.breadcrumbs a[href="/"]');
+  click('nav[aria-label="パンくずリスト"] a[href="/"]');
   await title("講義一覧");
 });
 
@@ -187,9 +189,10 @@ it("uses the fetched course name in breadcrumbs when the course list is empty", 
   api.courses.mockResolvedValueOnce([]);
   mount("/courses/C%201/materials/M%201");
   await title(material.name);
-  expect(document.querySelector('.breadcrumbs a[href="/courses/C%201"]')?.textContent).toBe(
-    course.name,
-  );
+  expect(
+    document.querySelector('nav[aria-label="パンくずリスト"] a[href="/courses/C%201"]')
+      ?.textContent,
+  ).toBe(course.name);
 });
 
 it("opens a report from the course list and displays its prompt", async () => {
@@ -212,17 +215,17 @@ it("opens a report from the course list and displays its prompt", async () => {
   await vi.waitFor(() =>
     expect(api.detail).toHaveBeenLastCalledWith("R 1", "true", expect.anything()),
   );
-  expect(document.querySelector(".section-intro")).toBeNull();
+  expect(document.querySelector("h2")?.textContent).toBe("課題内容");
 });
 
 it("keeps Wails navigation on the root document with hash history", async () => {
   mount("/courses/C%201/materials/M%201", true);
   await title(material.name);
-  click('.breadcrumbs a[href="/courses/C%201"]');
+  click('nav[aria-label="パンくずリスト"] a[href="/courses/C%201"]');
   await title(course.name);
   expect(window.location.pathname).toBe("/");
   expect(window.location.hash).toBe("#/courses/C%201");
-  click('.breadcrumbs a[href="/"]');
+  click('nav[aria-label="パンくずリスト"] a[href="/"]');
   await title("講義一覧");
   expect(window.location.pathname).toBe("/");
   expect(window.location.hash).toBe("#/");
@@ -232,13 +235,13 @@ it("routes assignments and unknown URLs through filesystem routes", async () => 
   mount("/assignments");
   await title("期限前の課題");
   expect(api.assignments).toHaveBeenCalled();
-  expect(document.querySelector('.breadcrumbs [aria-current="page"]')?.textContent).toBe(
-    "期限前の課題",
-  );
+  expect(
+    document.querySelector('nav[aria-label="パンくずリスト"] [aria-current="page"]')?.textContent,
+  ).toBe("期限前の課題");
   dispose?.();
   mount("/missing/page");
   await title("ページが見つかりません");
   expect(document.querySelector(".page-content")?.textContent).not.toContain("へ戻る");
-  click('.breadcrumbs a[href="/"]');
+  click('nav[aria-label="パンくずリスト"] a[href="/"]');
   await title("講義一覧");
 });

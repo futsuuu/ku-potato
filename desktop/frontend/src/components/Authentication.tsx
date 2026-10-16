@@ -7,6 +7,22 @@ import Progress from "./Progress";
 type AuthenticationAPI = Pick<API, "auth" | "login" | "check"> &
   Partial<Pick<API, "register" | "webauthn" | "deleteWebAuthn">>;
 
+function SecondaryAuthButton(props: {
+  disabled: boolean;
+  onClick: () => void;
+  children: JSX.Element;
+}) {
+  return (
+    <button
+      class="inline-flex items-center gap-sm py-xs text-left text-small text-muted disabled:cursor-default hover:text-ink"
+      disabled={props.disabled}
+      onClick={() => props.onClick()}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 export default function Authentication(props: {
   api: AuthenticationAPI;
   title: string;
@@ -51,7 +67,10 @@ export default function Authentication(props: {
     },
   );
   return (
-    <section class="auth" aria-label={props.title}>
+    <section
+      class="flex flex-col gap-md border-t-thin border-line border-solid pt-section text-small lt-sm:mt-none"
+      aria-label={props.title}
+    >
       <strong>{props.title}</strong>
       <span>
         {state().status === "authenticated"
@@ -68,34 +87,31 @@ export default function Authentication(props: {
         <span class="i-lucide-log-in" aria-hidden="true" />
         ブラウザでログイン
       </button>
-      <button
-        class="quiet-button"
+      <SecondaryAuthButton
         disabled={operation.pending()}
         onClick={() => void authenticate("check")}
       >
         認証状態を確認
-      </button>
+      </SecondaryAuthButton>
       <Show when={props.api.register}>
         <details>
           <summary>認証の設定</summary>
-          <div class="auth-settings">
+          <div class="grid mt-sm gap-sm">
             <Show when={!registered()}>
-              <button
-                class="quiet-button"
+              <SecondaryAuthButton
                 disabled={operation.pending()}
                 onClick={() => void authenticate("register")}
               >
                 認証デバイスを登録
-              </button>
+              </SecondaryAuthButton>
             </Show>
             <Show when={registered()}>
-              <button
-                class="quiet-button"
+              <SecondaryAuthButton
                 disabled={operation.pending()}
                 onClick={() => void authenticate("deleteWebAuthn")}
               >
                 保存済みWebAuthn情報を削除
-              </button>
+              </SecondaryAuthButton>
             </Show>
           </div>
         </details>

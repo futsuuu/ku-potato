@@ -75,19 +75,21 @@ it("preserves breadcrumb links and focus when ancestors are recreated or renamed
   ];
   const [ancestors, setAncestors] = createSignal(initial);
   dispose = render(() => <PageHeader title="講義資料" ancestors={ancestors()} />, document.body);
-  const [rootLink, courseLink] = document.querySelectorAll<HTMLAnchorElement>(".breadcrumbs a");
+  const [rootLink, courseLink] = document.querySelectorAll<HTMLAnchorElement>(
+    'nav[aria-label="パンくずリスト"] a',
+  );
   courseLink!.focus();
 
   setAncestors(initial.map((ancestor) => ({ ...ancestor })));
   flush();
-  const links = document.querySelectorAll(".breadcrumbs a");
+  const links = document.querySelectorAll('nav[aria-label="パンくずリスト"] a');
   expect(links[0]).toBe(rootLink);
   expect(links[1]).toBe(courseLink);
   expect(document.activeElement).toBe(courseLink);
 
   setAncestors(initial.map((ancestor) => ({ ...ancestor, label: `${ancestor.label}（更新）` })));
   flush();
-  expect(document.querySelectorAll(".breadcrumbs a")[1]).toBe(courseLink);
+  expect(document.querySelectorAll('nav[aria-label="パンくずリスト"] a')[1]).toBe(courseLink);
   expect(courseLink?.textContent).toBe("情報科学（更新）");
   expect(courseLink?.title).toBe("情報科学（更新）");
   expect(document.activeElement).toBe(courseLink);

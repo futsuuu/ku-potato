@@ -6,6 +6,24 @@ import Progress from "./Progress";
 import PageHeader from "./PageHeader";
 import Authentication from "./Authentication";
 
+function NavigationLink(props: {
+  href: string;
+  current: boolean;
+  icon: JSX.Element;
+  children: JSX.Element;
+}) {
+  return (
+    <a
+      class="flex items-center gap-md border-b-thin border-line border-solid px-sm py-md text-small lt-sm:justify-center aria-[current=page]:border-b-accent hover:bg-surface aria-[current=page]:text-accent"
+      href={props.href}
+      aria-current={props.current ? "page" : undefined}
+    >
+      {props.icon}
+      {props.children}
+    </a>
+  );
+}
+
 export default function Layout(props: { children: JSX.Element }) {
   const workspace = useWorkspace();
   const location = useLocation();
@@ -17,35 +35,32 @@ export default function Layout(props: { children: JSX.Element }) {
     },
   );
   return (
-    <div class="app">
-      <button class="skip-link" onClick={() => document.getElementById("main-content")?.focus()}>
+    <div class="h-viewport flex overflow-hidden lt-sm:flex-col">
+      <button
+        class="fixed left-sm top-sm z-skip bg-canvas px-lg py-sm translate-y-outside focus:transform-none"
+        onClick={() => document.getElementById("main-content")?.focus()}
+      >
         本文へ移動
       </button>
-      <aside class="sidebar">
-        <a class="brand" href="/" aria-label="KU-POTATO 講義一覧">
+      <aside class="fixed inset-y-none left-none min-h-none w-sidebar flex flex-col gap-xl overflow-y-auto border-r-thin border-line border-solid bg-canvas p-section lt-sm:static lt-sm:max-h-sidebar lt-sm:w-auto lt-sm:gap-section lt-sm:border-b-thin lt-sm:border-r-none lt-md:p-lg lt-sm:p-section">
+        <a class="block" href="/" aria-label="KU-POTATO 講義一覧">
           KU-POTATO
         </a>
-        <nav class="navigation" aria-label="ナビゲーション">
-          <a
-            class="nav-link"
+        <nav class="grid lt-sm:bg-canvas lt-sm:grid-cols-pair" aria-label="ナビゲーション">
+          <NavigationLink
             href="/"
-            aria-current={
-              location.pathname === "/" || location.pathname.startsWith("/courses/")
-                ? "page"
-                : undefined
-            }
+            current={location.pathname === "/" || location.pathname.startsWith("/courses/")}
+            icon={<span class="i-lucide-book-open" aria-hidden="true" />}
           >
-            <span class="i-lucide-book-open" aria-hidden="true" />
             講義・教材
-          </a>
-          <a
-            class="nav-link"
+          </NavigationLink>
+          <NavigationLink
             href="/assignments"
-            aria-current={location.pathname === "/assignments" ? "page" : undefined}
+            current={location.pathname === "/assignments"}
+            icon={<span class="i-lucide-calendar-clock" aria-hidden="true" />}
           >
-            <span class="i-lucide-calendar-clock" aria-hidden="true" />
             期限前の課題
-          </a>
+          </NavigationLink>
         </nav>
         <div class="mt-auto flex flex-col gap-section">
           <Authentication
@@ -53,12 +68,16 @@ export default function Layout(props: { children: JSX.Element }) {
             title="工学院 統合認証"
             onLogin={() => void workspace.loadCourses("true")}
           >
-            <p class="meta">保存済みの講義・教材はログイン前も閲覧できます。</p>
+            <p class="muted-note">保存済みの講義・教材はログイン前も閲覧できます。</p>
           </Authentication>
           <Authentication api={workspace.api.google} title="Google（@g.kogakuin.jp）" />
         </div>
       </aside>
-      <main id="main-content" class="main-content" tabindex="-1">
+      <main
+        id="main-content"
+        class="main-content ml-sidebar min-h-none min-w-none flex flex-auto flex-col overflow-hidden lt-sm:ml-none"
+        tabindex="-1"
+      >
         <Loading
           on={location.pathname}
           fallback={

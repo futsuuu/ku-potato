@@ -28,8 +28,8 @@ export default function App() {
     <Show
       when={connection.data()}
       fallback={
-        <div class="connection-state">
-          <span class="brand">KU-POTATO</span>
+        <div class="grid justify-items-start gap-lg p-page">
+          <span class="block">KU-POTATO</span>
           <Progress pending={connection.pending()} error={connection.error()} />
           <Show when={connection.error()}>
             <button class="app-button" onClick={() => window.location.reload()}>

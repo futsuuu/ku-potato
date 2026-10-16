@@ -1,8 +1,7 @@
-/* oxlint-disable solid/no-innerhtml -- Render only the allowlisted HTML sanitized by DOMPurify below. */
 import { Show } from "solid-js";
 import type { Schema } from "../api";
 import { formatDate } from "../format";
-import { openLmsHtmlLink, sanitizeLmsHtml } from "../lms-html";
+import LmsHtmlContent from "./LmsHtmlContent";
 
 const statuses: Record<Schema["ReportDetail"]["status"], string> = {
   unviewed: "未閲覧",
@@ -17,22 +16,19 @@ export default function ReportContent(props: {
   report: Schema["ReportDetail"];
   archived: boolean;
 }) {
-  const prompt = () => sanitizeLmsHtml(props.report.promptHtml ?? "");
   return (
-    <section class="report-section">
-      <h2>課題内容</h2>
-      <Show when={prompt().trim()} fallback={<p class="empty">課題文はありません。</p>}>
-        <div
-          class="report-content report-links:i-lucide-external-link"
-          innerHTML={prompt()}
-          onClick={openLmsHtmlLink}
-        />
-      </Show>
-      <dl class="report-metadata">
-        <dt>提出状況</dt>
-        <dd>{statuses[props.report.status]}</dd>
-        <dt>提出期間</dt>
-        <dd class="tnum">
+    <section class="mt-section">
+      <h2 class="mb-md">課題内容</h2>
+      <LmsHtmlContent
+        html={props.report.promptHtml ?? ""}
+        kind="report"
+        fallback={<p class="no-content">課題文はありません。</p>}
+      />
+      <dl class="grid my-section gap-x-section gap-y-sm grid-cols-key-value">
+        <dt class="text-muted">提出状況</dt>
+        <dd class="m-none break-anywhere">{statuses[props.report.status]}</dd>
+        <dt class="text-muted">提出期間</dt>
+        <dd class="m-none tnum break-anywhere">
           {props.report.submissionPeriodKind === "unlisted"
             ? "指定なし"
             : props.report.submissionPeriodKind === "at"
@@ -41,7 +37,7 @@ export default function ReportContent(props: {
         </dd>
       </dl>
       <Show when={props.archived && props.report.fetchedAt}>
-        <small class="meta">
+        <small class="muted-note">
           過去の取得データ: <span class="tnum">{formatDate(props.report.fetchedAt!)}</span>取得
         </small>
       </Show>

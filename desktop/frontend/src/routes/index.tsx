@@ -1,13 +1,15 @@
 import { For, Show } from "solid-js";
+import ItemContent from "../components/ItemContent";
 import PageHeader from "../components/PageHeader";
 import Progress from "../components/Progress";
+import RefreshButton from "../components/RefreshButton";
 import { groupCourses } from "../course-groups";
 import { coursePath, useWorkspace } from "../workspace";
 import type { Schema } from "../api";
 
 function CourseInfo(props: { course: Schema["Course"] }) {
   return (
-    <div class="item-content">
+    <ItemContent>
       <span class="link-label">{props.course.name}</span>
       <Show
         when={
@@ -16,7 +18,7 @@ function CourseInfo(props: { course: Schema["Course"] }) {
           props.course.availability === "unavailable"
         }
       >
-        <small class="meta tnum">
+        <small class="muted-note tnum">
           {[
             props.course.period ? `${props.course.period}限` : "",
             props.course.archived ? "保存済み講義" : "",
@@ -26,7 +28,34 @@ function CourseInfo(props: { course: Schema["Course"] }) {
             .join(" · ")}
         </small>
       </Show>
-    </div>
+    </ItemContent>
+  );
+}
+
+function CourseRow(props: { course: Schema["Course"] }) {
+  return (
+    <li>
+      <Show
+        when={props.course.lmsCourseId}
+        fallback={
+          <div class="course-link flex items-center justify-between gap-lg border-b-thin border-line border-solid px-section py-lg">
+            <CourseInfo course={props.course} />
+            <Show when={props.course.availability !== "unavailable"}>
+              <span class="muted-note">利用不可</span>
+            </Show>
+          </div>
+        }
+      >
+        {(id) => (
+          <a
+            class="course-link flex items-center justify-between gap-lg border-b-thin border-line border-solid linked-item px-section py-lg"
+            href={coursePath(id())}
+          >
+            <CourseInfo course={props.course} />
+          </a>
+        )}
+      </Show>
+    </li>
   );
 }
 
@@ -36,18 +65,14 @@ export default function Courses() {
   return (
     <>
       <PageHeader title="講義一覧">
-        <button
-          class="icon-button"
-          aria-label="講義を同期"
-          title="講義を同期"
+        <RefreshButton
+          label="講義を同期"
           disabled={workspace.courses.pending()}
           onClick={() => void workspace.loadCourses("true")}
-        >
-          <span class="i-lucide-refresh-cw" aria-hidden="true" />
-        </button>
+        />
       </PageHeader>
       <div class="page-content">
-        <p class="course-count meta tnum">{workspace.courses.data()?.length ?? 0}件の講義</p>
+        <p class="mb-section muted-note tnum">{workspace.courses.data()?.length ?? 0}件の講義</p>
         <Progress
           pending={workspace.courses.pending()}
           error={workspace.courses.error()}
@@ -56,38 +81,16 @@ export default function Courses() {
         <For
           each={groups()}
           fallback={
-            <p class="empty">
+            <p class="no-content">
               {workspace.courses.pending() ? "講義を読み込んでいます。" : "講義がありません。"}
             </p>
           }
         >
           {(group) => (
-            <section class="course-section">
-              <h2>{group.label}</h2>
-              <ul class="list">
-                <For each={group.courses}>
-                  {(course) => (
-                    <li>
-                      <Show
-                        when={course.lmsCourseId}
-                        fallback={
-                          <div class="course-link">
-                            <CourseInfo course={course} />
-                            <Show when={course.availability !== "unavailable"}>
-                              <span class="meta">利用不可</span>
-                            </Show>
-                          </div>
-                        }
-                      >
-                        {(id) => (
-                          <a class="course-link" href={coursePath(id())}>
-                            <CourseInfo course={course} />
-                          </a>
-                        )}
-                      </Show>
-                    </li>
-                  )}
-                </For>
+            <section class="mb-xl">
+              <h2 class="mb-md">{group.label}</h2>
+              <ul class="item-list">
+                <For each={group.courses}>{(course) => <CourseRow course={course} />}</For>
               </ul>
             </section>
           )}
