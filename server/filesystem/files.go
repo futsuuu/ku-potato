@@ -8,9 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/futsuuu/ku-potato/server/core/outport"
 	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/klauspost/compress/zstd"
 )
 
 type Files struct{ root string }
@@ -30,8 +32,22 @@ func New(root string) (*Files, error) {
 
 var blobID = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
+const zstdSuffix = ".zst"
+
+func alreadyCompressed(filename string) bool {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".zip", ".7z", ".rar", ".gz", ".bz2", ".xz", ".zst",
+		".docx", ".xlsx", ".pptx",
+		".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp3", ".mp4":
+		return true
+	default:
+		return false
+	}
+}
+
 func (f *Files) path(file domain.SavedFile) (string, error) {
-	if !blobID.MatchString(file.ID) {
+	id := strings.TrimSuffix(file.ID, zstdSuffix)
+	if !blobID.MatchString(id) {
 		return "", domain.Fail("resource-storage", "invalid saved file identity")
 	}
 	return filepath.Join(f.root, file.ID), nil
@@ -47,6 +63,9 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 		return domain.SavedFile{}, err
 	}
 	metadata := domain.SavedFile{ID: hex.EncodeToString(id), OriginalFilename: filename}
+	if !alreadyCompressed(filename) {
+		metadata.ID += zstdSuffix
+	}
 	destination := filepath.Join(f.root, metadata.ID)
 	out, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
@@ -59,10 +78,27 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 			os.Remove(destination)
 		}
 	}()
+	var writer io.Writer = out
+	var encoder *zstd.Encoder
+	if strings.HasSuffix(metadata.ID, zstdSuffix) {
+		encoder, err = zstd.NewWriter(out, zstd.WithEncoderLevel(zstd.SpeedDefault))
+		if err != nil {
+			return metadata, err
+		}
+		writer = encoder
+	}
 	hash := sha256.New()
-	metadata.Size, err = io.Copy(io.MultiWriter(out, hash), in)
+	metadata.Size, err = io.Copy(io.MultiWriter(writer, hash), in)
 	if err != nil {
+		if encoder != nil {
+			_ = encoder.Close()
+		}
 		return metadata, err
+	}
+	if encoder != nil {
+		if err = encoder.Close(); err != nil {
+			return metadata, err
+		}
 	}
 	if err = out.Sync(); err != nil {
 		return metadata, err
@@ -83,7 +119,20 @@ func (f *Files) Open(file domain.SavedFile) (io.ReadSeekCloser, error) {
 	if os.IsNotExist(err) {
 		return nil, domain.ErrMissing
 	}
-	return in, err
+	if err != nil || !strings.HasSuffix(file.ID, zstdSuffix) {
+		return in, err
+	}
+	stat, err := in.Stat()
+	if err != nil {
+		in.Close()
+		return nil, err
+	}
+	decoder, err := zstd.NewReader(io.NewSectionReader(in, 0, stat.Size()))
+	if err != nil {
+		in.Close()
+		return nil, err
+	}
+	return &zstdFile{source: in, decoder: decoder, compressedSize: stat.Size(), size: file.Size}, nil
 }
 func (f *Files) Remove(file domain.SavedFile) error {
 	path, err := f.path(file)

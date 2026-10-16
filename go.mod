@@ -8,6 +8,7 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/go-jet/jet/v2 v2.16.1
 	github.com/gofrs/flock v0.13.1
+	github.com/klauspost/compress v1.20.1
 	github.com/wailsapp/wails/v2 v2.15.0
 	golang.org/x/net v0.59.0
 	golang.org/x/sys v0.48.0
