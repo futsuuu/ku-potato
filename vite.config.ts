@@ -1,6 +1,8 @@
 import { defineConfig } from "vite-plus";
 import solidLint from "eslint-plugin-solid/configs/v2";
 
+const wailsTags = process.env.WAILS_TAGS ? ` -tags ${process.env.WAILS_TAGS}` : "";
+
 export default defineConfig({
   run: {
     tasks: {
@@ -54,13 +56,13 @@ export default defineConfig({
         },
       },
       dev: {
-        command: "go tool wails dev -s -m",
+        command: `go tool wails dev -s -m${wailsTags}`,
         cwd: "desktop",
         dependsOn: ["server:build", "frontend:install"],
         cache: false,
       },
       build: {
-        command: "go tool wails build",
+        command: `go tool wails build${wailsTags}`,
         cwd: "desktop",
         dependsOn: ["server:build"],
         cache: false,
