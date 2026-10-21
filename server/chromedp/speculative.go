@@ -86,12 +86,12 @@ func downloadWithCachedURL(ctx context.Context, cachedURL string, refresh func(c
 
 func (b *Browser) startDriveDownload(ctx context.Context, rawURL string) *pendingDownload {
 	destination, supported := driveDownloadURL(rawURL)
-	if !supported || b.google == nil {
+	if !supported || b.drive == nil {
 		return nil
 	}
 	// Prepare the HTTP client before leasing an LMS page; the file transfer
 	// itself needs no browser locks.
-	d, err := b.google.driveClient(ctx)
+	d, err := b.drive.driveClient(ctx)
 	if err != nil {
 		return beginDownload(ctx, rawURL, func(context.Context) (string, string, error) {
 			return "", "", googleDownloadError(ctx, err)

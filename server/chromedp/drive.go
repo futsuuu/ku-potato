@@ -32,9 +32,18 @@ type FileMetadata struct {
 	Size     int64
 }
 
+// Drive consumes short-lived cookies without owning a Chrome profile.
+type DriveCookieSource interface {
+	CookieJar(context.Context) (http.CookieJar, error)
+}
+
+type Drive struct {
+	cookies DriveCookieSource
+}
+
 // FileMetadata requests at most a 512-byte sample, without saving a file.
 // Some servers ignore Range; their body is closed after reading the sample.
-func (g *Google) FileMetadata(ctx context.Context, rawURL string) (FileMetadata, error) {
+func (g *Drive) FileMetadata(ctx context.Context, rawURL string) (FileMetadata, error) {
 	destination, ok := driveDownloadURL(rawURL)
 	if !ok {
 		return FileMetadata{}, domain.Fail("unsupported-resource", "この外部資料のメタデータ取得には対応していません。")
@@ -90,8 +99,13 @@ func driveDownloadURL(raw string) (*url.URL, bool) {
 
 type driveHTTP struct{ client *http.Client }
 
-func (g *Google) driveClient(ctx context.Context) (*driveHTTP, error) {
-	jar, err := g.CookieJar(ctx)
+// Preserve the existing adapter entry point for single-browser callers.
+func (g *Google) FileMetadata(ctx context.Context, rawURL string) (FileMetadata, error) {
+	return (&Drive{cookies: g}).FileMetadata(ctx, rawURL)
+}
+
+func (g *Drive) driveClient(ctx context.Context) (*driveHTTP, error) {
+	jar, err := g.cookies.CookieJar(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	var sessions, ssoVersion atomic.Int32
 	var firstLogin atomic.Bool
 	firstLogin.Store(true)
-	portal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ssoSystem := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sso")
 		if !firstLogin.Swap(false) && (err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) {
 			http.Error(w, "Authentication required", http.StatusUnauthorized)
@@ -31,8 +31,8 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 		http.SetCookie(w, &http.Cookie{Name: "sso", Value: fmt.Sprint(ssoVersion.Add(1)), Path: "/", HttpOnly: true})
 		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", http.StatusFound)
 	}))
-	defer portal.Close()
-	portalURL := strings.Replace(portal.URL, "127.0.0.1", "localhost", 1)
+	defer ssoSystem.Close()
+	ssoURL := strings.Replace(ssoSystem.URL, "127.0.0.1", "localhost", 1)
 	lms := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		cookie, err := r.Cookie("lms-session")
@@ -50,7 +50,7 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 		case "/lms/error/notLogin":
 			http.Error(w, "Not logged in", http.StatusUnauthorized)
 		case "/lms":
-			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, portalURL)
+			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, ssoURL)
 		case "/lms/homeHoml/doIndex":
 			expired, _ := expiredSession.Load().(string)
 			if err != nil || cookie.Value == expired {
@@ -65,7 +65,7 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	defer lms.Close()
 	lmsAddress.Store(lms.URL)
 	dir := t.TempDir()
-	opts := Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: executable, LMSURL: lms.URL, PortalURL: portalURL, Parallelism: 2}
+	opts := Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: executable, LMSURL: lms.URL, SSOURL: ssoURL, Parallelism: 2}
 	b, err := New(opts)
 	if err != nil {
 		t.Fatal(err)

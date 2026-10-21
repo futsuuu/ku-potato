@@ -49,7 +49,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 		return true
 	}
 	var lmsAddress atomic.Value
-	portal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ssoSystem := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sso")
 		if !initialLogin.Swap(false) && (err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) {
 			http.Error(w, "SSO state missing", http.StatusUnauthorized)
@@ -59,9 +59,9 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 		http.SetCookie(w, &http.Cookie{Name: "sso", Value: fmt.Sprint(ssoVersion.Add(1)), Path: "/", MaxAge: 3600})
 		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", 302)
 	}))
-	defer portal.Close()
-	// Distinct hosts model the portal and LMS cookie boundaries.
-	portalURL := strings.Replace(portal.URL, "127.0.0.1", "localhost", 1)
+	defer ssoSystem.Close()
+	// Distinct hosts model the SSO system and LMS cookie boundaries.
+	ssoURL := strings.Replace(ssoSystem.URL, "127.0.0.1", "localhost", 1)
 	lms := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		cookie, _ := r.Cookie("lms-session")
@@ -81,7 +81,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 				http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
 			}
 		case "/lms":
-			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, portalURL)
+			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, ssoURL)
 		case "/lms/homeHoml/doIndex":
 			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')">Course 1</a></div><div class="lms-cardname"><a onclick="formSubmit('KOG2')">Course 2</a></div></div><script>function formSubmit(id){location.href='/lms/homeHoml/doLinkKougi?id='+id}</script>`)
 		case "/lms/homeHoml/doLinkKougi":
@@ -119,7 +119,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	defer lms.Close()
 	lmsAddress.Store(lms.URL)
 	dir := t.TempDir()
-	b, err := adapter.New(adapter.Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: executable, LMSURL: lms.URL, PortalURL: portalURL, Parallelism: 2})
+	b, err := adapter.New(adapter.Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: executable, LMSURL: lms.URL, SSOURL: ssoURL, Parallelism: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

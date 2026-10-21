@@ -17,10 +17,10 @@ import (
 
 func TestInitialUnauthenticatedHomeRedirect(t *testing.T) {
 	executable := chrome(t)
-	portal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ssoSystem := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "<p>Authentication required</p>")
 	}))
-	defer portal.Close()
+	defer ssoSystem.Close()
 	var loginVisits atomic.Int32
 	lms := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -32,14 +32,14 @@ func TestInitialUnauthenticatedHomeRedirect(t *testing.T) {
 			fmt.Fprint(w, "<p>Not logged in</p>")
 		case "/lms":
 			loginVisits.Add(1)
-			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s/pub/login.cgi"><button name="loginButton">Login</button></form>`, portal.URL)
+			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s/pub/login.cgi"><button name="loginButton">Login</button></form>`, ssoSystem.URL)
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	defer lms.Close()
 	dir := t.TempDir()
-	browser, err := adapter.New(adapter.Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: executable, LMSURL: lms.URL, PortalURL: portal.URL})
+	browser, err := adapter.New(adapter.Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: executable, LMSURL: lms.URL, SSOURL: ssoSystem.URL})
 	if err != nil {
 		t.Fatal(err)
 	}

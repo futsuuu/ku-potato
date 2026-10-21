@@ -53,7 +53,7 @@ func (b *Browser) Register(ctx context.Context, interactive bool) error {
 		if err != nil {
 			return err
 		}
-		settings := b.opts.PortalURL + "/user/?app=u2fregister"
+		settings := b.opts.SSOURL + "/user/?app=u2fregister"
 		if err = cd.Run(tab, cd.Navigate(settings)); err != nil {
 			return err
 		}

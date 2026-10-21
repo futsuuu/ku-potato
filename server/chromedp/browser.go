@@ -7,9 +7,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
 	"github.com/futsuuu/ku-potato/server/core/outport"
@@ -23,7 +26,7 @@ type Options struct {
 	DownloadDir string
 	Executable  string
 	LMSURL      string
-	PortalURL   string
+	SSOURL      string
 	Parallelism int
 }
 type pageSlot struct {
@@ -42,10 +45,36 @@ type Browser struct {
 	closed       bool
 	slots        []*pageSlot
 	available    chan *pageSlot
-	google       *Google
+	sso          ssoCookieSource
+	drive        *Drive
 }
 
 var _ outport.Source = (*Browser)(nil)
+
+type ssoCookieSource interface {
+	SSOCookies(context.Context) ([]*network.CookieParam, error)
+}
+
+// UseSSOCookies is configured before browser operations begin. Both browser
+// instances must own distinct profiles; only scoped cookie values cross over.
+func (b *Browser) UseSSOCookies(identity *Identity) error {
+	if identity == nil {
+		return errors.New("authentication browser is required")
+	}
+	workProfile, authProfile := filepath.Clean(b.opts.ProfileDir), filepath.Clean(identity.opts.ProfileDir)
+	if identity.Browser == b || workProfile == authProfile || (runtime.GOOS == "windows" && strings.EqualFold(workProfile, authProfile)) {
+		return errors.New("authentication and content profiles must be different")
+	}
+	if b.opts.SSOURL != identity.opts.SSOURL || b.opts.LMSURL != identity.opts.LMSURL {
+		return errors.New("authentication and content sites must match")
+	}
+	b.sso = identity
+	return nil
+}
+
+func (b *Browser) UseDriveCookies(provider DriveCookieSource) {
+	b.drive = &Drive{cookies: provider}
+}
 
 func New(opts Options) (*Browser, error) {
 	if opts.ProfileDir == "" {
@@ -75,8 +104,8 @@ func New(opts Options) (*Browser, error) {
 	if opts.LMSURL == "" {
 		opts.LMSURL = "https://study.ns.kogakuin.ac.jp"
 	}
-	if opts.PortalURL == "" {
-		opts.PortalURL = "https://slink.secioss.com"
+	if opts.SSOURL == "" {
+		opts.SSOURL = "https://slink.secioss.com"
 	}
 	if opts.Parallelism == 0 {
 		opts.Parallelism = 4

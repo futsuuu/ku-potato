@@ -32,8 +32,8 @@ func chrome(t *testing.T) string {
 }
 func TestBrowserAgainstLocalLMS(t *testing.T) {
 	executable := chrome(t)
-	portal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "<p>Authentication required</p>") }))
-	defer portal.Close()
+	ssoSystem := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "<p>Authentication required</p>") }))
+	defer ssoSystem.Close()
 	var allowed atomic.Bool
 	allowed.Store(true)
 	var materialMalformed atomic.Bool
@@ -60,7 +60,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 				http.SetCookie(w, &http.Cookie{Name: "session", Value: "ok", Path: "/", MaxAge: 3600})
 				http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
 			} else {
-				http.Redirect(w, r, portal.URL+"/pub/login.cgi", 302)
+				http.Redirect(w, r, ssoSystem.URL+"/pub/login.cgi", 302)
 			}
 		case "/lms/homeHoml/doIndex":
 			fmt.Fprint(w, `<a href="/lms/homeRedirect/?sid=fixture">HOME</a>`)
@@ -121,7 +121,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	defer lms.Close()
 	data := t.TempDir()
 	downloadDir := filepath.Join(t.TempDir(), "downloads")
-	browser, err := adapter.New(adapter.Options{StateDir: data, CacheDir: filepath.Join(t.TempDir(), "cache"), DownloadDir: downloadDir, Executable: executable, LMSURL: lms.URL, PortalURL: portal.URL, Parallelism: 1})
+	browser, err := adapter.New(adapter.Options{StateDir: data, CacheDir: filepath.Join(t.TempDir(), "cache"), DownloadDir: downloadDir, Executable: executable, LMSURL: lms.URL, SSOURL: ssoSystem.URL, Parallelism: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

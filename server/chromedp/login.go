@@ -39,7 +39,7 @@ func (b *Browser) notLoginExpression() string {
 	return `location.origin===` + js(b.opts.LMSURL) + ` && /^\/lms\/error\/notLogin(?:;|$)/.test(location.pathname)`
 }
 func (b *Browser) authenticationPageExpression() string {
-	return `(` + b.homeExpression() + `) || (` + b.notLoginExpression() + `) || location.origin===` + js(b.opts.PortalURL) + ` || (!!document.querySelector('button[name="loginButton"]') && document.body.innerText.includes('統合認証アカウントでログインします'))`
+	return `(` + b.homeExpression() + `) || (` + b.notLoginExpression() + `) || location.origin===` + js(b.opts.SSOURL) + ` || (!!document.querySelector('button[name="loginButton"]') && document.body.innerText.includes('統合認証アカウントでログインします'))`
 }
 func (b *Browser) navigateHome(ctx context.Context) error {
 	// KU-LMS can carry its session in the HOME URL instead of a cookie.
@@ -55,7 +55,7 @@ func (b *Browser) home(ctx context.Context) error {
 	if err := b.navigateHome(ctx); err != nil {
 		return err
 	}
-	if err := poll(ctx, `(`+b.homeExpression()+`) || (`+b.notLoginExpression()+`) || location.origin===`+js(b.opts.PortalURL)+` || !!document.querySelector('button[name="loginButton"]')`); err != nil {
+	if err := poll(ctx, `(`+b.homeExpression()+`) || (`+b.notLoginExpression()+`) || location.origin===`+js(b.opts.SSOURL)+` || !!document.querySelector('button[name="loginButton"]')`); err != nil {
 		return err
 	}
 	var home bool
@@ -105,7 +105,7 @@ func (b *Browser) authenticate(ctx context.Context, interactive bool, stored *cr
 			return err
 		}
 	}
-	if err := poll(ctx, `(`+b.homeExpression()+`) || location.origin===`+js(b.opts.PortalURL)); err != nil {
+	if err := poll(ctx, `(`+b.homeExpression()+`) || location.origin===`+js(b.opts.SSOURL)); err != nil {
 		return err
 	}
 	_ = cd.Run(ctx, cd.Evaluate(b.homeExpression(), &home))
@@ -124,14 +124,14 @@ func (b *Browser) authenticate(ctx context.Context, interactive bool, stored *cr
 	if !interactive {
 		return domain.Fail("authentication-required", "再ログインが必要です。interactive=true の login ジョブを実行してください。")
 	}
-	// The SSO timeout page requires visiting the portal before returning to LMS.
+	// The SSO timeout page requires visiting the SSO system before returning to LMS.
 	var timeout bool
 	_ = cd.Run(ctx, cd.Evaluate(`location.pathname==='/sso/timeout.cgi'`, &timeout))
 	if timeout {
-		if err := cd.Run(ctx, cd.Navigate(b.opts.PortalURL+"/user/?tenant=kogakuin.ac.jp")); err != nil {
+		if err := cd.Run(ctx, cd.Navigate(b.opts.SSOURL+"/user/?tenant=kogakuin.ac.jp")); err != nil {
 			return err
 		}
-		if err := poll(ctx, `location.origin===`+js(b.opts.PortalURL)+` && ['/user','/user/','/user/index.php'].includes(location.pathname) && !document.querySelector('#username_input,#password_input,select[name="auth"]')`); err != nil {
+		if err := poll(ctx, `location.origin===`+js(b.opts.SSOURL)+` && ['/user','/user/','/user/index.php'].includes(location.pathname) && !document.querySelector('#username_input,#password_input,select[name="auth"]')`); err != nil {
 			return err
 		}
 		if err := cd.Run(ctx, cd.Navigate(b.opts.LMSURL+"/lms"), cd.WaitVisible(`button[name="loginButton"]`, cd.ByQuery), cd.Click(`button[name="loginButton"]`, cd.ByQuery)); err != nil {
@@ -144,7 +144,7 @@ func (b *Browser) autoLogin(ctx context.Context, username string) error {
 	var timeout bool
 	_ = cd.Run(ctx, cd.Evaluate(`location.pathname==='/sso/timeout.cgi'`, &timeout))
 	if timeout {
-		if err := cd.Run(ctx, cd.Navigate(b.opts.PortalURL+"/user/?tenant=kogakuin.ac.jp")); err != nil {
+		if err := cd.Run(ctx, cd.Navigate(b.opts.SSOURL+"/user/?tenant=kogakuin.ac.jp")); err != nil {
 			return err
 		}
 	}
@@ -171,7 +171,7 @@ func (b *Browser) autoLogin(ctx context.Context, username string) error {
 		return err
 	}
 	if timeout {
-		if err := poll(short, `location.origin===`+js(b.opts.PortalURL)+` && ['/user','/user/','/user/index.php'].includes(location.pathname)`); err != nil {
+		if err := poll(short, `location.origin===`+js(b.opts.SSOURL)+` && ['/user','/user/','/user/index.php'].includes(location.pathname)`); err != nil {
 			return err
 		}
 		if err := cd.Run(short, cd.Navigate(b.opts.LMSURL+"/lms"), cd.WaitVisible(`button[name="loginButton"]`, cd.ByQuery), cd.Click(`button[name="loginButton"]`, cd.ByQuery)); err != nil {

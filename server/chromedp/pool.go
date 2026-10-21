@@ -3,12 +3,9 @@ package chromedp
 import (
 	"context"
 	"errors"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
-	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/storage"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/cdproto/webauthn"
@@ -255,25 +252,12 @@ func (b *Browser) authenticated(tab context.Context, use func(*credentials, weba
 
 // Share only SSO cookies. Copying LMS cookies would share its server-side session.
 func (b *Browser) copySSO(ctx context.Context, from, to cdp.BrowserContextID) error {
-	portal, err := url.Parse(b.opts.PortalURL)
-	if err != nil {
-		return err
-	}
 	exec := cdp.WithExecutor(ctx, cd.FromContext(ctx).Browser)
 	cookies, err := storage.GetCookies().WithBrowserContextID(from).Do(exec)
 	if err != nil {
 		return err
 	}
-	var params []*network.CookieParam
-	for _, cookie := range cookies {
-		domain := strings.TrimPrefix(cookie.Domain, ".")
-		if portal.Hostname() != domain && !strings.HasSuffix(portal.Hostname(), "."+domain) {
-			continue
-		}
-		if param := cookieParam(cookie); param != nil {
-			params = append(params, param)
-		}
-	}
+	params := ssoCookieParams(b.opts.SSOURL, cookies)
 	if len(params) == 0 {
 		return nil
 	}
@@ -391,7 +375,30 @@ func (b *Browser) authenticatePage(ctx context.Context, slot *pageSlot) error {
 		if err := b.copySSO(tab, "", id); err != nil {
 			return err
 		}
-		if err := b.authenticated(tab, func(stored *credentials, _ webauthn.AuthenticatorID) error { return b.session(tab, false, stored) }); err != nil {
+		err := b.authenticated(tab, func(stored *credentials, _ webauthn.AuthenticatorID) error { return b.session(tab, false, stored) })
+		var failure *domain.Error
+		if errors.As(err, &failure) && failure.Reason == "authentication-required" && b.sso != nil && ctx.Err() == nil {
+			// An expired worker session must not contaminate the fresh SSO
+			// cookies. Refresh the two local contexts, then start a new LMS session.
+			params, refreshErr := b.sso.SSOCookies(ctx)
+			if refreshErr != nil {
+				return refreshErr
+			}
+			if len(params) == 0 {
+				return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
+			}
+			exec := cdp.WithExecutor(tab, cd.FromContext(tab).Browser)
+			for _, contextID := range []cdp.BrowserContextID{"", id} {
+				if err := storage.ClearCookies().WithBrowserContextID(contextID).Do(exec); err != nil {
+					return err
+				}
+				if err := storage.SetCookies(params).WithBrowserContextID(contextID).Do(exec); err != nil {
+					return err
+				}
+			}
+			err = b.authenticated(tab, func(stored *credentials, _ webauthn.AuthenticatorID) error { return b.session(tab, false, stored) })
+		}
+		if err != nil {
 			return err
 		}
 		// SSO can rotate its cookies. Publish the latest state to the profile.

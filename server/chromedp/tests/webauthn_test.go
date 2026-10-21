@@ -114,7 +114,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	defer fixture.Close()
 	// localhost is a valid WebAuthn RP ID and a potentially trustworthy origin.
 	base := strings.Replace(fixture.URL, "127.0.0.1", "localhost", 1)
-	browser, err := adapter.New(adapter.Options{StateDir: data, CacheDir: filepath.Join(t.TempDir(), "cache"), DownloadDir: filepath.Join(t.TempDir(), "downloads"), Executable: executable, LMSURL: base, PortalURL: base})
+	browser, err := adapter.New(adapter.Options{StateDir: data, CacheDir: filepath.Join(t.TempDir(), "cache"), DownloadDir: filepath.Join(t.TempDir(), "downloads"), Executable: executable, LMSURL: base, SSOURL: base})
 	if err != nil {
 		t.Fatal(err)
 	}
