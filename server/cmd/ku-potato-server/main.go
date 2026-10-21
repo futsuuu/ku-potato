@@ -96,13 +96,23 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	browser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "auth", "kogakuin"), ProfileDir: filepath.Join(*state, "profile"), CacheDir: filepath.Join(*cache, "browser"), DownloadDir: filepath.Join(processTemp, "downloads"), Executable: *executable, Parallelism: *parallel})
+	authBrowser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "auth", "kogakuin"), ProfileDir: filepath.Join(*state, "profile"), CacheDir: filepath.Join(*cache, "browser"), DownloadDir: filepath.Join(processTemp, "auth-downloads"), Executable: *executable, Parallelism: 1})
+	if err != nil {
+		return err
+	}
+	defer authBrowser.Close()
+	identity := chromedp.NewIdentity(authBrowser)
+	google := chromedp.NewGoogle(authBrowser)
+	browser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "work"), ProfileDir: filepath.Join(*state, "profile-work"), CacheDir: filepath.Join(*cache, "browser-work"), DownloadDir: filepath.Join(processTemp, "downloads"), Executable: *executable, Parallelism: *parallel})
 	if err != nil {
 		return err
 	}
 	defer browser.Close()
-	google := chromedp.NewGoogle(browser)
-	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithGoogle(google, memory.NewAuthenticationState()))
+	if err := browser.UseSSOCookies(identity); err != nil {
+		return err
+	}
+	browser.UseDriveCookies(google)
+	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithIdentity(identity), core.WithGoogle(google, memory.NewAuthenticationState()))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
