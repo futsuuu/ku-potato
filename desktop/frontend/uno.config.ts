@@ -110,6 +110,7 @@ export default defineConfig<PresetMiniTheme>({
     ["list-none", { "list-style": "none" }],
     ["tnum", { "font-variant-numeric": "tabular-nums" }],
     ["break-anywhere", { "overflow-wrap": "anywhere" }],
+    ["budoux-text", { "word-break": "keep-all", "overflow-wrap": "anywhere" }],
     ["border-collapse", { "border-collapse": "collapse" }],
     ["opacity-opaque", { opacity: "1" }],
     [

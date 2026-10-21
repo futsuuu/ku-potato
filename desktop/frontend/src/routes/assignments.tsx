@@ -3,6 +3,7 @@ import type { Result, Sync } from "../api";
 import { upcoming } from "../format";
 import { createOperation } from "../operation";
 import { coursePath, materialPath, useWorkspace } from "../workspace";
+import BudouxText from "../components/BudouxText";
 import MaterialSummary from "../components/MaterialSummary";
 import PageHeader from "../components/PageHeader";
 import Progress from "../components/Progress";
@@ -69,7 +70,8 @@ export default function Assignments() {
                 >
                   <MaterialSummary material={assignment.material}>
                     <span class="muted-note">
-                      {workspace.courseName(assignment.lmsCourseId)} · {assignment.folderName}
+                      <BudouxText text={workspace.courseName(assignment.lmsCourseId)} /> ·{" "}
+                      <BudouxText text={assignment.folderName} />
                     </span>
                   </MaterialSummary>
                 </a>

@@ -1,6 +1,7 @@
 /* oxlint-disable solid/no-innerhtml -- Render only LMS HTML sanitized before insertion. */
 import { createMemo, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
+import { addJapaneseBreaks } from "../budoux";
 import { compactFolderDescriptionHtml, openLmsHtmlLink, sanitizeLmsHtml } from "../lms-html";
 
 export default function LmsHtmlContent(props: {
@@ -9,14 +10,16 @@ export default function LmsHtmlContent(props: {
   fallback?: JSX.Element;
 }) {
   const content = createMemo(() =>
-    props.kind === "folder"
-      ? compactFolderDescriptionHtml(props.html)
-      : sanitizeLmsHtml(props.html),
+    addJapaneseBreaks(
+      props.kind === "folder"
+        ? compactFolderDescriptionHtml(props.html)
+        : sanitizeLmsHtml(props.html),
+    ),
   );
   return (
     <Show when={content().trim()} fallback={props.fallback}>
       <div
-        class="[&_a[href]]:after:i-lucide-external-link break-anywhere [&_a[href]:focus-visible]:text-accent [&_a[href]:hover]:text-accent [&_a[href]]:underlined-link [&_a[href]]:after:ml-xs [&_a[href]]:after:align-middle [&_a[href]]:after:content-empty"
+        class="[&_a[href]]:after:i-lucide-external-link budoux-text [&_a[href]:focus-visible]:text-accent [&_a[href]:hover]:text-accent [&_a[href]]:underlined-link [&_a[href]]:after:ml-xs [&_a[href]]:after:align-middle [&_a[href]]:after:content-empty"
         onClick={openLmsHtmlLink}
       >
         <Show

@@ -4,6 +4,7 @@ import type { API, Schema } from "../api";
 import { createOperation } from "../operation";
 import { openExternal, saveFile } from "../native";
 import Progress from "./Progress";
+import BudouxText from "./BudouxText";
 
 function ResourceActionButton(props: {
   disabled: boolean;
@@ -60,7 +61,14 @@ export default function ResourceRow(props: {
   return (
     <li class="relative flex flex-col gap-md border-b-thin border-line border-solid px-section py-section [&:has(a:hover)]:bg-surface [&_a:focus-visible]:text-accent [&:has(a:hover)_a]:text-accent [&:has(a:focus-visible)]:outline-focus [&:has(a:focus-visible)]:outline-accent [&:has(a:focus-visible)]:outline-offset-focus [&:has(a:focus-visible)]:outline-solid">
       <div class="flex items-center justify-between gap-md">
-        <Show when={props.resource.url} fallback={<span>{props.resource.name}</span>}>
+        <Show
+          when={props.resource.url}
+          fallback={
+            <span>
+              <BudouxText text={props.resource.name} />
+            </span>
+          }
+        >
           {(url) => (
             <a
               class="inline after:absolute after:inset-none after:content-empty [&_.link-label]:underlined-link"
@@ -71,7 +79,9 @@ export default function ResourceRow(props: {
                 openExternal(url());
               }}
             >
-              <span class="link-label">{props.resource.name}</span>
+              <span class="link-label">
+                <BudouxText text={props.resource.name} />
+              </span>
               <span class="i-lucide-external-link ml-xs align-middle" aria-hidden="true" />
             </a>
           )}

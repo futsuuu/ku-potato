@@ -6,6 +6,7 @@ import { createOperation } from "../../../operation";
 import { decodeRouteParam, materialPath, useWorkspace } from "../../../workspace";
 import MaterialSummary from "../../../components/MaterialSummary";
 import LmsHtmlContent from "../../../components/LmsHtmlContent";
+import BudouxText from "../../../components/BudouxText";
 import PageHeader from "../../../components/PageHeader";
 import Progress from "../../../components/Progress";
 import RefreshButton from "../../../components/RefreshButton";
@@ -54,7 +55,9 @@ export default function Materials() {
           {(folder) => (
             <section class="folder-section grid border-t-thin border-line border-solid grid-cols-asymmetric [&>ul]:flex [&>ul>li:last-child]:flex [&>ul>li:last-child]:flex-auto [&>ul>li:last-child>:first-child]:flex-auto [&>ul]:flex-col [&>ul>li:last-child]:flex-col [&>ul>li:last-child>:first-child]:items-start [&>ul]:border-t-none [&>ul>li>:first-child]:border-b-none lt-md:grid-cols-single">
               <div class="pb-section pl-none pr-lg pt-section lt-md:pb-md">
-                <h3>{folder.name}</h3>
+                <h3>
+                  <BudouxText text={folder.name} />
+                </h3>
                 <Show when={folder.classDate}>
                   <small class="mt-sm muted-note tnum">
                     授業日: {formatDate(folder.classDate!)}

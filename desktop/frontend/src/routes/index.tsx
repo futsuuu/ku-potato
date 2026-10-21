@@ -1,4 +1,5 @@
 import { For, Show } from "solid-js";
+import BudouxText from "../components/BudouxText";
 import ItemContent from "../components/ItemContent";
 import PageHeader from "../components/PageHeader";
 import Progress from "../components/Progress";
@@ -10,7 +11,9 @@ import type { Schema } from "../api";
 function CourseInfo(props: { course: Schema["Course"] }) {
   return (
     <ItemContent>
-      <span class="link-label">{props.course.name}</span>
+      <span class="link-label">
+        <BudouxText text={props.course.name} />
+      </span>
       <Show
         when={
           props.course.period ||
