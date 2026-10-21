@@ -135,7 +135,7 @@ func (a *Application) Login(ctx context.Context, interactive bool, p inport.Prog
 	return runOperation[domain.AuthState](ctx, a, domain.Request{Kind: "login", Interactive: interactive}, p)
 }
 func (a *Application) WebAuthn(ctx context.Context) (domain.RegistrationResult, error) {
-	return a.source.WebAuthn(ctx)
+	return a.identity.WebAuthn(ctx)
 }
 func (a *Application) DeleteWebAuthn(ctx context.Context, p inport.Progress) (domain.RegistrationResult, error) {
 	return runOperation[domain.RegistrationResult](ctx, a, domain.Request{Kind: "delete-webauthn"}, p)

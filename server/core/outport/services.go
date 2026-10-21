@@ -12,11 +12,15 @@ type Authentication interface {
 	Status(context.Context) (bool, error)
 }
 
-type Source interface {
+// Identity obtains user-authorized credentials; acquisition never belongs to Source.
+type Identity interface {
 	Authentication
 	Register(context.Context, bool) error
 	WebAuthn(context.Context) (domain.RegistrationResult, error)
 	DeleteWebAuthn(context.Context) error
+}
+
+type Source interface {
 	Courses(context.Context) (domain.CourseListing, error)
 	Materials(context.Context, string) (domain.Snapshot, error)
 	Resources(context.Context, string, string) (domain.Snapshot, error)

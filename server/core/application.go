@@ -15,6 +15,7 @@ import (
 
 type Application struct {
 	source      outport.Source
+	identity    outport.Identity
 	archive     outport.Archive
 	state       outport.AuthenticationState
 	queue       outport.Queue
@@ -28,12 +29,20 @@ type Application struct {
 
 type Option func(*Application)
 
+func WithIdentity(identity outport.Identity) Option {
+	return func(a *Application) { a.identity = identity }
+}
+
 func WithGoogle(authentication outport.Authentication, state outport.AuthenticationState) Option {
 	return func(a *Application) { a.google, a.googleState = authentication, state }
 }
 
 func New(source outport.Source, archive outport.Archive, state outport.AuthenticationState, queue outport.Queue, files outport.Files, timeout time.Duration, workers int, options ...Option) *Application {
 	a := &Application{source: source, archive: archive, state: state, queue: queue, files: files, timeout: timeout, workers: max(1, workers)}
+	// Existing single-browser clients can still supply both contracts.
+	if identity, ok := source.(outport.Identity); ok {
+		a.identity = identity
+	}
 	for _, option := range options {
 		option(a)
 	}
@@ -210,24 +219,24 @@ func (a *Application) execute(ctx context.Context, r domain.Request) (result any
 	switch r.Kind {
 	case "login":
 		report(ctx, domain.Progress{Stage: "authenticating"})
-		err = a.source.Login(ctx, r.Interactive)
+		err = a.identity.Login(ctx, r.Interactive)
 		if err == nil {
 			err = a.state.SetAuth(ctx, "authenticated")
 		}
 		return domain.AuthState{Status: "authenticated"}, err
 	case "register-webauthn":
 		report(ctx, domain.Progress{Stage: "registering"})
-		err = a.source.Register(ctx, r.Interactive)
+		err = a.identity.Register(ctx, r.Interactive)
 		if err == nil {
 			err = a.state.SetAuth(ctx, "authenticated")
 		}
 		return domain.RegistrationResult{Registered: err == nil}, err
 	case "delete-webauthn":
-		err = a.source.DeleteWebAuthn(ctx)
+		err = a.identity.DeleteWebAuthn(ctx)
 		return domain.RegistrationResult{Registered: false}, err
 	case "auth-check":
 		report(ctx, domain.Progress{Stage: "authenticating"})
-		ok, e := a.source.Status(ctx)
+		ok, e := a.identity.Status(ctx)
 		if e != nil {
 			return nil, e
 		}

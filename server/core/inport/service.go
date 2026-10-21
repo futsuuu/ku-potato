@@ -14,11 +14,9 @@ type File struct {
 	Content  io.ReadSeekCloser
 	Metadata domain.SavedFile
 }
-type Service interface {
-	Courses(context.Context, string, Progress) ([]domain.Course, error)
-	Materials(context.Context, string, string, Progress) (domain.CourseMaterials, error)
-	Assignments(context.Context, []string, string, Progress) (domain.AssignmentsResult, error)
-	Detail(context.Context, string, string, Progress) (domain.Detail, error)
+
+// Authentication contains user-initiated credential acquisition and status.
+type Authentication interface {
 	Auth(context.Context) (domain.AuthState, error)
 	Login(context.Context, bool, Progress) (domain.AuthState, error)
 	Register(context.Context, bool, Progress) (domain.RegistrationResult, error)
@@ -28,6 +26,20 @@ type Service interface {
 	GoogleAuth(context.Context) (domain.AuthState, error)
 	GoogleLogin(context.Context, bool, Progress) (domain.AuthState, error)
 	GoogleCheckAuth(context.Context, Progress) (domain.AuthState, error)
+}
+
+type Content interface {
+	Courses(context.Context, string, Progress) ([]domain.Course, error)
+	Materials(context.Context, string, string, Progress) (domain.CourseMaterials, error)
+	Assignments(context.Context, []string, string, Progress) (domain.AssignmentsResult, error)
+	Detail(context.Context, string, string, Progress) (domain.Detail, error)
 	Download(context.Context, string, string, Progress) (domain.DownloadResult, error)
 	File(context.Context, string, string) (File, error)
+}
+
+// Service is the combined HTTP API surface; individual callers can depend on
+// the narrower inbound contracts without leaking credential material.
+type Service interface {
+	Authentication
+	Content
 }

@@ -42,6 +42,7 @@ func TestRequestValidationRejectsConflictingJobInputs(t *testing.T) {
 }
 
 type gatedSource struct {
+	outport.Identity
 	*parallelSource
 	loginEntered chan struct{}
 	loginRelease chan struct{}
@@ -54,6 +55,24 @@ func (s *gatedSource) Login(ctx context.Context, _ bool) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+type loginIdentity struct {
+	outport.Identity
+	called bool
+}
+
+func (i *loginIdentity) Login(context.Context, bool) error {
+	i.called = true
+	return nil
+}
+
+func TestAuthenticationUsesDedicatedIdentityPort(t *testing.T) {
+	identity := &loginIdentity{}
+	app := New(stalledSource{}, nil, authState{}, nil, nil, time.Second, 1, WithIdentity(identity))
+	if _, err := app.execute(context.Background(), domain.Request{Kind: "login"}); err != nil || !identity.called {
+		t.Fatal("login did not use the injected identity port", err)
 	}
 }
 
