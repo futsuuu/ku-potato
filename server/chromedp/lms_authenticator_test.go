@@ -39,11 +39,11 @@ func TestSSOCookieBridgeRequiresSeparateProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer two.Close()
-	if err := two.UseSSOCookies(NewIdentity(one)); err == nil {
+	if err := two.UseSSOCookies(NewLMSAuthenticator(one)); err == nil {
 		t.Fatal("shared browser profile accepted")
 	}
 	two.opts.ProfileDir = filepath.Join(root, "independent")
-	if err := two.UseSSOCookies(NewIdentity(one)); err != nil {
+	if err := two.UseSSOCookies(NewLMSAuthenticator(one)); err != nil {
 		t.Fatal("separate browser profiles rejected", err)
 	}
 }

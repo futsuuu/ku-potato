@@ -49,7 +49,7 @@ type Browser struct {
 	drive        *Drive
 }
 
-var _ outport.Source = (*Browser)(nil)
+var _ outport.ContentSource = (*Browser)(nil)
 
 type ssoCookieSource interface {
 	SSOCookies(context.Context) ([]*network.CookieParam, error)
@@ -57,18 +57,18 @@ type ssoCookieSource interface {
 
 // UseSSOCookies is configured before browser operations begin. Both browser
 // instances must own distinct profiles; only scoped cookie values cross over.
-func (b *Browser) UseSSOCookies(identity *Identity) error {
-	if identity == nil {
+func (b *Browser) UseSSOCookies(authentication *LMSAuthenticator) error {
+	if authentication == nil {
 		return errors.New("authentication browser is required")
 	}
-	workProfile, authProfile := filepath.Clean(b.opts.ProfileDir), filepath.Clean(identity.opts.ProfileDir)
-	if identity.Browser == b || workProfile == authProfile || (runtime.GOOS == "windows" && strings.EqualFold(workProfile, authProfile)) {
+	workProfile, authProfile := filepath.Clean(b.opts.ProfileDir), filepath.Clean(authentication.opts.ProfileDir)
+	if authentication.Browser == b || workProfile == authProfile || (runtime.GOOS == "windows" && strings.EqualFold(workProfile, authProfile)) {
 		return errors.New("authentication and content profiles must be different")
 	}
-	if b.opts.SSOURL != identity.opts.SSOURL || b.opts.LMSURL != identity.opts.LMSURL {
+	if b.opts.SSOURL != authentication.opts.SSOURL || b.opts.LMSURL != authentication.opts.LMSURL {
 		return errors.New("authentication and content sites must match")
 	}
-	b.sso = identity
+	b.sso = authentication
 	return nil
 }
 
@@ -129,7 +129,7 @@ type credentials struct {
 }
 
 func (b *Browser) credentialPath() string { return filepath.Join(b.opts.StateDir, "webauthn.json") }
-func (b *Browser) WebAuthn(ctx context.Context) (domain.RegistrationResult, error) {
+func (b *Browser) WebAuthnRegistrationStatus(ctx context.Context) (domain.RegistrationResult, error) {
 	b.authMu.Lock()
 	defer b.authMu.Unlock()
 	if err := ctx.Err(); err != nil {

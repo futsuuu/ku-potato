@@ -16,15 +16,17 @@ import (
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-// Identity uses only the authentication profile. The content browser never
+// LMSAuthenticator uses only the authentication profile. The content browser never
 // opens this profile or receives a WebAuthn private key.
-type Identity struct{ *Browser }
+type LMSAuthenticator struct{ *Browser }
 
-var _ outport.Identity = (*Identity)(nil)
+var _ outport.LMSAuthentication = (*LMSAuthenticator)(nil)
 
-func NewIdentity(browser *Browser) *Identity { return &Identity{Browser: browser} }
+func NewLMSAuthenticator(browser *Browser) *LMSAuthenticator {
+	return &LMSAuthenticator{Browser: browser}
+}
 
-func (i *Identity) Login(ctx context.Context, interactive bool) error {
+func (i *LMSAuthenticator) Login(ctx context.Context, interactive bool) error {
 	return i.withAuth(ctx, interactive, true, func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
 		if interactive {
 			// An LMS session can remain valid after its SSO session expires.
@@ -37,7 +39,7 @@ func (i *Identity) Login(ctx context.Context, interactive bool) error {
 	})
 }
 
-func (i *Identity) Status(ctx context.Context) (bool, error) {
+func (i *LMSAuthenticator) Status(ctx context.Context) (bool, error) {
 	err := i.Login(ctx, false)
 	var failure *domain.Error
 	if errors.As(err, &failure) && failure.Reason == "authentication-required" {
@@ -46,7 +48,7 @@ func (i *Identity) Status(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 
-func (i *Identity) clearLMSCookies(tab context.Context) error {
+func (i *LMSAuthenticator) clearLMSCookies(tab context.Context) error {
 	origin, err := url.Parse(i.opts.LMSURL)
 	if err != nil {
 		return err
@@ -72,7 +74,7 @@ func (i *Identity) clearLMSCookies(tab context.Context) error {
 
 // SSOCookies returns only the current SSO session. The caller must not
 // persist the snapshot: it can expire or rotate on either side of the bridge.
-func (i *Identity) SSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
+func (i *LMSAuthenticator) SSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
 	var result []*network.CookieParam
 	err := i.withAuth(ctx, false, true, func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
 		if err := i.session(tab, false, stored); err != nil {

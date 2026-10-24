@@ -6,28 +6,29 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/futsuuu/ku-potato/server/core/authentication"
 	"github.com/futsuuu/ku-potato/server/core/inport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 )
 
 type googleService struct {
 	inport.Service
-	request domain.Request
+	request operation.Request
 }
 
-func (s *googleService) GoogleAuth(context.Context) (domain.AuthState, error) {
-	return domain.AuthState{Status: "unknown"}, nil
+func (s *googleService) CachedGoogleAuthentication(context.Context) (authentication.AuthState, error) {
+	return authentication.AuthState{Status: "unknown"}, nil
 }
-func (s *googleService) GoogleLogin(_ context.Context, interactive bool, p inport.Progress) (domain.AuthState, error) {
-	s.request = domain.Request{Kind: "google-login", Interactive: interactive}
-	if err := p(domain.OperationStatus{Status: "running", Attempt: 1, Progress: &domain.Progress{Stage: "authenticating"}}); err != nil {
-		return domain.AuthState{}, err
+func (s *googleService) GoogleLogin(_ context.Context, interactive bool, p inport.StatusObserver) (authentication.AuthState, error) {
+	s.request = operation.Request{Kind: "google-login", Interactive: interactive}
+	if err := p(operation.OperationStatus{Status: "running", Attempt: 1, Progress: &operation.Progress{Stage: "authenticating"}}); err != nil {
+		return authentication.AuthState{}, err
 	}
-	return domain.AuthState{Status: "authenticated"}, nil
+	return authentication.AuthState{Status: "authenticated"}, nil
 }
-func (s *googleService) GoogleCheckAuth(context.Context, inport.Progress) (domain.AuthState, error) {
-	s.request = domain.Request{Kind: "google-auth-check"}
-	return domain.AuthState{Status: "unauthenticated"}, nil
+func (s *googleService) CheckGoogleAuthentication(context.Context, inport.StatusObserver) (authentication.AuthState, error) {
+	s.request = operation.Request{Kind: "google-auth-check"}
+	return authentication.AuthState{Status: "unauthenticated"}, nil
 }
 
 func TestGoogleAuthenticationEndpoints(t *testing.T) {

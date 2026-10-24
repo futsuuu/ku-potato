@@ -9,15 +9,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/core/outport"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
 type record struct {
-	job     domain.Job
+	job     operation.Job
 	key     string
 	ready   time.Time
-	events  []domain.Job
+	events  []operation.Job
 	changed chan struct{}
 }
 
@@ -35,7 +36,7 @@ func NewQueue() *Queue {
 }
 
 // Copy all mutable fields so callers cannot mutate queue state or race with the worker.
-func clone(job domain.Job) domain.Job {
+func clone(job operation.Job) operation.Job {
 	job.Request.CourseIDs = append([]string(nil), job.Request.CourseIDs...)
 	job.Result = append(json.RawMessage(nil), job.Result...)
 	if job.Progress != nil {
@@ -49,7 +50,7 @@ func clone(job domain.Job) domain.Job {
 	return job
 }
 
-func requestKey(r domain.Request) string {
+func requestKey(r operation.Request) string {
 	body, _ := json.Marshal(r)
 	return string(body)
 }
@@ -63,9 +64,9 @@ func (q *Queue) active(key string) *record {
 	return nil
 }
 
-func (q *Queue) Enqueue(ctx context.Context, request domain.Request) (domain.Job, error) {
+func (q *Queue) Enqueue(ctx context.Context, request operation.Request) (operation.Job, error) {
 	if err := ctx.Err(); err != nil {
-		return domain.Job{}, err
+		return operation.Job{}, err
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -74,8 +75,8 @@ func (q *Queue) Enqueue(ctx context.Context, request domain.Request) (domain.Job
 		return clone(existing.job), nil
 	}
 	now := q.now()
-	job := clone(domain.Job{ID: rand.Text(), Request: request, Status: "queued", CreatedAt: now, UpdatedAt: now})
-	job.Progress = &domain.Progress{Stage: "waiting"}
+	job := clone(operation.Job{ID: rand.Text(), Request: request, Status: "queued", CreatedAt: now, UpdatedAt: now})
+	job.Progress = &operation.Progress{Stage: "waiting"}
 	r := &record{job: job, key: key, changed: make(chan struct{})}
 	q.publish(r)
 	q.jobs[job.ID] = r
@@ -83,20 +84,20 @@ func (q *Queue) Enqueue(ctx context.Context, request domain.Request) (domain.Job
 	return clone(job), nil
 }
 
-func (q *Queue) Job(ctx context.Context, id string) (domain.Job, error) {
+func (q *Queue) Job(ctx context.Context, id string) (operation.Job, error) {
 	if err := ctx.Err(); err != nil {
-		return domain.Job{}, err
+		return operation.Job{}, err
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	r := q.jobs[id]
 	if r == nil {
-		return domain.Job{}, domain.ErrMissing
+		return operation.Job{}, domain.ErrMissing
 	}
 	return clone(r.job), nil
 }
 
-func (q *Queue) Claim(ctx context.Context) (*domain.Job, error) {
+func (q *Queue) Claim(ctx context.Context) (*operation.Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ func (q *Queue) Claim(ctx context.Context) (*domain.Job, error) {
 			continue
 		}
 		r.job.Status = "running"
-		r.job.Progress = &domain.Progress{Stage: "waiting"}
+		r.job.Progress = &operation.Progress{Stage: "waiting"}
 		r.job.Error = nil
 		r.job.Attempts++
 		r.job.UpdatedAt = q.now()
@@ -118,7 +119,7 @@ func (q *Queue) Claim(ctx context.Context) (*domain.Job, error) {
 	return nil, nil
 }
 
-func (q *Queue) Finish(ctx context.Context, job domain.Job, result any, failure error) error {
+func (q *Queue) Finish(ctx context.Context, job operation.Job, result any, failure error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -152,7 +153,7 @@ func (q *Queue) Finish(ctx context.Context, job domain.Job, result any, failure 
 			return err
 		}
 		updated.Result = body
-		p := domain.Progress{Stage: "completed", Completed: 1, Total: 1}
+		p := operation.Progress{Stage: "completed", Completed: 1, Total: 1}
 		if updated.Progress != nil && updated.Progress.Total > 0 {
 			p.Completed, p.Total = updated.Progress.Total, updated.Progress.Total
 		}
@@ -185,7 +186,7 @@ func (q *Queue) publish(r *record) {
 	close(r.changed)
 	r.changed = make(chan struct{})
 }
-func (q *Queue) Progress(ctx context.Context, job domain.Job, p domain.Progress) error {
+func (q *Queue) Progress(ctx context.Context, job operation.Job, p operation.Progress) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -203,7 +204,7 @@ func (q *Queue) Progress(ctx context.Context, job domain.Job, p domain.Progress)
 	q.publish(r)
 	return nil
 }
-func (q *Queue) Observe(ctx context.Context, id string, observe func(domain.Job) error) error {
+func (q *Queue) Observe(ctx context.Context, id string, observe func(operation.Job) error) error {
 	cursor := 0
 	for {
 		if err := ctx.Err(); err != nil {
@@ -215,7 +216,7 @@ func (q *Queue) Observe(ctx context.Context, id string, observe func(domain.Job)
 			q.mu.Unlock()
 			return domain.ErrMissing
 		}
-		batch := make([]domain.Job, len(r.events)-cursor)
+		batch := make([]operation.Job, len(r.events)-cursor)
 		for i := range batch {
 			batch[i] = clone(r.events[cursor+i])
 		}

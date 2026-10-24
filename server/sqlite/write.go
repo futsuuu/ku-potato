@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/futsuuu/ku-potato/server/core/outport"
 	"github.com/futsuuu/ku-potato/server/domain"
 	"github.com/futsuuu/ku-potato/server/sqlite/internal/gen/model"
 	"github.com/futsuuu/ku-potato/server/sqlite/internal/gen/table"
@@ -13,7 +14,7 @@ import (
 	"github.com/go-jet/jet/v2/sqlite"
 )
 
-func (s *Store) Append(ctx context.Context, snapshot domain.Snapshot) (ids domain.ObservationIDs, err error) {
+func (s *Store) Append(ctx context.Context, snapshot domain.Snapshot) (ids outport.ObservationIDs, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return ids, err
@@ -21,31 +22,31 @@ func (s *Store) Append(ctx context.Context, snapshot domain.Snapshot) (ids domai
 	defer tx.Rollback()
 	if snapshot.Courses != nil {
 		if ids.Courses, err = insertCourses(ctx, tx, snapshot.AcademicYear, snapshot.Courses); err != nil {
-			return domain.ObservationIDs{}, err
+			return outport.ObservationIDs{}, err
 		}
 	}
 	if snapshot.Materials != nil {
 		if ids.Materials, err = insertMaterials(ctx, tx, *snapshot.Materials); err != nil {
-			return domain.ObservationIDs{}, err
+			return outport.ObservationIDs{}, err
 		}
 	}
 	// nil means the resource list was not fetched (for example, a private material).
 	// A non-nil empty slice is a successfully fetched, empty list.
 	if snapshot.MaterialID != "" && snapshot.Resources != nil {
 		if ids.Resources, err = insertResources(ctx, tx, snapshot.MaterialID, snapshot.Resources); err != nil {
-			return domain.ObservationIDs{}, err
+			return outport.ObservationIDs{}, err
 		}
 	}
 	if snapshot.Report != nil {
 		if snapshot.MaterialID == "" {
-			return domain.ObservationIDs{}, domain.Fail("invalid-input", "report detail requires a material ID")
+			return outport.ObservationIDs{}, domain.Fail("invalid-input", "report detail requires a material ID")
 		}
 		if ids.Report, err = insertReport(ctx, tx, snapshot.MaterialID, *snapshot.Report); err != nil {
-			return domain.ObservationIDs{}, err
+			return outport.ObservationIDs{}, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return domain.ObservationIDs{}, err
+		return outport.ObservationIDs{}, err
 	}
 	return ids, nil
 }

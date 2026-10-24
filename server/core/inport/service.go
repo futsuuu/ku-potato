@@ -5,10 +5,13 @@ import (
 	"context"
 	"io"
 
+	"github.com/futsuuu/ku-potato/server/core/authentication"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-type Progress func(domain.OperationStatus) error
+// StatusObserver receives job status updates until the request completes.
+type StatusObserver func(operation.OperationStatus) error
 
 type File struct {
 	Content  io.ReadSeekCloser
@@ -17,23 +20,23 @@ type File struct {
 
 // Authentication contains user-initiated credential acquisition and status.
 type Authentication interface {
-	Auth(context.Context) (domain.AuthState, error)
-	Login(context.Context, bool, Progress) (domain.AuthState, error)
-	Register(context.Context, bool, Progress) (domain.RegistrationResult, error)
-	WebAuthn(context.Context) (domain.RegistrationResult, error)
-	DeleteWebAuthn(context.Context, Progress) (domain.RegistrationResult, error)
-	CheckAuth(context.Context, Progress) (domain.AuthState, error)
-	GoogleAuth(context.Context) (domain.AuthState, error)
-	GoogleLogin(context.Context, bool, Progress) (domain.AuthState, error)
-	GoogleCheckAuth(context.Context, Progress) (domain.AuthState, error)
+	CachedLMSAuthentication(context.Context) (authentication.AuthState, error)
+	Login(context.Context, bool, StatusObserver) (authentication.AuthState, error)
+	RegisterWebAuthn(context.Context, bool, StatusObserver) (domain.RegistrationResult, error)
+	WebAuthnRegistrationStatus(context.Context) (domain.RegistrationResult, error)
+	DeleteWebAuthn(context.Context, StatusObserver) (domain.RegistrationResult, error)
+	CheckLMSAuthentication(context.Context, StatusObserver) (authentication.AuthState, error)
+	CachedGoogleAuthentication(context.Context) (authentication.AuthState, error)
+	GoogleLogin(context.Context, bool, StatusObserver) (authentication.AuthState, error)
+	CheckGoogleAuthentication(context.Context, StatusObserver) (authentication.AuthState, error)
 }
 
 type Content interface {
-	Courses(context.Context, string, Progress) ([]domain.Course, error)
-	Materials(context.Context, string, string, Progress) (domain.CourseMaterials, error)
-	Assignments(context.Context, []string, string, Progress) (domain.AssignmentsResult, error)
-	Detail(context.Context, string, string, Progress) (domain.Detail, error)
-	Download(context.Context, string, string, Progress) (domain.DownloadResult, error)
+	Courses(context.Context, string, StatusObserver) ([]domain.Course, error)
+	Materials(context.Context, string, string, StatusObserver) (domain.CourseMaterials, error)
+	Assignments(context.Context, []string, string, StatusObserver) (domain.AssignmentsResult, error)
+	Detail(context.Context, string, string, StatusObserver) (domain.Detail, error)
+	Download(context.Context, string, string, StatusObserver) (domain.DownloadResult, error)
 	File(context.Context, string, string) (File, error)
 }
 

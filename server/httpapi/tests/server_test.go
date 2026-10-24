@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/futsuuu/ku-potato/server/core"
+	"github.com/futsuuu/ku-potato/server/core/operation"
+	"github.com/futsuuu/ku-potato/server/core/outport"
 	"github.com/futsuuu/ku-potato/server/domain"
 	"github.com/futsuuu/ku-potato/server/filesystem"
 	"github.com/futsuuu/ku-potato/server/httpapi"
@@ -33,12 +35,12 @@ type source struct {
 }
 
 func (s *source) Login(context.Context, bool) error { s.authenticated.Store(true); return nil }
-func (s *source) WebAuthn(context.Context) (domain.RegistrationResult, error) {
+func (s *source) WebAuthnRegistrationStatus(context.Context) (domain.RegistrationResult, error) {
 	return domain.RegistrationResult{Registered: false}, nil
 }
-func (s *source) DeleteWebAuthn(context.Context) error { return nil }
-func (s *source) Register(context.Context, bool) error { return nil }
-func (s *source) Status(context.Context) (bool, error) { return s.authenticated.Load(), nil }
+func (s *source) DeleteWebAuthn(context.Context) error         { return nil }
+func (s *source) RegisterWebAuthn(context.Context, bool) error { return nil }
+func (s *source) Status(context.Context) (bool, error)         { return s.authenticated.Load(), nil }
 func (s *source) check() error {
 	if !s.authenticated.Load() {
 		return domain.Fail("authentication-required", "login required")
@@ -78,18 +80,18 @@ func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, 
 	snapshot.Resources = []domain.Resource{{ID: "SRS1", Name: "file.txt", Type: "file"}}
 	return snapshot, err
 }
-func (s *source) Download(ctx context.Context, material, resource, preferred, _ string) (domain.Download, error) {
+func (s *source) Download(ctx context.Context, material, resource, preferred, _ string) (outport.Download, error) {
 	snapshot, err := s.Resources(ctx, material, preferred)
 	if err != nil {
-		return domain.Download{}, err
+		return outport.Download{}, err
 	}
 	if s.failDownload.Load() {
-		return domain.Download{Snapshot: snapshot}, domain.Fail("unsupported-resource", "failed fixture")
+		return outport.Download{Snapshot: snapshot}, domain.Fail("unsupported-resource", "failed fixture")
 	}
 	if err = os.WriteFile(s.path, []byte("saved bytes"), 0600); err != nil {
-		return domain.Download{}, err
+		return outport.Download{}, err
 	}
-	return domain.Download{Snapshot: snapshot, Path: s.path, Filename: "file.txt"}, nil
+	return outport.Download{Snapshot: snapshot, Path: s.path, Filename: "file.txt"}, nil
 }
 
 func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
@@ -125,12 +127,12 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		handler.ServeHTTP(res, req)
 		return res
 	}
-	wait := func(res *httptest.ResponseRecorder) domain.Job {
+	wait := func(res *httptest.ResponseRecorder) operation.Job {
 		t.Helper()
 		if res.Code != 200 || res.Header().Get("Content-Type") != "text/event-stream" || res.Header().Get("Location") != "" {
 			t.Fatalf("expected SSE, got %d %s", res.Code, res.Body)
 		}
-		job := domain.Job{}
+		job := operation.Job{}
 		terminal := 0
 		for _, frame := range strings.Split(res.Body.String(), "\n\n") {
 			var event, data string
@@ -144,7 +146,7 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 			}
 			switch event {
 			case "status":
-				var status domain.OperationStatus
+				var status operation.OperationStatus
 				if err := json.Unmarshal([]byte(data), &status); err != nil {
 					t.Fatal(err)
 				}

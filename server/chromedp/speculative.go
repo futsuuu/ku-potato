@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/server/core/outport"
 )
 
 type pendingDownload struct {
@@ -62,7 +62,7 @@ func (p *pendingDownload) discard() {
 	}
 }
 
-func downloadWithCachedURL(ctx context.Context, cachedURL string, refresh func(context.Context) (domain.Download, error), start func(context.Context, string) *pendingDownload) (domain.Download, error) {
+func downloadWithCachedURL(ctx context.Context, cachedURL string, refresh func(context.Context) (outport.Download, error), start func(context.Context, string) *pendingDownload) (outport.Download, error) {
 	pending := start(ctx, cachedURL)
 	defer func() { pending.discard() }()
 	current, err := refresh(ctx)

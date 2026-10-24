@@ -9,16 +9,17 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	cd "github.com/chromedp/chromedp"
+	"github.com/futsuuu/ku-potato/server/core/outport"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-func (b *Browser) Download(ctx context.Context, material, resource, preferred, cachedURL string) (domain.Download, error) {
-	return downloadWithCachedURL(ctx, cachedURL, func(ctx context.Context) (domain.Download, error) {
+func (b *Browser) Download(ctx context.Context, material, resource, preferred, cachedURL string) (outport.Download, error) {
+	return downloadWithCachedURL(ctx, cachedURL, func(ctx context.Context) (outport.Download, error) {
 		return b.downloadCurrent(ctx, material, resource, preferred)
 	}, b.startDriveDownload)
 }
 
-func (b *Browser) downloadCurrent(ctx context.Context, material, resource, preferred string) (download domain.Download, err error) {
+func (b *Browser) downloadCurrent(ctx context.Context, material, resource, preferred string) (download outport.Download, err error) {
 	err = b.withPage(ctx, func(tab context.Context) error {
 		snapshot, err := b.materialSnapshot(tab, material, preferred)
 		if err != nil {

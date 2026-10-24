@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"encoding/json"
 	"errors"
 	"time"
 )
@@ -107,12 +106,6 @@ type ReportDetail struct {
 	FetchedAt            *time.Time `json:"fetchedAt,omitempty"`
 }
 
-// ObservationIDs identify the histories committed by Append. Downloads must
-// attach files to that observation, not whichever retrieval happens to be latest.
-type ObservationIDs struct {
-	Courses, Materials, Resources, Report int64
-}
-
 type Snapshot struct {
 	AcademicYear int
 	Courses      []Course         `json:"courses"`
@@ -122,34 +115,7 @@ type Snapshot struct {
 	Resources []Resource    `json:"resources,omitempty"`
 	Report    *ReportDetail `json:"report,omitempty"`
 }
-type Download struct {
-	Snapshot Snapshot
-	Path     string
-	Filename string
-	URL      string
-}
-type AuthState struct {
-	Status    string     `json:"status" enum:"unknown,authenticated,unauthenticated"`
-	CheckedAt *time.Time `json:"checkedAt,omitempty"`
-}
-type Request struct {
-	Kind        string   `json:"kind"`
-	CourseIDs   []string `json:"courseIds,omitempty"`
-	MaterialID  string   `json:"materialId,omitempty"`
-	ResourceID  string   `json:"resourceId,omitempty"`
-	Interactive bool     `json:"interactive,omitempty"`
-}
-type Job struct {
-	ID        string          `json:"id"`
-	Request   Request         `json:"request"`
-	Status    string          `json:"status"`
-	Attempts  int             `json:"attempts"`
-	CreatedAt time.Time       `json:"createdAt"`
-	UpdatedAt time.Time       `json:"updatedAt"`
-	Result    json.RawMessage `json:"result,omitempty"`
-	Error     *Error          `json:"error,omitempty"`
-	Progress  *Progress       `json:"progress,omitempty"`
-}
+
 type CourseFailure struct {
 	CourseID string `json:"lmsCourseId"`
 	Error    Error  `json:"error"`
@@ -168,26 +134,11 @@ type AssignmentsResult struct {
 	Failures    []CourseFailure `json:"failures"`
 }
 
-// Progress counts completed work units, including individual course failures.
-// Total is zero while the size of the work is not yet known.
-type Progress struct {
-	Stage     string `json:"stage" enum:"waiting,authenticating,logging-out,registering,fetching-courses,fetching-materials,fetching-resources,downloading,saving,completed"`
-	Completed int    `json:"completed" minimum:"0"`
-	Total     int    `json:"total" minimum:"0"`
-	CourseID  string `json:"lmsCourseId,omitempty"`
-}
-type OperationStatus struct {
-	Status   string    `json:"status" enum:"queued,running,retrying,succeeded,failed,blocked"`
-	Attempt  int       `json:"attempt" minimum:"0" maximum:"3"`
-	Progress *Progress `json:"progress,omitempty"`
-	Error    *Error    `json:"error,omitempty"`
-}
 type RegistrationResult struct {
 	Registered bool `json:"registered"`
 }
 type DownloadResult struct {
-	Type        string     `json:"type" enum:"file,external"`
-	File        *SavedFile `json:"file,omitempty"`
-	DownloadURL string     `json:"downloadUrl,omitempty" pattern:"^/materials/[A-Z]+[0-9]+/resources/SRS[0-9]+/file$"`
-	URL         string     `json:"url,omitempty" format:"uri" pattern:"^https?://"`
+	Type string     `json:"type" enum:"file,external"`
+	File *SavedFile `json:"file,omitempty"`
+	URL  string     `json:"url,omitempty" format:"uri" pattern:"^https?://"`
 }

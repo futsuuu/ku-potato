@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
+	"github.com/futsuuu/ku-potato/server/core/authentication"
 	"github.com/futsuuu/ku-potato/server/core/inport"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
@@ -72,43 +73,50 @@ func (h *Handler) register(api huma.API) {
 		output.Body.Service = "ku-potato-server"
 		return output, nil
 	})
-	register(api, huma.Operation{OperationID: "getCachedAuthenticationState", Method: http.MethodGet, Path: "/auth", Summary: "Read cached authentication state"}, func(ctx context.Context, input *struct{}) (*dataResponse[domain.AuthState], error) {
-		state, err := h.service.Auth(ctx)
-		return &dataResponse[domain.AuthState]{Body: dataBody[domain.AuthState]{Data: state}}, failure(err)
+	register(api, huma.Operation{OperationID: "getCachedAuthenticationState", Method: http.MethodGet, Path: "/auth", Summary: "Read cached authentication state"}, func(ctx context.Context, input *struct{}) (*dataResponse[authentication.AuthState], error) {
+		state, err := h.service.CachedLMSAuthentication(ctx)
+		return &dataResponse[authentication.AuthState]{Body: dataBody[authentication.AuthState]{Data: state}}, failure(err)
 	})
 
-	registerStream(api, huma.Operation{OperationID: "login", Method: http.MethodPost, Path: "/auth/login", Summary: "Log in to LMS"}, func(ctx context.Context, input *AuthInput, p inport.Progress) (domain.AuthState, error) {
+	registerStream(api, huma.Operation{OperationID: "login", Method: http.MethodPost, Path: "/auth/login", Summary: "Log in to LMS"}, func(ctx context.Context, input *AuthInput, p inport.StatusObserver) (authentication.AuthState, error) {
 		return h.service.Login(ctx, input.Body.Interactive, p)
 	})
-	registerStream(api, huma.Operation{OperationID: "registerWebAuthn", Method: http.MethodPost, Path: "/auth/webauthn", Summary: "Register virtual WebAuthn credential"}, func(ctx context.Context, input *AuthInput, p inport.Progress) (domain.RegistrationResult, error) {
-		return h.service.Register(ctx, input.Body.Interactive, p)
+	registerStream(api, huma.Operation{OperationID: "registerWebAuthn", Method: http.MethodPost, Path: "/auth/webauthn", Summary: "Register virtual WebAuthn credential"}, func(ctx context.Context, input *AuthInput, p inport.StatusObserver) (domain.RegistrationResult, error) {
+		return h.service.RegisterWebAuthn(ctx, input.Body.Interactive, p)
 	})
 	register(api, huma.Operation{OperationID: "getWebAuthn", Method: http.MethodGet, Path: "/auth/webauthn", Summary: "Read saved WebAuthn credential state"}, func(ctx context.Context, input *struct{}) (*dataResponse[domain.RegistrationResult], error) {
-		state, err := h.service.WebAuthn(ctx)
+		state, err := h.service.WebAuthnRegistrationStatus(ctx)
 		return &dataResponse[domain.RegistrationResult]{Body: dataBody[domain.RegistrationResult]{Data: state}}, failure(err)
 	})
-	registerStream(api, huma.Operation{OperationID: "deleteWebAuthn", Method: http.MethodDelete, Path: "/auth/webauthn", Summary: "Delete saved WebAuthn credential"}, func(ctx context.Context, input *struct{}, p inport.Progress) (domain.RegistrationResult, error) {
+	registerStream(api, huma.Operation{OperationID: "deleteWebAuthn", Method: http.MethodDelete, Path: "/auth/webauthn", Summary: "Delete saved WebAuthn credential"}, func(ctx context.Context, input *struct{}, p inport.StatusObserver) (domain.RegistrationResult, error) {
 		return h.service.DeleteWebAuthn(ctx, p)
 	})
-	registerStream(api, huma.Operation{OperationID: "checkAuthentication", Method: http.MethodPost, Path: "/auth/check", Summary: "Check LMS authentication"}, func(ctx context.Context, input *struct{}, p inport.Progress) (domain.AuthState, error) {
-		return h.service.CheckAuth(ctx, p)
+	registerStream(api, huma.Operation{OperationID: "checkAuthentication", Method: http.MethodPost, Path: "/auth/check", Summary: "Check LMS authentication"}, func(ctx context.Context, input *struct{}, p inport.StatusObserver) (authentication.AuthState, error) {
+		return h.service.CheckLMSAuthentication(ctx, p)
 	})
 	h.registerGoogle(api)
-	registerStream(api, huma.Operation{OperationID: "listCourses", Method: http.MethodGet, Path: "/courses", Summary: "Read or synchronize courses"}, func(ctx context.Context, input *QueryInput, p inport.Progress) ([]domain.Course, error) {
+	registerStream(api, huma.Operation{OperationID: "listCourses", Method: http.MethodGet, Path: "/courses", Summary: "Read or synchronize courses"}, func(ctx context.Context, input *QueryInput, p inport.StatusObserver) ([]domain.Course, error) {
 		return h.service.Courses(ctx, input.Sync, p)
 	})
-	registerStream(api, huma.Operation{OperationID: "listMaterials", Method: http.MethodGet, Path: "/courses/{courseId}/materials", Summary: "Read or synchronize course materials"}, func(ctx context.Context, input *CourseInput, p inport.Progress) (domain.CourseMaterials, error) {
+	registerStream(api, huma.Operation{OperationID: "listMaterials", Method: http.MethodGet, Path: "/courses/{courseId}/materials", Summary: "Read or synchronize course materials"}, func(ctx context.Context, input *CourseInput, p inport.StatusObserver) (domain.CourseMaterials, error) {
 		return h.service.Materials(ctx, input.CourseID, input.Sync, p)
 	})
-	registerStream(api, huma.Operation{OperationID: "listAssignments", Method: http.MethodGet, Path: "/assignments", Summary: "Read or synchronize assignments"}, func(ctx context.Context, input *AssignmentsInput, p inport.Progress) (domain.AssignmentsResult, error) {
+	registerStream(api, huma.Operation{OperationID: "listAssignments", Method: http.MethodGet, Path: "/assignments", Summary: "Read or synchronize assignments"}, func(ctx context.Context, input *AssignmentsInput, p inport.StatusObserver) (domain.AssignmentsResult, error) {
 		return h.service.Assignments(ctx, input.CourseIDs, input.Sync, p)
 	})
-	registerStream(api, huma.Operation{OperationID: "getMaterial", Method: http.MethodGet, Path: "/materials/{materialId}", Summary: "Read or synchronize material details"}, func(ctx context.Context, input *DetailInput, p inport.Progress) (domain.Detail, error) {
+	registerStream(api, huma.Operation{OperationID: "getMaterial", Method: http.MethodGet, Path: "/materials/{materialId}", Summary: "Read or synchronize material details"}, func(ctx context.Context, input *DetailInput, p inport.StatusObserver) (domain.Detail, error) {
 		return h.service.Detail(ctx, input.MaterialID, input.Sync, p)
 	})
-	registerStream(api, huma.Operation{OperationID: "downloadResource", Method: http.MethodPost, Path: "/materials/{materialId}/resources/{resourceId}/download", Summary: "Acquire and save a resource"}, func(ctx context.Context, input *ResourceInput, p inport.Progress) (downloadResult, error) {
+	registerStream(api, huma.Operation{OperationID: "downloadResource", Method: http.MethodPost, Path: "/materials/{materialId}/resources/{resourceId}/download", Summary: "Acquire and save a resource"}, func(ctx context.Context, input *ResourceInput, p inport.StatusObserver) (downloadResult, error) {
 		result, err := h.service.Download(ctx, input.MaterialID, input.ResourceID, p)
-		return downloadResult(result), err
+		if err != nil {
+			return downloadResult{}, err
+		}
+		output := downloadResult{Type: result.Type, File: result.File, URL: result.URL}
+		if result.Type == "file" {
+			output.DownloadURL = "/materials/" + input.MaterialID + "/resources/" + input.ResourceID + "/file"
+		}
+		return output, nil
 	})
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		id := "getSavedFile"

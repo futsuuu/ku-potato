@@ -23,8 +23,8 @@ func TestLiveIndependentProfiles(t *testing.T) {
 	fixture := newLiveFixture(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	identity := adapter.NewIdentity(fixture.browser)
-	if err := identity.Login(ctx, false); err != nil {
+	lmsAuth := adapter.NewLMSAuthenticator(fixture.browser)
+	if err := lmsAuth.Login(ctx, false); err != nil {
 		t.Fatal("authenticate in the isolated inbound profile", err)
 	}
 	work, err := adapter.New(adapter.Options{
@@ -35,7 +35,7 @@ func TestLiveIndependentProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer work.Close()
-	if err := work.UseSSOCookies(identity); err != nil {
+	if err := work.UseSSOCookies(lmsAuth); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := work.Courses(ctx); err != nil {
@@ -43,6 +43,8 @@ func TestLiveIndependentProfiles(t *testing.T) {
 	}
 }
 
+// Exercise separate Chrome profiles end to end: cookie selection alone cannot
+// verify independent LMS sessions, expiry recovery, or restart behavior.
 func TestIndependentProfilesUseOnlySSOCookies(t *testing.T) {
 	executable := chrome(t)
 	var version atomic.Int32
@@ -102,10 +104,10 @@ func TestIndependentProfilesUseOnlySSOCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer auth.Close()
-	identity := adapter.NewIdentity(auth)
+	lmsAuth := adapter.NewLMSAuthenticator(auth)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	if err := identity.Login(ctx, false); err != nil {
+	if err := lmsAuth.Login(ctx, false); err != nil {
 		t.Fatal("inbound login", err)
 	}
 	work, err := adapter.New(adapter.Options{StateDir: filepath.Join(root, "work-state"), ProfileDir: filepath.Join(root, "outbound"), CacheDir: filepath.Join(root, "work-cache"), DownloadDir: filepath.Join(root, "work-download"), Executable: executable, SSOURL: ssoURL, LMSURL: lms.URL, Parallelism: 1})
@@ -113,7 +115,7 @@ func TestIndependentProfilesUseOnlySSOCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { work.Close() }()
-	if err := work.UseSSOCookies(identity); err != nil {
+	if err := work.UseSSOCookies(lmsAuth); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := work.Courses(ctx); err != nil {
@@ -134,7 +136,7 @@ func TestIndependentProfilesUseOnlySSOCookies(t *testing.T) {
 		t.Fatalf("expired inbound session without registered WebAuthn must require login: %v", err)
 	}
 	grant.Store(true)
-	if err := identity.Login(ctx, false); err != nil {
+	if err := lmsAuth.Login(ctx, false); err != nil {
 		t.Fatal("renew inbound SSO session", err)
 	}
 	if _, err := work.Courses(ctx); err != nil {
@@ -150,7 +152,7 @@ func TestIndependentProfilesUseOnlySSOCookies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := work.UseSSOCookies(identity); err != nil {
+	if err := work.UseSSOCookies(lmsAuth); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := work.Courses(ctx); err != nil {

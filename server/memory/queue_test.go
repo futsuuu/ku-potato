@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
@@ -17,7 +18,7 @@ func TestConcurrentSubmissionsDeduplicateAndClaimOnce(t *testing.T) {
 	ids := make(chan string, 20)
 	for range 20 {
 		wg.Go(func() {
-			job, err := q.Enqueue(ctx, domain.Request{Kind: "sync-courses"})
+			job, err := q.Enqueue(ctx, operation.Request{Kind: "sync-courses"})
 			if err != nil {
 				t.Error(err)
 				return
@@ -63,7 +64,7 @@ func TestRetryBackoffLimitAndRegistrationSafety(t *testing.T) {
 	now := time.Now().UTC()
 	q := NewQueue()
 	q.now = func() time.Time { return now }
-	queued, err := q.Enqueue(ctx, domain.Request{Kind: "sync-courses"})
+	queued, err := q.Enqueue(ctx, operation.Request{Kind: "sync-courses"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func TestRetryBackoffLimitAndRegistrationSafety(t *testing.T) {
 	if err := q.Finish(ctx, *running, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	registration, err := q.Enqueue(ctx, domain.Request{Kind: "register-webauthn"})
+	registration, err := q.Enqueue(ctx, operation.Request{Kind: "register-webauthn"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +123,7 @@ func TestRetryBackoffLimitAndRegistrationSafety(t *testing.T) {
 func TestReturnedJobsDoNotShareMutableState(t *testing.T) {
 	ctx := context.Background()
 	q := NewQueue()
-	request := domain.Request{Kind: "sync-materials", CourseIDs: []string{"KOG1"}}
+	request := operation.Request{Kind: "sync-materials", CourseIDs: []string{"KOG1"}}
 	queued, err := q.Enqueue(ctx, request)
 	if err != nil {
 		t.Fatal(err)
@@ -156,14 +157,14 @@ func TestObservationReplaysTransitionsWithoutBlockingWorkers(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	q := NewQueue()
-	job, err := q.Enqueue(ctx, domain.Request{Kind: "sync-materials"})
+	job, err := q.Enqueue(ctx, operation.Request{Kind: "sync-materials"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- q.Observe(ctx, job.ID, func(j domain.Job) error {
+		done <- q.Observe(ctx, job.ID, func(j operation.Job) error {
 			if j.Status == "queued" {
 				close(entered)
 				<-release
@@ -179,14 +180,14 @@ func TestObservationReplaysTransitionsWithoutBlockingWorkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := q.Progress(ctx, *running, domain.Progress{Stage: "fetching-materials", Completed: 1, Total: 2}); err != nil {
+	if err := q.Progress(ctx, *running, operation.Progress{Stage: "fetching-materials", Completed: 1, Total: 2}); err != nil {
 		t.Fatal(err)
 	}
 	if err := q.Finish(ctx, *running, []string{"result"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	states := []string{}
-	if err := q.Observe(ctx, job.ID, func(j domain.Job) error {
+	if err := q.Observe(ctx, job.ID, func(j operation.Job) error {
 		states = append(states, j.Status)
 		if j.Progress != nil && j.Progress.Stage == "mutated" {
 			t.Error("observer mutated shared state")
@@ -206,17 +207,17 @@ func TestObservationReplaysTransitionsWithoutBlockingWorkers(t *testing.T) {
 func TestObservationCancellationAndFailedSendDetachOnlyObserver(t *testing.T) {
 	q := NewQueue()
 	ctx := context.Background()
-	job, err := q.Enqueue(ctx, domain.Request{Kind: "sync-courses"})
+	job, err := q.Enqueue(ctx, operation.Request{Kind: "sync-courses"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if err := q.Observe(canceled, job.ID, func(domain.Job) error { t.Fatal("called canceled observer"); return nil }); !errors.Is(err, context.Canceled) {
+	if err := q.Observe(canceled, job.ID, func(operation.Job) error { t.Fatal("called canceled observer"); return nil }); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	disconnected := errors.New("connection closed")
-	if err := q.Observe(ctx, job.ID, func(domain.Job) error { return disconnected }); !errors.Is(err, disconnected) {
+	if err := q.Observe(ctx, job.ID, func(operation.Job) error { return disconnected }); !errors.Is(err, disconnected) {
 		t.Fatal(err)
 	}
 	running, err := q.Claim(ctx)

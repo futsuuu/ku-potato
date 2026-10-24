@@ -101,18 +101,18 @@ func run() error {
 		return err
 	}
 	defer authBrowser.Close()
-	identity := chromedp.NewIdentity(authBrowser)
+	lmsAuth := chromedp.NewLMSAuthenticator(authBrowser)
 	google := chromedp.NewGoogle(authBrowser)
 	browser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "work"), ProfileDir: filepath.Join(*state, "profile-work"), CacheDir: filepath.Join(*cache, "browser-work"), DownloadDir: filepath.Join(processTemp, "downloads"), Executable: *executable, Parallelism: *parallel})
 	if err != nil {
 		return err
 	}
 	defer browser.Close()
-	if err := browser.UseSSOCookies(identity); err != nil {
+	if err := browser.UseSSOCookies(lmsAuth); err != nil {
 		return err
 	}
 	browser.UseDriveCookies(google)
-	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithIdentity(identity), core.WithGoogle(google, memory.NewAuthenticationState()))
+	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithLMSAuthentication(lmsAuth), core.WithGoogle(google, memory.NewAuthenticationState()))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err

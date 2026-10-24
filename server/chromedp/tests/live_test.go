@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/futsuuu/ku-potato/server/core"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 	"github.com/futsuuu/ku-potato/server/memory"
 	"github.com/futsuuu/ku-potato/server/sqlite"
@@ -32,7 +33,7 @@ func TestLiveOperations(t *testing.T) {
 		if !f.hasKey {
 			t.Skip("no saved WebAuthn key for duplicate registration verification")
 		}
-		requireReason(t, f.browser.Register(ctx, false), "conflict")
+		requireReason(t, f.browser.RegisterWebAuthn(ctx, false), "conflict")
 	})
 	f.run(t, "Courses", func(t *testing.T, ctx context.Context) {
 		courses := f.courseList(t, ctx)
@@ -151,8 +152,8 @@ func liveAssignments(t *testing.T, ctx context.Context, f *liveFixture) {
 			t.Error(err)
 		}
 	}()
-	last := domain.OperationStatus{}
-	result, err := app.Assignments(ctx, nil, "true", func(p domain.OperationStatus) error { last = p; return nil })
+	last := operation.OperationStatus{}
+	result, err := app.Assignments(ctx, nil, "true", func(p operation.OperationStatus) error { last = p; return nil })
 	if err != nil {
 		t.Fatal("synchronize assignments", err)
 	}

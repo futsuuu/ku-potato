@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/futsuuu/ku-potato/server/core/authentication"
 	"github.com/futsuuu/ku-potato/server/core/inport"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
@@ -22,47 +24,47 @@ type operationService struct {
 	id        string
 	sync      string
 	courseIDs []string
-	submitted []domain.Request
+	submitted []operation.Request
 }
 
-func (s *operationService) Courses(ctx context.Context, policy string, p inport.Progress) ([]domain.Course, error) {
+func (s *operationService) Courses(ctx context.Context, policy string, p inport.StatusObserver) ([]domain.Course, error) {
 	s.called = "courses"
 	s.sync = policy
 	if policy == "true" {
-		if err := p(domain.OperationStatus{Status: "running", Attempt: 1, Progress: &domain.Progress{Stage: "fetching-courses"}}); err != nil {
+		if err := p(operation.OperationStatus{Status: "running", Attempt: 1, Progress: &operation.Progress{Stage: "fetching-courses"}}); err != nil {
 			return nil, err
 		}
 	}
 	return []domain.Course{}, nil
 }
-func (s *operationService) Materials(ctx context.Context, id, policy string, p inport.Progress) (domain.CourseMaterials, error) {
+func (s *operationService) Materials(ctx context.Context, id, policy string, p inport.StatusObserver) (domain.CourseMaterials, error) {
 	s.called, s.id = "materials", id
 	s.sync = policy
 	return domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}}, nil
 }
-func (s *operationService) Assignments(ctx context.Context, ids []string, policy string, p inport.Progress) (domain.AssignmentsResult, error) {
+func (s *operationService) Assignments(ctx context.Context, ids []string, policy string, p inport.StatusObserver) (domain.AssignmentsResult, error) {
 	s.called = "assignments"
 	s.sync, s.courseIDs = policy, ids
 	return domain.AssignmentsResult{Assignments: []domain.Assignment{}, Failures: []domain.CourseFailure{}}, nil
 }
-func (s *operationService) Detail(ctx context.Context, id, policy string, p inport.Progress) (domain.Detail, error) {
+func (s *operationService) Detail(ctx context.Context, id, policy string, p inport.StatusObserver) (domain.Detail, error) {
 	s.called, s.id = "detail", id
 	s.sync = policy
 	return domain.Detail{Material: domain.Material{ID: id}, Resources: []domain.Resource{}}, nil
 }
-func (s *operationService) Login(ctx context.Context, interactive bool, p inport.Progress) (domain.AuthState, error) {
-	s.submitted = append(s.submitted, domain.Request{Kind: "login", Interactive: interactive})
-	return domain.AuthState{Status: "authenticated"}, nil
+func (s *operationService) Login(ctx context.Context, interactive bool, p inport.StatusObserver) (authentication.AuthState, error) {
+	s.submitted = append(s.submitted, operation.Request{Kind: "login", Interactive: interactive})
+	return authentication.AuthState{Status: "authenticated"}, nil
 }
-func (s *operationService) Register(ctx context.Context, interactive bool, p inport.Progress) (domain.RegistrationResult, error) {
-	s.submitted = append(s.submitted, domain.Request{Kind: "register-webauthn", Interactive: interactive})
+func (s *operationService) RegisterWebAuthn(ctx context.Context, interactive bool, p inport.StatusObserver) (domain.RegistrationResult, error) {
+	s.submitted = append(s.submitted, operation.Request{Kind: "register-webauthn", Interactive: interactive})
 	return domain.RegistrationResult{Registered: true}, nil
 }
-func (s *operationService) WebAuthn(context.Context) (domain.RegistrationResult, error) {
+func (s *operationService) WebAuthnRegistrationStatus(context.Context) (domain.RegistrationResult, error) {
 	return domain.RegistrationResult{Registered: true}, nil
 }
-func (s *operationService) DeleteWebAuthn(context.Context, inport.Progress) (domain.RegistrationResult, error) {
-	s.submitted = append(s.submitted, domain.Request{Kind: "delete-webauthn"})
+func (s *operationService) DeleteWebAuthn(context.Context, inport.StatusObserver) (domain.RegistrationResult, error) {
+	s.submitted = append(s.submitted, operation.Request{Kind: "delete-webauthn"})
 	return domain.RegistrationResult{Registered: false}, nil
 }
 

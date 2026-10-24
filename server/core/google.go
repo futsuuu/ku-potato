@@ -5,26 +5,28 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/futsuuu/ku-potato/server/core/authentication"
 	"github.com/futsuuu/ku-potato/server/core/inport"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-func (a *Application) GoogleAuth(ctx context.Context) (domain.AuthState, error) {
+func (a *Application) CachedGoogleAuthentication(ctx context.Context) (authentication.AuthState, error) {
 	if a.googleState == nil {
-		return domain.AuthState{Status: "unknown"}, nil
+		return authentication.AuthState{Status: "unknown"}, nil
 	}
 	return a.googleState.Auth(ctx)
 }
 
-func (a *Application) GoogleLogin(ctx context.Context, interactive bool, p inport.Progress) (domain.AuthState, error) {
-	return runOperation[domain.AuthState](ctx, a, domain.Request{Kind: "google-login", Interactive: interactive}, p)
+func (a *Application) GoogleLogin(ctx context.Context, interactive bool, p inport.StatusObserver) (authentication.AuthState, error) {
+	return submitAndObserve[authentication.AuthState](ctx, a, operation.Request{Kind: "google-login", Interactive: interactive}, p)
 }
 
-func (a *Application) GoogleCheckAuth(ctx context.Context, p inport.Progress) (domain.AuthState, error) {
-	return runOperation[domain.AuthState](ctx, a, domain.Request{Kind: "google-auth-check"}, p)
+func (a *Application) CheckGoogleAuthentication(ctx context.Context, p inport.StatusObserver) (authentication.AuthState, error) {
+	return submitAndObserve[authentication.AuthState](ctx, a, operation.Request{Kind: "google-auth-check"}, p)
 }
 
-func (a *Application) executeGoogle(ctx context.Context, r domain.Request) (result any, err error) {
+func (a *Application) executeGoogle(ctx context.Context, r operation.Request) (result any, err error) {
 	if a.google == nil || a.googleState == nil {
 		return nil, domain.Fail("source", "Google認証が設定されていません。")
 	}
@@ -39,10 +41,10 @@ func (a *Application) executeGoogle(ctx context.Context, r domain.Request) (resu
 	status := "authenticated"
 	switch r.Kind {
 	case "google-login":
-		report(ctx, domain.Progress{Stage: "authenticating"})
+		report(ctx, operation.Progress{Stage: "authenticating"})
 		err = a.google.Login(ctx, r.Interactive)
 	case "google-auth-check":
-		report(ctx, domain.Progress{Stage: "authenticating"})
+		report(ctx, operation.Progress{Stage: "authenticating"})
 		var authenticated bool
 		authenticated, err = a.google.Status(ctx)
 		if !authenticated {

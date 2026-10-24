@@ -121,7 +121,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	t.Cleanup(func() { browser.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	if err = browser.Register(ctx, false); err != nil {
+	if err = browser.RegisterWebAuthn(ctx, false); err != nil {
 		t.Fatal(err)
 	}
 	if accepted.Load() != 1 || !savedBeforeRequest.Load() {
@@ -173,7 +173,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	if err = json.Unmarshal(updated, &stored); err != nil || assertions.Load() != 3 || stored.Credentials[0].SignCount < 3 {
 		t.Fatal("parallel authentication lost assertion counters", assertions.Load(), err)
 	}
-	err = browser.Register(ctx, false)
+	err = browser.RegisterWebAuthn(ctx, false)
 	var failure *domain.Error
 	if !errors.As(err, &failure) || failure.Reason != "conflict" {
 		t.Fatal("duplicate registration accepted", err)
@@ -185,7 +185,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 		t.Fatal(err)
 	}
 	blockStorage.Store(true)
-	err = browser.Register(ctx, false)
+	err = browser.RegisterWebAuthn(ctx, false)
 	if !errors.As(err, &failure) || failure.Reason != "authentication-storage" {
 		t.Fatal("registration continued after key storage failure", err)
 	}

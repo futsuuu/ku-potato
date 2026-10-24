@@ -9,17 +9,18 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/sse"
 	"github.com/futsuuu/ku-potato/server/core/inport"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
-func registerStream[T, I any](api huma.API, op huma.Operation, handler func(context.Context, *I, inport.Progress) (T, error)) {
+func registerStream[T, I any](api huma.API, op huma.Operation, handler func(context.Context, *I, inport.StatusObserver) (T, error)) {
 	validationErrors(api, &op)
 	op.Responses["403"] = jsonResponse[errorBody](api, http.StatusText(http.StatusForbidden))
 	op.Description = "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work."
-	sse.Register(api, op, map[string]any{"status": domain.OperationStatus{}, "result": dataBody[T]{}, "error": errorBody{}}, func(ctx context.Context, input *I, send sse.Sender) {
-		last := domain.OperationStatus{}
+	sse.Register(api, op, map[string]any{"status": operation.OperationStatus{}, "result": dataBody[T]{}, "error": errorBody{}}, func(ctx context.Context, input *I, send sse.Sender) {
+		last := operation.OperationStatus{}
 		var sendErr error
-		result, err := handler(ctx, input, func(status domain.OperationStatus) error {
+		result, err := handler(ctx, input, func(status operation.OperationStatus) error {
 			last = status
 			sendErr = send.Data(status)
 			return sendErr
@@ -48,7 +49,7 @@ func registerStream[T, I any](api huma.API, op huma.Operation, handler func(cont
 		if last.Progress != nil && last.Progress.Total > 0 {
 			completed = last.Progress.Total
 		}
-		last.Progress = &domain.Progress{Stage: "completed", Completed: completed, Total: completed}
+		last.Progress = &operation.Progress{Stage: "completed", Completed: completed, Total: completed}
 		if send.Data(last) != nil {
 			return
 		}
@@ -58,7 +59,12 @@ func registerStream[T, I any](api huma.API, op huma.Operation, handler func(cont
 
 // Document file and external results as a discriminated union rather than an
 // object in which every variant's fields are optional.
-type downloadResult domain.DownloadResult
+type downloadResult struct {
+	Type        string            `json:"type"`
+	File        *domain.SavedFile `json:"file,omitempty"`
+	DownloadURL string            `json:"downloadUrl,omitempty"`
+	URL         string            `json:"url,omitempty"`
+}
 type fileDownload struct {
 	Type        string           `json:"type" enum:"file"`
 	File        domain.SavedFile `json:"file"`

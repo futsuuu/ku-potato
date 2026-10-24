@@ -306,8 +306,6 @@ export interface components {
       interactive: boolean;
     };
     AuthState: {
-      /** Format: date-time */
-      checkedAt?: string;
       /** @enum {string} */
       status: "unknown" | "authenticated" | "unauthenticated";
     };

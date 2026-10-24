@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/futsuuu/ku-potato/server/core/authentication"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/core/outport"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
 type parallelSource struct {
-	outport.Source
+	outport.ContentSource
 	entered chan string
 	release chan struct{}
 }
@@ -32,11 +34,11 @@ type materialArchive struct {
 	values map[string]domain.CourseMaterials
 }
 
-func (s *materialArchive) Append(_ context.Context, snapshot domain.Snapshot) (domain.ObservationIDs, error) {
+func (s *materialArchive) Append(_ context.Context, snapshot domain.Snapshot) (outport.ObservationIDs, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.values[snapshot.Materials.CourseID] = *snapshot.Materials
-	return domain.ObservationIDs{}, nil
+	return outport.ObservationIDs{}, nil
 }
 func (s *materialArchive) Materials(_ context.Context, id string) (domain.CourseMaterials, error) {
 	s.mu.Lock()
@@ -46,8 +48,10 @@ func (s *materialArchive) Materials(_ context.Context, id string) (domain.Course
 
 type authState struct{}
 
-func (authState) Auth(context.Context) (domain.AuthState, error) { return domain.AuthState{}, nil }
-func (authState) SetAuth(context.Context, string) error          { return nil }
+func (authState) Auth(context.Context) (authentication.AuthState, error) {
+	return authentication.AuthState{}, nil
+}
+func (authState) SetAuth(context.Context, string) error { return nil }
 
 func TestMaterialsBatchRunsInParallelAndKeepsInputOrder(t *testing.T) {
 	source := &parallelSource{entered: make(chan string, 2), release: make(chan struct{})}
@@ -55,8 +59,8 @@ func TestMaterialsBatchRunsInParallelAndKeepsInputOrder(t *testing.T) {
 	app := New(source, archive, authState{}, nil, nil, time.Second, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	progress := []domain.Progress{}
-	ctx = withProgress(ctx, func(p domain.Progress) { progress = append(progress, p) })
+	progress := []operation.Progress{}
+	ctx = withProgress(ctx, func(p operation.Progress) { progress = append(progress, p) })
 	done := make(chan error, 1)
 	go func() {
 		result, err := app.parallelMaterials(ctx, []string{"KOG2", "KOG1"})

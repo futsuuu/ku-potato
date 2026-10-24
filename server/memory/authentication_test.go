@@ -9,13 +9,13 @@ func TestAuthenticationStateIsProcessLocalAndProviderIndependent(t *testing.T) {
 	ctx := context.Background()
 	school := NewAuthenticationState()
 	google := NewAuthenticationState()
-	if state, err := school.Auth(ctx); err != nil || state.Status != "unknown" || state.CheckedAt != nil {
+	if state, err := school.Auth(ctx); err != nil || state.Status != "unknown" {
 		t.Fatal(state, err)
 	}
 	if err := school.SetAuth(ctx, "authenticated"); err != nil {
 		t.Fatal(err)
 	}
-	if state, err := school.Auth(ctx); err != nil || state.Status != "authenticated" || state.CheckedAt == nil {
+	if state, err := school.Auth(ctx); err != nil || state.Status != "authenticated" {
 		t.Fatal(state, err)
 	}
 	if state, err := google.Auth(ctx); err != nil || state.Status != "unknown" {

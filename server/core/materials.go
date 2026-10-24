@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
@@ -23,12 +24,12 @@ func (a *Application) parallelMaterials(ctx context.Context, ids []string) (doma
 	close(work)
 	var progressMu sync.Mutex
 	completed := 0
-	report(ctx, domain.Progress{Stage: "fetching-materials", Total: len(ids)})
+	report(ctx, operation.Progress{Stage: "fetching-materials", Total: len(ids)})
 	finish := func(id string) {
 		progressMu.Lock()
 		defer progressMu.Unlock()
 		completed++
-		report(ctx, domain.Progress{Stage: "fetching-materials", Completed: completed, Total: len(ids), CourseID: id})
+		report(ctx, operation.Progress{Stage: "fetching-materials", Completed: completed, Total: len(ids), CourseID: id})
 	}
 	var workers sync.WaitGroup
 	for range min(a.workers, len(ids)) {
@@ -38,7 +39,7 @@ func (a *Application) parallelMaterials(ctx context.Context, ids []string) (doma
 					return
 				}
 				id := ids[i]
-				snapshot, err := a.source.Materials(ctx, id)
+				snapshot, err := a.content.Materials(ctx, id)
 				if err == nil {
 					_, err = a.append(ctx, snapshot)
 				}

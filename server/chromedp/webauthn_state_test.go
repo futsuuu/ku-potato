@@ -26,14 +26,14 @@ func TestDeletingWebAuthnKeepsSharedProfile(t *testing.T) {
 	if err := atomicJSON(b.credentialPath(), credentials{Version: 1, Username: "student", Credentials: []*webauthn.Credential{{CredentialID: "AQ==", PrivateKey: "Ag==", RpID: "example.com"}}}); err != nil {
 		t.Fatal(err)
 	}
-	state, err := b.WebAuthn(context.Background())
+	state, err := b.WebAuthnRegistrationStatus(context.Background())
 	if err != nil || !state.Registered {
 		t.Fatal("saved WebAuthn credential not found", state, err)
 	}
 	if err := b.DeleteWebAuthn(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	state, err = b.WebAuthn(context.Background())
+	state, err = b.WebAuthnRegistrationStatus(context.Background())
 	if err != nil || state.Registered {
 		t.Fatal("WebAuthn credential remained", state, err)
 	}

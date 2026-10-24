@@ -16,12 +16,12 @@ import (
 )
 
 type courseSource struct {
-	outport.Source
+	outport.ContentSource
 	courses []domain.Course
 }
 
 type placementSource struct {
-	outport.Source
+	outport.ContentSource
 	calls atomic.Int32
 }
 

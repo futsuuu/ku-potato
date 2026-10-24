@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/futsuuu/ku-potato/server/core"
+	"github.com/futsuuu/ku-potato/server/core/operation"
 	"github.com/futsuuu/ku-potato/server/domain"
 	"github.com/futsuuu/ku-potato/server/httpapi"
 	"github.com/futsuuu/ku-potato/server/memory"
@@ -81,7 +82,7 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	scanner := bufio.NewScanner(first.Body)
 	for {
 		event, body := readFrame(t, scanner)
-		var status domain.OperationStatus
+		var status operation.OperationStatus
 		if event != "status" || json.Unmarshal(body, &status) != nil {
 			t.Fatal(event, string(body))
 		}
@@ -100,7 +101,7 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	scanner = bufio.NewScanner(second.Body)
 	for {
 		event, body := readFrame(t, scanner)
-		var status domain.OperationStatus
+		var status operation.OperationStatus
 		if event != "status" || json.Unmarshal(body, &status) != nil {
 			t.Fatal(event, string(body))
 		}
@@ -110,7 +111,7 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	}
 	close(release)
 	event, body := readFrame(t, scanner)
-	var status domain.OperationStatus
+	var status operation.OperationStatus
 	if event != "status" || json.Unmarshal(body, &status) != nil || status.Status != "succeeded" {
 		t.Fatal(event, string(body))
 	}
@@ -149,7 +150,7 @@ func TestRetryIsStreamedBeforeTypedResult(t *testing.T) {
 			}
 			break
 		}
-		var status domain.OperationStatus
+		var status operation.OperationStatus
 		if event != "status" || json.Unmarshal(body, &status) != nil {
 			t.Fatal(event, string(body))
 		}

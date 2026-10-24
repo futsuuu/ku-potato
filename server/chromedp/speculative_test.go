@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/futsuuu/ku-potato/server/core/outport"
 	"github.com/futsuuu/ku-potato/server/domain"
 )
 
@@ -29,8 +30,8 @@ func speculativeStarter(d *driveHTTP, directory string) func(context.Context, st
 	}
 }
 
-func refreshedDownload(raw string) domain.Download {
-	return domain.Download{URL: raw, Snapshot: domain.Snapshot{
+func refreshedDownload(raw string) outport.Download {
+	return outport.Download{URL: raw, Snapshot: domain.Snapshot{
 		MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Type: "external", URL: raw}},
 	}}
 }
@@ -65,7 +66,7 @@ func TestSpeculativeDownloadOverlapsRefreshAndReusesMatchingFile(t *testing.T) {
 	// Viewer parameters and fragments do not change the downloadable file.
 	currentURL := "https://docs.google.com/presentation/d/old/edit?resourcekey=key&usp=sharing#slide=id.first"
 	current := refreshedDownload(currentURL)
-	got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (domain.Download, error) {
+	got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (outport.Download, error) {
 		waitForSpeculation(t, ctx, started)
 		close(refreshing)
 		return current, nil
@@ -105,7 +106,7 @@ func TestSpeculativeDownloadCancelsOldURLAndFetchesChangedURL(t *testing.T) {
 				fmt.Fprint(w, "%PDF latest")
 			})
 			dir := t.TempDir()
-			got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (domain.Download, error) {
+			got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (outport.Download, error) {
 				waitForSpeculation(t, ctx, started)
 				return refreshedDownload(latestURL), nil
 			}, speculativeStarter(d, dir))
@@ -127,13 +128,13 @@ func TestCompletedSpeculationIsDiscardedUnlessLatestResourceMatches(t *testing.T
 	refreshFailure := domain.Fail("source", "LMS refresh failed")
 	for _, test := range []struct {
 		name   string
-		latest domain.Download
+		latest outport.Download
 		err    error
 	}{
-		{"missing", domain.Download{Snapshot: domain.Snapshot{MaterialID: "SRY1"}}, missing},
-		{"refresh-failed", domain.Download{}, refreshFailure},
+		{"missing", outport.Download{Snapshot: domain.Snapshot{MaterialID: "SRY1"}}, missing},
+		{"refresh-failed", outport.Download{}, refreshFailure},
 		{"unsupported-link", refreshedDownload("https://example.org/resource"), nil},
-		{"changed-type", domain.Download{Filename: "native.txt"}, nil},
+		{"changed-type", outport.Download{Filename: "native.txt"}, nil},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -162,7 +163,7 @@ func TestCompletedSpeculationIsDiscardedUnlessLatestResourceMatches(t *testing.T
 				}
 			}
 			var obsolete string
-			got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (domain.Download, error) {
+			got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (outport.Download, error) {
 				select {
 				case obsolete = <-completed:
 				case <-ctx.Done():
@@ -199,7 +200,7 @@ func TestDownloadWithoutSupportedCacheUsesLatestURL(t *testing.T) {
 			})
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			got, err := downloadWithCachedURL(ctx, cached, func(context.Context) (domain.Download, error) {
+			got, err := downloadWithCachedURL(ctx, cached, func(context.Context) (outport.Download, error) {
 				refreshed.Store(true)
 				return refreshedDownload(newDriveURL), nil
 			}, speculativeStarter(d, t.TempDir()))
@@ -225,10 +226,10 @@ func TestSpeculativeDownloadCancellationStopsTransferAndRemovesPartialFile(t *te
 		close(cancelled)
 	})
 	dir := t.TempDir()
-	got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (domain.Download, error) {
+	got, err := downloadWithCachedURL(ctx, cachedDriveURL, func(context.Context) (outport.Download, error) {
 		waitForSpeculation(t, ctx, started)
 		cancel()
-		return domain.Download{}, ctx.Err()
+		return outport.Download{}, ctx.Err()
 	}, speculativeStarter(d, dir))
 	if !errors.Is(err, context.Canceled) || got.Path != "" {
 		t.Fatal(got, err)

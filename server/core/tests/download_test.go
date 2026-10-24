@@ -17,15 +17,15 @@ import (
 )
 
 type externalFileSource struct {
-	outport.Source
+	outport.ContentSource
 	snapshot  domain.Snapshot
 	path      string
 	cachedURL chan string
 }
 
-func (s externalFileSource) Download(_ context.Context, _, _, _, cachedURL string) (domain.Download, error) {
+func (s externalFileSource) Download(_ context.Context, _, _, _, cachedURL string) (outport.Download, error) {
 	s.cachedURL <- cachedURL
-	return domain.Download{Snapshot: s.snapshot, Path: s.path, Filename: "handout.pdf"}, nil
+	return outport.Download{Snapshot: s.snapshot, Path: s.path, Filename: "handout.pdf"}, nil
 }
 
 func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
