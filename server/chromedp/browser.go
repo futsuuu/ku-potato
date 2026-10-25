@@ -56,8 +56,9 @@ type ssoCookieSource interface {
 	RenewSSOCookies(context.Context) ([]*network.CookieParam, error)
 }
 
-// UseSSOCookies is configured before browser operations begin. Both browser
+// UseSSOCookies marks the content browser before operations begin. Both browser
 // instances must own distinct profiles; only scoped cookie values cross over.
+// Content browsers cannot access the shared state's WebAuthn credential.
 func (b *Browser) UseSSOCookies(authentication *LMSAuthenticator) error {
 	if authentication == nil {
 		return errors.New("authentication browser is required")
@@ -129,7 +130,9 @@ type credentials struct {
 	Credentials []*webauthn.Credential `json:"credentials"`
 }
 
-func (b *Browser) credentialPath() string { return filepath.Join(b.opts.StateDir, "webauthn.json") }
+func (b *Browser) credentialPath() string {
+	return filepath.Join(b.opts.StateDir, "auth", "kogakuin", "webauthn.json")
+}
 func (b *Browser) WebAuthnRegistrationStatus(ctx context.Context) (domain.RegistrationResult, error) {
 	b.authMu.Lock()
 	defer b.authMu.Unlock()
@@ -145,12 +148,18 @@ func (b *Browser) DeleteWebAuthn(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if b.sso != nil { // The content browser must not modify the authentication key.
+		return nil
+	}
 	if err := os.Remove(b.credentialPath()); err != nil && !os.IsNotExist(err) {
 		return domain.Fail("authentication-storage", "WebAuthn認証情報を削除できません。")
 	}
 	return nil
 }
 func (b *Browser) loadCredentials() (*credentials, error) {
+	if b.sso != nil { // The content browser only receives scoped SSO cookies.
+		return nil, nil
+	}
 	body, err := os.ReadFile(b.credentialPath())
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -215,12 +224,18 @@ func newAuthenticator(ctx context.Context, stored *credentials) (webauthn.Authen
 	return id, nil
 }
 func (b *Browser) saveCredentials(ctx context.Context, id webauthn.AuthenticatorID, username string) error {
+	if b.sso != nil {
+		return domain.Fail("authentication-storage", "ワーカーはWebAuthn認証情報を保存できません。")
+	}
 	items, err := webauthn.GetCredentials(id).Do(ctx)
 	if err != nil {
 		return domain.Fail("authentication-storage", "WebAuthn認証情報を取得できません。")
 	}
 	if len(items) == 0 {
 		return domain.Fail("authentication-storage", "WebAuthn認証情報が生成されていません。")
+	}
+	if err = os.MkdirAll(filepath.Dir(b.credentialPath()), 0700); err != nil {
+		return domain.Fail("authentication-storage", "WebAuthn認証情報を保存できません。")
 	}
 	if err = atomicJSON(b.credentialPath(), credentials{Version: 1, Username: username, Credentials: items}); err != nil {
 		return domain.Fail("authentication-storage", "WebAuthn認証情報を保存できません。")

@@ -67,7 +67,10 @@ func newLiveFixture(t *testing.T) *liveFixture {
 		source: source, auth: t.TempDir(), downloads: t.TempDir(), hasKey: true,
 		materials: map[string]domain.Snapshot{}, resources: map[string]domain.Snapshot{},
 	}
-	if err := replaceAuthentication(filepath.Join(f.auth, "webauthn.json"), body); err != nil {
+	if err := os.MkdirAll(filepath.Join(f.auth, "auth", "kogakuin"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := replaceAuthentication(filepath.Join(f.auth, "auth", "kogakuin", "webauthn.json"), body); err != nil {
 		t.Fatal("prepare test authentication", err)
 	}
 	f.browser, err = adapter.New(adapter.Options{
@@ -118,7 +121,7 @@ func replaceAuthentication(path string, body []byte) error {
 
 func (f *liveFixture) persistAuthentication() error {
 	for _, name := range []string{"webauthn.json"} {
-		body, err := os.ReadFile(filepath.Join(f.auth, name))
+		body, err := os.ReadFile(filepath.Join(f.auth, "auth", "kogakuin", name))
 		if os.IsNotExist(err) {
 			continue
 		}
@@ -230,18 +233,21 @@ func TestLiveAuthenticationCopiesRetainCountersAfterWebAuthnDeletion(t *testing.
 	f := &liveFixture{source: t.TempDir(), auth: t.TempDir(), downloads: t.TempDir()}
 	initial := []byte(`{"version":1,"username":"fixture@example.invalid","credentials":[{"signCount":1}]}`)
 	updated := []byte(`{"version":1,"username":"fixture@example.invalid","credentials":[{"signCount":2}]}`)
-	for _, dir := range []string{f.source, f.auth} {
-		if err := replaceAuthentication(filepath.Join(dir, "webauthn.json"), initial); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.MkdirAll(filepath.Join(f.auth, "auth", "kogakuin"), 0700); err != nil {
+		t.Fatal(err)
 	}
-	if err := replaceAuthentication(filepath.Join(f.auth, "webauthn.json"), updated); err != nil {
+	if err := replaceAuthentication(filepath.Join(f.source, "webauthn.json"), initial); err != nil {
+		t.Fatal(err)
+	}
+	if err := replaceAuthentication(filepath.Join(f.auth, "auth", "kogakuin", "webauthn.json"), updated); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.persistAuthentication(); err != nil {
 		t.Fatal(err)
 	}
-	b, err := adapter.New(adapter.Options{StateDir: f.auth, CacheDir: t.TempDir(), DownloadDir: f.downloads})
+	b, err := adapter.New(adapter.Options{
+		StateDir: f.auth, CacheDir: t.TempDir(), DownloadDir: f.downloads,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +255,7 @@ func TestLiveAuthenticationCopiesRetainCountersAfterWebAuthnDeletion(t *testing.
 	if err := b.DeleteWebAuthn(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(f.auth, "webauthn.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(f.auth, "auth", "kogakuin", "webauthn.json")); !os.IsNotExist(err) {
 		t.Fatal("test key retained after deletion", err)
 	}
 	actual, err := os.ReadFile(filepath.Join(f.source, "webauthn.json"))

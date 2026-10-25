@@ -30,6 +30,7 @@ func TestVirtualWebAuthnKeyIsSavedBeforeRegistration(t *testing.T) {
 func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 	executable := chrome(t)
 	data := t.TempDir()
+	credentialPath := filepath.Join(data, "auth", "kogakuin", "webauthn.json")
 	var accepted atomic.Int32
 	var savedBeforeRequest atomic.Bool
 	var needAssertion atomic.Bool
@@ -66,7 +67,7 @@ func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 				r.ParseForm()
 				if r.Form.Get("operation") == "register" {
 					accepted.Add(1)
-					body, err := os.ReadFile(filepath.Join(data, "webauthn.json"))
+					body, err := os.ReadFile(credentialPath)
 					if err == nil && strings.Contains(string(body), "privateKey") {
 						savedBeforeRequest.Store(true)
 					}
@@ -81,7 +82,7 @@ func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 				}
 			}
 			if blockStorage.Load() {
-				if err := os.Mkdir(filepath.Join(data, "webauthn.json"), 0700); err != nil {
+				if err := os.Mkdir(credentialPath, 0700); err != nil {
 					t.Error(err)
 				}
 			}
@@ -114,7 +115,11 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	defer fixture.Close()
 	// localhost is a valid WebAuthn RP ID and a potentially trustworthy origin.
 	base := strings.Replace(fixture.URL, "127.0.0.1", "localhost", 1)
-	browser, err := adapter.New(adapter.Options{StateDir: data, CacheDir: filepath.Join(t.TempDir(), "cache"), DownloadDir: filepath.Join(t.TempDir(), "downloads"), Executable: executable, LMSURL: base, SSOURL: base})
+	browser, err := adapter.New(adapter.Options{
+		StateDir: data, CacheDir: filepath.Join(t.TempDir(), "cache"),
+		DownloadDir: filepath.Join(t.TempDir(), "downloads"), Executable: executable,
+		LMSURL: base, SSOURL: base,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +132,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	if accepted.Load() != 1 || !savedBeforeRequest.Load() {
 		t.Fatal("remote registration preceded durable key storage", accepted.Load())
 	}
-	body, err := os.ReadFile(filepath.Join(data, "webauthn.json"))
+	body, err := os.ReadFile(credentialPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +151,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	if _, err = browser.Courses(ctx); err != nil {
 		t.Fatal("restore virtual authenticator", err, assertionError.Load())
 	}
-	updated, err := os.ReadFile(filepath.Join(data, "webauthn.json"))
+	updated, err := os.ReadFile(credentialPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +171,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	parallel.Wait()
 	forceAssertions.Store(false)
 	needAssertion.Store(false)
-	updated, err = os.ReadFile(filepath.Join(data, "webauthn.json"))
+	updated, err = os.ReadFile(credentialPath)
 	if err != nil {
 		t.Fatal(err)
 	}

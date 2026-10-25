@@ -96,14 +96,22 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	authBrowser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "auth", "kogakuin"), ProfileDir: filepath.Join(*state, "profile"), CacheDir: filepath.Join(*cache, "browser"), DownloadDir: filepath.Join(processTemp, "auth-downloads"), Executable: *executable, Parallelism: 1})
+	authBrowser, err := chromedp.New(chromedp.Options{
+		StateDir: *state, ProfileDir: filepath.Join(*state, "user-profile"),
+		CacheDir: filepath.Join(*cache, "user-browser"), DownloadDir: filepath.Join(processTemp, "auth-downloads"),
+		Executable: *executable, Parallelism: 1,
+	})
 	if err != nil {
 		return err
 	}
 	defer authBrowser.Close()
 	lmsAuth := chromedp.NewLMSAuthenticator(authBrowser)
 	google := chromedp.NewGoogle(authBrowser)
-	browser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(*state, "work"), ProfileDir: filepath.Join(*state, "profile-work"), CacheDir: filepath.Join(*cache, "browser-work"), DownloadDir: filepath.Join(processTemp, "downloads"), Executable: *executable, Parallelism: *parallel})
+	browser, err := chromedp.New(chromedp.Options{
+		StateDir: *state, ProfileDir: filepath.Join(processTemp, "worker-profile"),
+		CacheDir: filepath.Join(*cache, "worker-browser"), DownloadDir: filepath.Join(processTemp, "downloads"),
+		Executable: *executable, Parallelism: *parallel,
+	})
 	if err != nil {
 		return err
 	}
@@ -163,6 +171,7 @@ func run() error {
 	}
 	return result
 }
+
 func loopbackAddress(value string) (string, error) {
 	host, port, err := net.SplitHostPort(value)
 	if err != nil {

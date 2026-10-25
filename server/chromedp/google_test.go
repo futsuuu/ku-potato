@@ -25,7 +25,10 @@ import (
 func googleOptions(t *testing.T) Options {
 	t.Helper()
 	root := t.TempDir()
-	return Options{StateDir: filepath.Join(root, "state", "auth", "kogakuin"), ProfileDir: filepath.Join(root, "state", "profile"), CacheDir: filepath.Join(root, "cache"), DownloadDir: filepath.Join(root, "downloads"), Parallelism: 1}
+	return Options{
+		StateDir: filepath.Join(root, "state"), ProfileDir: filepath.Join(root, "state", "user-profile"),
+		CacheDir: filepath.Join(root, "cache"), DownloadDir: filepath.Join(root, "downloads"), Parallelism: 1,
+	}
 }
 
 func newGoogle(t *testing.T, opts Options) *Google {
@@ -126,6 +129,9 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	g.signin = server.URL + "/identifier"
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	if err := os.MkdirAll(filepath.Dir(g.browser.credentialPath()), 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(g.browser.credentialPath(), []byte("invalid"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +192,7 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	if cookies := jar.Cookies(parsed); len(cookies) != 1 || cookies[0].Name != "session" {
 		t.Fatal("HTTP session was not restored")
 	}
-	snapshotPath := filepath.Join(filepath.Dir(opts.StateDir), "google", "cookies.json")
+	snapshotPath := filepath.Join(opts.StateDir, "auth", "google", "cookies.json")
 	if _, err := os.Stat(snapshotPath); !os.IsNotExist(err) {
 		t.Fatal("Google cookie snapshot was written", err)
 	}

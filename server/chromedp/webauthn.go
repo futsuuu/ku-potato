@@ -42,6 +42,9 @@ func registrationForm(request *network.Request) (url.Values, error) {
 }
 
 func (b *Browser) RegisterWebAuthn(ctx context.Context, interactive bool) error {
+	if b.sso != nil {
+		return domain.Fail("authentication-storage", "ワーカーはWebAuthn認証情報を登録できません。")
+	}
 	return b.withAuth(ctx, interactive, true, func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
 		if stored != nil {
 			return domain.Fail("conflict", "WebAuthn認証情報は保存済みです。")
