@@ -53,6 +53,7 @@ var _ outport.ContentSource = (*Browser)(nil)
 
 type ssoCookieSource interface {
 	SSOCookies(context.Context) ([]*network.CookieParam, error)
+	RenewSSOCookies(context.Context) ([]*network.CookieParam, error)
 }
 
 // UseSSOCookies is configured before browser operations begin. Both browser

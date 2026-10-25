@@ -75,16 +75,51 @@ func (i *LMSAuthenticator) clearLMSCookies(tab context.Context) error {
 // SSOCookies returns only the current SSO session. The caller must not
 // persist the snapshot: it can expire or rotate on either side of the bridge.
 func (i *LMSAuthenticator) SSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
+	return i.ssoCookies(ctx, false)
+}
+
+// RenewSSOCookies re-enters SSO even if the authentication profile still has
+// a valid LMS session. This is needed when SSO rejects a cookie whose browser
+// expiry has not yet passed.
+func (i *LMSAuthenticator) RenewSSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
+	return i.ssoCookies(ctx, true)
+}
+
+func (i *LMSAuthenticator) ssoCookies(ctx context.Context, renew bool) ([]*network.CookieParam, error) {
 	var result []*network.CookieParam
 	err := i.withAuth(ctx, false, true, func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
+		read := func() error {
+			cookies, err := storage.GetCookies().Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
+			if err == nil {
+				result = ssoCookieParams(i.opts.SSOURL, cookies)
+			}
+			return err
+		}
+		if !renew {
+			if err := i.session(tab, false, stored); err != nil {
+				return err
+			}
+			if err := read(); err != nil {
+				return err
+			}
+			if len(result) > 0 {
+				return nil
+			}
+		}
+		// The LMS session may survive SSO logout. Without a saved credential,
+		// do not destroy that still-valid session just to attempt a refresh.
+		if stored == nil {
+			return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
+		}
+		if err := i.clearLMSCookies(tab); err != nil {
+			return err
+		}
 		if err := i.session(tab, false, stored); err != nil {
 			return err
 		}
-		cookies, err := storage.GetCookies().Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
-		if err != nil {
+		if err := read(); err != nil {
 			return err
 		}
-		result = ssoCookieParams(i.opts.SSOURL, cookies)
 		if len(result) == 0 {
 			return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
 		}

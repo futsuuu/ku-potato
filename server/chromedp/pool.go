@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/storage"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/cdproto/webauthn"
@@ -378,25 +379,31 @@ func (b *Browser) authenticatePage(ctx context.Context, slot *pageSlot) error {
 		err := b.authenticated(tab, func(stored *credentials, _ webauthn.AuthenticatorID) error { return b.session(tab, false, stored) })
 		var failure *domain.Error
 		if errors.As(err, &failure) && failure.Reason == "authentication-required" && b.sso != nil && ctx.Err() == nil {
-			// An expired worker session must not contaminate the fresh SSO
-			// cookies. Refresh the two local contexts, then start a new LMS session.
-			params, refreshErr := b.sso.SSOCookies(ctx)
-			if refreshErr != nil {
-				return refreshErr
-			}
-			if len(params) == 0 {
-				return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
-			}
-			exec := cdp.WithExecutor(tab, cd.FromContext(tab).Browser)
-			for _, contextID := range []cdp.BrowserContextID{"", id} {
-				if err := storage.ClearCookies().WithBrowserContextID(contextID).Do(exec); err != nil {
-					return err
+			// First try the authentication profile's current SSO cookies. If
+			// SSO has revoked them while its LMS session remains valid, force
+			// reauthentication there and try once more.
+			for _, refresh := range []func(context.Context) ([]*network.CookieParam, error){b.sso.SSOCookies, b.sso.RenewSSOCookies} {
+				params, refreshErr := refresh(ctx)
+				if refreshErr != nil {
+					return refreshErr
 				}
-				if err := storage.SetCookies(params).WithBrowserContextID(contextID).Do(exec); err != nil {
-					return err
+				if len(params) == 0 {
+					return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
+				}
+				exec := cdp.WithExecutor(tab, cd.FromContext(tab).Browser)
+				for _, contextID := range []cdp.BrowserContextID{"", id} {
+					if err := storage.ClearCookies().WithBrowserContextID(contextID).Do(exec); err != nil {
+						return err
+					}
+					if err := storage.SetCookies(params).WithBrowserContextID(contextID).Do(exec); err != nil {
+						return err
+					}
+				}
+				err = b.authenticated(tab, func(stored *credentials, _ webauthn.AuthenticatorID) error { return b.session(tab, false, stored) })
+				if !errors.As(err, &failure) || failure.Reason != "authentication-required" || ctx.Err() != nil {
+					break
 				}
 			}
-			err = b.authenticated(tab, func(stored *credentials, _ webauthn.AuthenticatorID) error { return b.session(tab, false, stored) })
 		}
 		if err != nil {
 			return err

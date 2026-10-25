@@ -38,6 +38,9 @@ func TestLiveIndependentProfiles(t *testing.T) {
 	if err := work.UseSSOCookies(lmsAuth); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := lmsAuth.RenewSSOCookies(ctx); err != nil {
+		t.Fatal("renew SSO while the inbound LMS session is still valid", err)
+	}
 	if _, err := work.Courses(ctx); err != nil {
 		t.Fatal("LMS login using only the inbound SSO session", err)
 	}
@@ -49,16 +52,18 @@ func TestIndependentProfilesUseOnlySSOCookies(t *testing.T) {
 	executable := chrome(t)
 	var version atomic.Int32
 	version.Store(1)
+	var ssoVersion atomic.Int32
+	ssoVersion.Store(1)
 	var grant atomic.Bool
 	grant.Store(true)
 	var sessions atomic.Int32
 	var lmsURL atomic.Value
 	ssoSystem := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sso")
-		valid := err == nil && cookie.Value == fmt.Sprint(version.Load())
+		valid := err == nil && cookie.Value == fmt.Sprint(ssoVersion.Load())
 		if !valid && grant.CompareAndSwap(true, false) {
 			valid = true // An interactive user authorizes the authentication profile.
-			http.SetCookie(w, &http.Cookie{Name: "sso", Value: fmt.Sprint(version.Load()), Path: "/", HttpOnly: true})
+			http.SetCookie(w, &http.Cookie{Name: "sso", Value: fmt.Sprint(ssoVersion.Load()), Path: "/", HttpOnly: true})
 		}
 		if !valid {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -127,14 +132,33 @@ func TestIndependentProfilesUseOnlySSOCookies(t *testing.T) {
 	if sessions.Load() != 2 {
 		t.Fatal("work profile did not create its own session", sessions.Load())
 	}
-	// Both saved LMS and SSO sessions have expired. The inbound profile obtains
-	// new SSO cookies; the outbound profile never acquires its WebAuthn key.
-	version.Add(1)
+	// SSO logout does not invalidate an existing LMS session. A fresh work
+	// context nevertheless needs SSO to establish its own LMS session.
+	ssoVersion.Add(1)
+	if ok, err := lmsAuth.Status(ctx); err != nil || !ok {
+		t.Fatal("inbound LMS session should survive SSO logout", err)
+	}
+	if err := work.Close(); err != nil {
+		t.Fatal(err)
+	}
+	work, err = adapter.New(adapter.Options{StateDir: filepath.Join(root, "work-state"), ProfileDir: filepath.Join(root, "outbound"), CacheDir: filepath.Join(root, "work-cache"), DownloadDir: filepath.Join(root, "work-download"), Executable: executable, SSOURL: ssoURL, LMSURL: lms.URL, Parallelism: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := work.UseSSOCookies(lmsAuth); err != nil {
+		t.Fatal(err)
+	}
 	_, err = work.Courses(ctx)
 	var authRequired *domain.Error
 	if !errors.As(err, &authRequired) || authRequired.Reason != "authentication-required" {
-		t.Fatalf("expired inbound session without registered WebAuthn must require login: %v", err)
+		t.Fatalf("revoked SSO session without registered WebAuthn must require login: %v", err)
 	}
+	// Without a saved WebAuthn key, the failed refresh must leave the
+	// authentication profile's existing LMS session untouched.
+	if ok, err := lmsAuth.Status(ctx); err != nil || !ok {
+		t.Fatal("refresh destroyed the inbound LMS session", err)
+	}
+	version.Add(1)
 	grant.Store(true)
 	if err := lmsAuth.Login(ctx, false); err != nil {
 		t.Fatal("renew inbound SSO session", err)
