@@ -13,7 +13,7 @@ The server follows Hexagonal Architecture (Ports & Adapters).
 - `filesystem/`: Acquired files
 - `platform/`: OS-specific data/state/cache/temp directory defaults
 - `cmd/ku-potato-server/`: Entrypoint, adapter composition, and single-process lock
-- `docs/ku-lms.md`: KU-LMS behavior notes
+- `docs/notes.md`: SSO and KU-LMS behavior notes
 
 `core` implements inbound ports and depends on outbound ports.
 Inbound adapters use `core/inport`; outbound adapters implement `core/outport`.
