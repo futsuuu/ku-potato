@@ -170,13 +170,12 @@ export function createAPI(baseUrl: string) {
         options,
       );
     },
-    async file(materialId: string, resourceId: string) {
-      const { data, error } = await client.GET(
-        "/materials/{materialId}/resources/{resourceId}/file",
-        { params: { path: { materialId, resourceId } }, parseAs: "blob" },
+    async openResource(materialId: string, resourceId: string) {
+      const { data, error } = await client.POST(
+        "/materials/{materialId}/resources/{resourceId}/open",
+        { params: { path: { materialId, resourceId } } },
       );
       if (!data) throw new Error(errorMessage(error));
-      return data;
     },
   };
 }
