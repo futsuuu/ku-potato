@@ -21,6 +21,7 @@ type Application struct {
 	lmsState    outport.AuthenticationState
 	queue       outport.Queue
 	files       outport.Files
+	opener      outport.ResourceOpener
 	timeout     time.Duration
 	workers     int
 	auth        sync.RWMutex
@@ -32,6 +33,10 @@ type Option func(*Application)
 
 func WithLMSAuthentication(authentication outport.LMSAuthentication) Option {
 	return func(a *Application) { a.lmsAuth = authentication }
+}
+
+func WithResourceOpener(opener outport.ResourceOpener) Option {
+	return func(a *Application) { a.opener = opener }
 }
 
 func WithGoogle(authentication outport.Authentication, state outport.AuthenticationState) Option {
@@ -54,6 +59,25 @@ var _ inport.Service = (*Application)(nil)
 
 func (a *Application) CachedLMSAuthentication(ctx context.Context) (authentication.AuthState, error) {
 	return a.lmsState.Auth(ctx)
+}
+
+func (a *Application) OpenResource(ctx context.Context, material, resource string) error {
+	if a.opener == nil {
+		return domain.Fail("unsupported-resource", "このサーバではファイルを開けません。")
+	}
+	file, err := a.File(ctx, material, resource)
+	if err != nil {
+		return err
+	}
+	defer file.Content.Close()
+	if err := a.opener.Open(ctx, file.Content, file.Metadata); err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		slog.Error("open saved resource", "error", err)
+		return domain.Fail("resource-storage", "ファイルを開けませんでした。既定のアプリを確認してください。")
+	}
+	return nil
 }
 
 func (a *Application) File(ctx context.Context, material, resource string) (inport.File, error) {

@@ -16,6 +16,12 @@ import (
 	"github.com/futsuuu/ku-potato/server/sqlite"
 )
 
+type resourceOpener func(context.Context, io.Reader, domain.SavedFile) error
+
+func (open resourceOpener) Open(ctx context.Context, content io.Reader, file domain.SavedFile) error {
+	return open(ctx, content, file)
+}
+
 type externalFileSource struct {
 	outport.ContentSource
 	snapshot  domain.Snapshot
@@ -52,7 +58,16 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	cachedURL := make(chan string, 1)
-	app := core.New(externalFileSource{snapshot: snapshot, path: staging, cachedURL: cachedURL}, store, memory.NewAuthenticationState(), memory.NewQueue(), files, time.Second, 1)
+	opens := 0
+	app := core.New(externalFileSource{snapshot: snapshot, path: staging, cachedURL: cachedURL}, store, memory.NewAuthenticationState(), memory.NewQueue(), files, time.Second, 1,
+		core.WithResourceOpener(resourceOpener(func(_ context.Context, content io.Reader, saved domain.SavedFile) error {
+			body, err := io.ReadAll(content)
+			if err != nil || string(body) != "%PDF fixture" || saved.OriginalFilename != "handout.pdf" {
+				t.Fatalf("wrong external file: %q %v %v", body, saved, err)
+			}
+			opens++
+			return nil
+		})))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
@@ -67,6 +82,9 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	result, err := app.Download(request, "SRY1", "SRS1", nil)
 	if err != nil || result.Type != "file" || result.File == nil || result.File.Size != 12 {
 		t.Fatal("external resource was not saved as file", result, err)
+	}
+	if err := app.OpenResource(request, "SRY1", "SRS1"); err != nil || opens != 1 {
+		t.Fatal("downloaded external file did not open", err, opens)
 	}
 	if got := <-cachedURL; got != snapshot.Resources[0].URL {
 		t.Fatal("archived URL was not passed to the source", got)

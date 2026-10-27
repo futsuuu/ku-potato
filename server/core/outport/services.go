@@ -51,6 +51,12 @@ type Queue interface {
 	Claim(context.Context) (*operation.Job, error)
 	Finish(context.Context, operation.Job, any, error) error
 }
+
+// ResourceOpener materializes an acquired file for the server's default application.
+type ResourceOpener interface {
+	Open(context.Context, io.Reader, domain.SavedFile) error
+}
+
 type Files interface {
 	Save(string, string) (domain.SavedFile, error)
 	Open(domain.SavedFile) (io.ReadSeekCloser, error)
