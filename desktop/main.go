@@ -2,11 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/futsuuu/ku-potato/desktop/launcher"
@@ -14,7 +11,6 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type App struct {
@@ -34,22 +30,6 @@ func (a *App) ServerURL() (string, error) {
 		return "", err
 	}
 	return (launcher.Manager{StateDir: dirs.State}).Ensure(ctx)
-}
-
-func (a *App) SaveFile(filename, content string) (bool, error) {
-	filename = filepath.Base(strings.ReplaceAll(filename, "\\", "/"))
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{Title: "資料を保存", DefaultFilename: filename})
-	if err != nil || path == "" {
-		return false, err
-	}
-	data, err := base64.StdEncoding.DecodeString(content)
-	if err != nil {
-		return false, fmt.Errorf("ファイルの内容を読み取れませんでした")
-	}
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 func main() {
