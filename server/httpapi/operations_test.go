@@ -229,7 +229,7 @@ func TestGeneratedOpenAPIAndDocs(t *testing.T) {
 	if res.Code != 200 || spec.OpenAPI != "3.1.0" {
 		t.Fatal(res.Code, res.Body)
 	}
-	for _, path := range []string{"/healthz", "/auth", "/auth/login", "/auth/webauthn", "/auth/check", "/courses", "/courses/{courseId}/materials", "/assignments", "/materials/{materialId}", "/materials/{materialId}/resources/{resourceId}/download", "/materials/{materialId}/resources/{resourceId}/file"} {
+	for _, path := range []string{"/healthz", "/auth", "/auth/login", "/auth/webauthn", "/auth/check", "/courses", "/courses/{courseId}/materials", "/assignments", "/materials/{materialId}", "/materials/{materialId}/resources/{resourceId}/download", "/materials/{materialId}/resources/{resourceId}/open", "/materials/{materialId}/resources/{resourceId}/file"} {
 		if spec.Paths[path] == nil {
 			t.Fatal("missing generated endpoint", path)
 		}

@@ -118,6 +118,12 @@ func (h *Handler) register(api huma.API) {
 		}
 		return output, nil
 	})
+	register(api, huma.Operation{OperationID: "openResource", Method: http.MethodPost, Path: "/materials/{materialId}/resources/{resourceId}/open", Summary: "Open a saved resource on the server"}, func(ctx context.Context, input *ResourceInput) (*dataResponse[bool], error) {
+		if err := h.service.OpenResource(ctx, input.MaterialID, input.ResourceID); err != nil {
+			return nil, failure(err)
+		}
+		return &dataResponse[bool]{Body: dataBody[bool]{Data: true}}, nil
+	})
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		id := "getSavedFile"
 		if method == http.MethodHead {
