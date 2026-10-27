@@ -116,11 +116,15 @@ func run() error {
 		return err
 	}
 	defer browser.Close()
+	opener, err := filesystem.NewOpener(tempRoot)
+	if err != nil {
+		return err
+	}
 	if err := browser.UseSSOCookies(lmsAuth); err != nil {
 		return err
 	}
 	browser.UseDriveCookies(google)
-	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithLMSAuthentication(lmsAuth), core.WithGoogle(google, memory.NewAuthenticationState()))
+	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithLMSAuthentication(lmsAuth), core.WithGoogle(google, memory.NewAuthenticationState()), core.WithResourceOpener(opener))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
