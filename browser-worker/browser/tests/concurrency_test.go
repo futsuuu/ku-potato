@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	adapter "github.com/futsuuu/ku-potato/server/chromedp"
+	adapter "github.com/futsuuu/ku-potato/browser-worker/browser"
 )
 
 func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
@@ -124,13 +124,15 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { b.Close() })
-	if err = b.Login(ctx, false); err != nil {
-		t.Fatal(err)
+	for range 2 {
+		if _, err := b.Courses(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 	preparedSessions := sessions.Load()
 	preparedSSO := ssoVersion.Load()
-	if preparedSessions != 3 {
-		t.Fatalf("login prepared %d LMS sessions; want root plus two workers", preparedSessions)
+	if preparedSessions != 2 {
+		t.Fatalf("prepared %d LMS sessions; want two workers", preparedSessions)
 	}
 	parallel := func(path string, use func(int) error) {
 		t.Helper()
@@ -153,7 +155,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 				t.Fatal("operations did not overlap", ctx.Err())
 			}
 		}
-		if len(seen) != 2 || seen[""] || seen["1"] {
+		if len(seen) != 2 || seen[""] {
 			t.Errorf("operations share each other or the default LMS session: %v", seen)
 		}
 		// Subsequent endpoints in these operations should run without a barrier.
@@ -171,7 +173,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if snapshot.Materials.Folders[0].Name != course {
+		if snapshot.GetCourseMaterials().GetFolders()[0].GetName() != course {
 			return fmt.Errorf("selected course leaked between sessions")
 		}
 		return nil
@@ -181,7 +183,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	paths := make(chan string, 2)
 	parallel("/file", func(i int) error {
 		course := fmt.Sprintf("KOG%d", i)
-		download, err := b.Download(ctx, fmt.Sprintf("SRY%d", i), fmt.Sprintf("SRS%d", i), course, "")
+		download, err := b.Download(ctx, fmt.Sprintf("SRY%d", i), fmt.Sprintf("SRS%d", i), course)
 		if err != nil {
 			return err
 		}
@@ -199,8 +201,8 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	if first == second {
 		t.Fatal("downloads share a temporary file")
 	}
-	if sessions.Load() != 3 {
-		t.Fatalf("created %d LMS sessions; want root plus two reusable contexts", sessions.Load())
+	if sessions.Load() != preparedSessions {
+		t.Fatalf("created %d LMS sessions; want two reusable contexts", sessions.Load())
 	}
 	if ssoVersion.Load() != preparedSSO {
 		t.Fatal("parallel material requests repeated SSO login")
