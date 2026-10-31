@@ -64,19 +64,34 @@ func Start(ctx context.Context, executable, temp, chrome string, parallel int, s
 	command := exec.CommandContext(workerCtx, executable, args...)
 	configureWorkerProcess(command)
 	command.Env = append(os.Environ(), "KU_POTATO_WORKER_TOKEN="+token)
+	parentRead, parentWrite, err := os.Pipe()
+	if err != nil {
+		stop()
+		return nil, err
+	}
+	command.Stdin = parentRead
 	stdout, err := command.StdoutPipe()
 	if err != nil {
+		parentRead.Close()
+		parentWrite.Close()
 		stop()
 		return nil, err
 	}
 	command.Stderr = os.Stderr
 	if err = command.Start(); err != nil {
+		parentRead.Close()
+		parentWrite.Close()
 		stop()
 		return nil, err
 	}
+	parentRead.Close()
 	done := make(chan error, 1)
 	exited := make(chan struct{})
-	go func() { done <- command.Wait(); close(exited) }()
+	go func() {
+		done <- command.Wait()
+		parentWrite.Close()
+		close(exited)
+	}()
 	address := make(chan string, 1)
 	go func() {
 		line, _ := bufio.NewReader(stdout).ReadString('\n')
