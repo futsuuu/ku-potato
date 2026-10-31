@@ -6,14 +6,40 @@ const wailsTags = process.env.WAILS_TAGS ? ` -tags ${process.env.WAILS_TAGS}` : 
 export default defineConfig({
   run: {
     tasks: {
+      "proto:generate": {
+        command: "go run ./tools/proto-codegen",
+        cache: false,
+      },
+      "proto:check": {
+        command: "clang-format --dry-run --Werror browser-worker/protocol/worker.proto",
+        cache: false,
+      },
+      "worker:build": {
+        command: "go build -o ./desktop/build/bin/ ./browser-worker/cmd/ku-potato-browser-worker",
+        cache: {
+          input: ["browser-worker/**/*", "internal/**/*", "go.mod", "go.sum"],
+          output: ["desktop/build/bin/ku-potato-browser-worker*"],
+          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+        },
+      },
       "server:dev": {
-        command: "go run ./server/cmd/ku-potato-server",
+        command:
+          "go run ./app-server/cmd/ku-potato-server -worker ./desktop/build/bin/ku-potato-browser-worker",
+        dependsOn: ["worker:build"],
         cache: false,
       },
       "server:build": {
-        command: "go build -o ./desktop/build/bin/ ./server/cmd/ku-potato-server",
+        command: "go build -o ./desktop/build/bin/ ./app-server/cmd/ku-potato-server",
+        dependsOn: ["worker:build"],
         cache: {
-          input: ["server/**/*", "go.mod", "go.sum", "mise.toml"],
+          input: [
+            "app-server/**/*",
+            "browser-worker/**/*",
+            "internal/**/*",
+            "go.mod",
+            "go.sum",
+            "mise.toml",
+          ],
           output: ["desktop/build/bin/ku-potato-server*"],
           env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
         },
@@ -24,9 +50,9 @@ export default defineConfig({
       },
       "openapi:generate": {
         command:
-          "go run ./server/cmd/ku-potato-server openapi -out tools/api-codegen/openapi.generated.json",
+          "go run ./app-server/cmd/ku-potato-server openapi -out tools/api-codegen/openapi.generated.json",
         cache: {
-          input: ["server/**/*", "go.mod", "go.sum", "mise.toml"],
+          input: ["app-server/**/*", "internal/**/*", "go.mod", "go.sum", "mise.toml"],
           output: ["tools/api-codegen/openapi.generated.json"],
           env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
         },
@@ -45,8 +71,8 @@ export default defineConfig({
         cache: {
           input: [
             "tools/db-codegen/**/*",
-            "server/sqlite/schema/**/*",
-            "server/sqlite/internal/gen/**/*",
+            "app-server/sqlite/schema/**/*",
+            "app-server/sqlite/gen/**/*",
             "go.mod",
             "go.sum",
             "mise.toml",
@@ -68,21 +94,29 @@ export default defineConfig({
         cache: false,
       },
       test: {
-        command: "go test -count=1 ./server/... ./desktop/...",
+        command:
+          "go test -count=1 ./app-server/... ./browser-worker/... ./internal/... ./desktop/...",
         dependsOn: ["frontend:build", "frontend:test"],
         cache: false,
       },
-      "server:live-test": {
-        command: "go test ./server/chromedp/tests -run TestLiveOperations -count=1 -v",
+      "server:browser-test": {
+        command: "go test ./browser-worker/browser/tests -count=1 -v",
         cache: false,
       },
       check: {
-        command: ["vp check", "go vet ./server/... ./desktop/... ./tools/..."],
-        dependsOn: ["frontend:build", "db:check"],
+        command: [
+          "vp check",
+          "go vet ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...",
+        ],
+        dependsOn: ["frontend:build", "db:check", "proto:check"],
         cache: false,
       },
       format: {
-        command: ["vp fmt", "go fmt ./server/... ./desktop/... ./tools/..."],
+        command: [
+          "vp fmt",
+          "go fmt ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...",
+          "clang-format -i browser-worker/protocol/worker.proto",
+        ],
         cache: false,
       },
       "frontend:build": {
