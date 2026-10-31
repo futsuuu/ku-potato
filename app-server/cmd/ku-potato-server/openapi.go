@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 
-	"github.com/futsuuu/ku-potato/server/httpapi"
+	"github.com/futsuuu/ku-potato/app-server/httpapi"
 )
 
 func runOpenAPI(args []string) error {

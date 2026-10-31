@@ -15,13 +15,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/chromedp"
-	"github.com/futsuuu/ku-potato/server/core"
-	"github.com/futsuuu/ku-potato/server/filesystem"
-	"github.com/futsuuu/ku-potato/server/httpapi"
-	"github.com/futsuuu/ku-potato/server/memory"
-	"github.com/futsuuu/ku-potato/server/platform"
-	"github.com/futsuuu/ku-potato/server/sqlite"
+	"github.com/futsuuu/ku-potato/app-server/application"
+	"github.com/futsuuu/ku-potato/app-server/authstate"
+	chromedp "github.com/futsuuu/ku-potato/app-server/browserauth"
+	"github.com/futsuuu/ku-potato/app-server/browserworker"
+	"github.com/futsuuu/ku-potato/app-server/filesystem"
+	"github.com/futsuuu/ku-potato/app-server/googledrive"
+	"github.com/futsuuu/ku-potato/app-server/httpapi"
+	"github.com/futsuuu/ku-potato/app-server/sqlite"
+	"github.com/futsuuu/ku-potato/internal/appdirs"
 )
 
 func main() {
@@ -38,7 +40,7 @@ func main() {
 	}
 }
 func run() error {
-	defaults, err := platform.DefaultDirectories()
+	defaults, err := appdirs.DefaultDirectories()
 	if err != nil {
 		return err
 	}
@@ -49,6 +51,7 @@ func run() error {
 	temp := flag.String("temp-dir", defaults.Temp, "parent directory for per-process temporary files")
 	parallel := flag.Int("concurrency", 4, "maximum parallel browser contexts and job workers")
 	executable := flag.String("chrome", "", "Chrome or Chromium executable path")
+	workerBinary := flag.String("worker", "", "browser worker executable (defaults to adjacent binary)")
 	timeout := flag.Duration("job-timeout", 2*time.Minute, "non-interactive job timeout")
 	flag.Parse()
 	if *timeout <= 0 {
@@ -98,8 +101,8 @@ func run() error {
 	}
 	authBrowser, err := chromedp.New(chromedp.Options{
 		StateDir: *state, ProfileDir: filepath.Join(*state, "user-profile"),
-		CacheDir: filepath.Join(*cache, "user-browser"), DownloadDir: filepath.Join(processTemp, "auth-downloads"),
-		Executable: *executable, Parallelism: 1,
+		CacheDir:   filepath.Join(*cache, "user-browser"),
+		Executable: *executable,
 	})
 	if err != nil {
 		return err
@@ -107,32 +110,29 @@ func run() error {
 	defer authBrowser.Close()
 	lmsAuth := chromedp.NewLMSAuthenticator(authBrowser)
 	google := chromedp.NewGoogle(authBrowser)
-	browser, err := chromedp.New(chromedp.Options{
-		StateDir: *state, ProfileDir: filepath.Join(processTemp, "worker-profile"),
-		CacheDir: filepath.Join(*cache, "worker-browser"), DownloadDir: filepath.Join(processTemp, "downloads"),
-		Executable: *executable, Parallelism: *parallel,
-	})
-	if err != nil {
-		return err
-	}
-	defer browser.Close()
 	opener, err := filesystem.NewOpener(tempRoot)
 	if err != nil {
 		return err
 	}
-	if err := browser.UseSSOCookies(lmsAuth); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	workerProcess, err := browserworker.Start(ctx, *workerBinary, processTemp, *executable, *parallel)
+	if err != nil {
 		return err
 	}
-	browser.UseDriveCookies(google)
-	application := core.New(browser, store, memory.NewAuthenticationState(), memory.NewQueue(), files, *timeout, *parallel, core.WithLMSAuthentication(lmsAuth), core.WithGoogle(google, memory.NewAuthenticationState()), core.WithResourceOpener(opener))
+	defer workerProcess.Close()
+	downloads := filepath.Join(processTemp, "downloads")
+	if err := os.MkdirAll(downloads, 0700); err != nil {
+		return err
+	}
+	content := browserworker.New(workerProcess.Client, lmsAuth, downloads)
+	application := application.New(content, store, authstate.NewAuthenticationState(), files, *timeout, *parallel, application.WithLMSAuthentication(lmsAuth), application.WithGoogle(google, authstate.NewAuthenticationState()), application.WithExternalDownloader(googledrive.New(google, downloads)), application.WithResourceOpener(opener))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
 	server := &http.Server{Handler: httpapi.New(application, listener.Addr().String()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	workerCtx, cancel := context.WithCancel(ctx)
 	server.BaseContext = func(net.Listener) context.Context { return workerCtx }
 	defer cancel()
@@ -150,6 +150,10 @@ func run() error {
 	case result = <-serverDone:
 		if errors.Is(result, http.ErrServerClosed) {
 			result = nil
+		}
+	case result = <-workerProcess.Done:
+		if result == nil {
+			result = errors.New("browser worker exited")
 		}
 	}
 	cancel()
