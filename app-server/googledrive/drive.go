@@ -1,4 +1,4 @@
-package chromedp
+package googledrive
 
 import (
 	"bufio"
@@ -15,8 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 	"golang.org/x/net/html"
 )
 
@@ -38,7 +37,34 @@ type DriveCookieSource interface {
 }
 
 type Drive struct {
-	cookies DriveCookieSource
+	cookies   DriveCookieSource
+	directory string
+}
+
+func New(cookies DriveCookieSource, directory string) *Drive {
+	return &Drive{cookies: cookies, directory: directory}
+}
+
+func (g *Drive) Key(rawURL string) (string, bool) {
+	destination, ok := driveDownloadURL(rawURL)
+	if !ok {
+		return "", false
+	}
+	return destination.String(), true
+}
+
+func (g *Drive) Download(ctx context.Context, rawURL string) (string, string, error) {
+	destination, ok := driveDownloadURL(rawURL)
+	if !ok {
+		return "", "", nil
+	}
+	client, err := g.driveClient(ctx)
+	if err != nil {
+		return "", "", googleDownloadError(ctx, err)
+	}
+	defer client.client.CloseIdleConnections()
+	path, filename, err := client.download(ctx, destination, g.directory)
+	return path, filename, googleDownloadError(ctx, err)
 }
 
 // FileMetadata requests at most a 512-byte sample, without saving a file.
@@ -98,11 +124,6 @@ func driveDownloadURL(raw string) (*url.URL, bool) {
 }
 
 type driveHTTP struct{ client *http.Client }
-
-// Preserve the existing adapter entry point for single-browser callers.
-func (g *Google) FileMetadata(ctx context.Context, rawURL string) (FileMetadata, error) {
-	return (&Drive{cookies: g}).FileMetadata(ctx, rawURL)
-}
 
 func (g *Drive) driveClient(ctx context.Context) (*driveHTTP, error) {
 	jar, err := g.cookies.CookieJar(ctx)
@@ -322,7 +343,7 @@ func googleDownloadError(ctx context.Context, err error) error {
 		// HTTP errors may wrap a URL containing confirmation/session tokens.
 		// Keep only the public error, never the transport's URL diagnostics.
 		if failure.Reason == "authentication-required" {
-			return &outport.AuthenticationError{Provider: "google", Err: failure}
+			return &domain.AuthenticationError{Provider: "google", Err: failure}
 		}
 		return failure
 	}
