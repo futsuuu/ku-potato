@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/domain"
-	"github.com/futsuuu/ku-potato/server/httpapi"
-	"github.com/futsuuu/ku-potato/server/memory"
-	"github.com/futsuuu/ku-potato/server/sqlite"
+	"github.com/futsuuu/ku-potato/app-server/application"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/authstate"
+	"github.com/futsuuu/ku-potato/app-server/domain"
+	"github.com/futsuuu/ku-potato/app-server/httpapi"
+	"github.com/futsuuu/ku-potato/app-server/sqlite"
 )
 
 func streamingServer(t *testing.T, source *source) *httptest.Server {
@@ -27,7 +27,7 @@ func streamingServer(t *testing.T, source *source) *httptest.Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	app := core.New(source, store, memory.NewAuthenticationState(), memory.NewQueue(), nil, 5*time.Second, 2)
+	app := application.New(source, store, authstate.NewAuthenticationState(), nil, 5*time.Second, 2)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
@@ -125,7 +125,7 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	}
 }
 
-func TestRetryIsStreamedBeforeTypedResult(t *testing.T) {
+func TestApplicationDoesNotRetryBrowserFailures(t *testing.T) {
 	fake := &source{}
 	fake.authenticated.Store(true)
 	fake.failCourses.Store(1)
@@ -139,35 +139,20 @@ func TestRetryIsStreamedBeforeTypedResult(t *testing.T) {
 	}
 	defer response.Body.Close()
 	scanner := bufio.NewScanner(response.Body)
-	retried := false
-	succeeded := false
 	for {
 		event, body := readFrame(t, scanner)
-		if event == "result" {
-			var result struct{ Data []domain.Course }
-			if !succeeded || json.Unmarshal(body, &result) != nil || len(result.Data) != 1 || result.Data[0].ID != "KOG1" {
-				t.Fatal("result arrived without a successful retry", string(body))
+		if event == "error" {
+			var result struct{ Error domain.Error }
+			if json.Unmarshal(body, &result) != nil || result.Error.Reason != "source" {
+				t.Fatal(event, string(body))
 			}
 			break
 		}
-		var status operation.OperationStatus
-		if event != "status" || json.Unmarshal(body, &status) != nil {
-			t.Fatal(event, string(body))
-		}
-		if status.Status == "retrying" {
-			if status.Attempt != 1 || status.Error == nil || status.Error.Reason != "source" {
-				t.Fatal(status)
-			}
-			retried = true
-		}
-		if status.Status == "succeeded" {
-			if !retried || status.Attempt != 2 {
-				t.Fatal(status)
-			}
-			succeeded = true
+		if event == "result" {
+			t.Fatal("unexpected result", string(body))
 		}
 	}
-	if !retried || !succeeded || fake.courseCalls.Load() != 2 || scanner.Scan() || scanner.Err() != nil {
-		t.Fatal("missing retry", retried, fake.courseCalls.Load())
+	if fake.courseCalls.Load() != 1 || scanner.Scan() || scanner.Err() != nil {
+		t.Fatal("application retried browser operation", fake.courseCalls.Load())
 	}
 }

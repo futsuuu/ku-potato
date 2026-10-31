@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
-	"github.com/futsuuu/ku-potato/server/filesystem"
-	"github.com/futsuuu/ku-potato/server/httpapi"
-	"github.com/futsuuu/ku-potato/server/memory"
-	"github.com/futsuuu/ku-potato/server/sqlite"
+	"github.com/futsuuu/ku-potato/app-server/application"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/authstate"
+	"github.com/futsuuu/ku-potato/app-server/domain"
+	"github.com/futsuuu/ku-potato/app-server/filesystem"
+	"github.com/futsuuu/ku-potato/app-server/httpapi"
+	"github.com/futsuuu/ku-potato/app-server/sqlite"
 )
 
 type openerFunc func(context.Context, io.Reader, domain.SavedFile) error
@@ -87,7 +87,7 @@ func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, 
 	snapshot.Resources = []domain.Resource{{ID: "SRS1", Name: "file.txt", Type: "file"}}
 	return snapshot, err
 }
-func (s *source) Download(ctx context.Context, material, resource, preferred, _ string) (outport.Download, error) {
+func (s *source) Download(ctx context.Context, material, resource, preferred string) (outport.Download, error) {
 	snapshot, err := s.Resources(ctx, material, preferred)
 	if err != nil {
 		return outport.Download{}, err
@@ -115,8 +115,8 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	fake := &source{path: filepath.Join(dir, "staging")}
 	opened := 0
 	failOpen := false
-	app := core.New(fake, store, memory.NewAuthenticationState(), memory.NewQueue(), files, time.Second, 4,
-		core.WithResourceOpener(openerFunc(func(_ context.Context, content io.Reader, file domain.SavedFile) error {
+	app := application.New(fake, store, authstate.NewAuthenticationState(), files, time.Second, 4,
+		application.WithResourceOpener(openerFunc(func(_ context.Context, content io.Reader, file domain.SavedFile) error {
 			if failOpen {
 				return errors.New("no application for this file")
 			}
@@ -147,12 +147,19 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		handler.ServeHTTP(res, req)
 		return res
 	}
-	wait := func(res *httptest.ResponseRecorder) operation.Job {
+	type observation struct {
+		Status   string
+		Attempts int
+		Progress *operation.Progress
+		Result   json.RawMessage
+		Error    *domain.Error
+	}
+	wait := func(res *httptest.ResponseRecorder) observation {
 		t.Helper()
 		if res.Code != 200 || res.Header().Get("Content-Type") != "text/event-stream" || res.Header().Get("Location") != "" {
 			t.Fatalf("expected SSE, got %d %s", res.Code, res.Body)
 		}
-		job := operation.Job{}
+		job := observation{}
 		terminal := 0
 		for _, frame := range strings.Split(res.Body.String(), "\n\n") {
 			var event, data string
