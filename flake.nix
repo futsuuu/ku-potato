@@ -14,6 +14,8 @@
         default = pkgs.mkShell {
           packages = [
             pkgs.go_1_27
+            pkgs.protobuf
+            pkgs.llvmPackages_18.clang-tools
             nix-vite-plus.packages.${pkgs.stdenv.hostPlatform.system}.vp
             pkgs.chromium
             pkgs.pkg-config
