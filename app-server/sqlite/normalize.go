@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func unknown(id, field string, raw any) {

@@ -6,10 +6,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
-	"github.com/futsuuu/ku-potato/server/sqlite/internal/gen/model"
-	"github.com/futsuuu/ku-potato/server/sqlite/internal/gen/table"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/domain"
+	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/model"
+	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/table"
 	"github.com/go-jet/jet/v2/qrm"
 	"github.com/go-jet/jet/v2/sqlite"
 )
