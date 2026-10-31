@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/futsuuu/ku-potato/desktop/launcher"
-	"github.com/futsuuu/ku-potato/server/platform"
+	"github.com/futsuuu/ku-potato/internal/appdirs"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -25,7 +25,7 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) ServerURL() (string, error) {
 	ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
 	defer cancel()
-	dirs, err := platform.DefaultDirectories()
+	dirs, err := appdirs.DefaultDirectories()
 	if err != nil {
 		return "", err
 	}
