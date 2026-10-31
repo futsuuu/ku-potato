@@ -1,4 +1,4 @@
-package chromedp
+package googledrive
 
 import (
 	"context"
@@ -16,8 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type driveTransport func(*http.Request) (*http.Response, error)
@@ -42,6 +41,25 @@ func driveFixture(t *testing.T, handler http.HandlerFunc) *driveHTTP {
 		copy.URL.Scheme, copy.URL.Host = origin.Scheme, origin.Host
 		return transport.RoundTrip(copy)
 	})}}
+}
+
+type driveCookieStub struct{ called bool }
+
+func (s *driveCookieStub) CookieJar(context.Context) (http.CookieJar, error) {
+	s.called = true
+	return cookiejar.New(nil)
+}
+
+func TestDriveUsesInjectedCookieSource(t *testing.T) {
+	cookies := &driveCookieStub{}
+	client, err := New(cookies, t.TempDir()).driveClient(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.client.CloseIdleConnections()
+	if !cookies.called {
+		t.Fatal("Drive did not request authentication cookies")
+	}
 }
 
 func TestDriveURLs(t *testing.T) {
@@ -310,7 +328,7 @@ func TestDrivePublicErrorOmitsConfirmationToken(t *testing.T) {
 		Op: "Get", URL: "https://drive.usercontent.google.com/download?at=secret",
 		Err: domain.Fail("authentication-required", "Google login required"),
 	})
-	var provider *outport.AuthenticationError
+	var provider *domain.AuthenticationError
 	var failure *domain.Error
 	if strings.Contains(err.Error(), "secret") || !errors.As(err, &provider) || provider.Provider != "google" || !errors.As(err, &failure) || failure.Reason != "authentication-required" {
 		t.Fatal("unsafe or unscoped authentication error", err)
