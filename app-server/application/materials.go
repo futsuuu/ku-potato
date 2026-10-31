@@ -1,12 +1,12 @@
-package core
+package application
 
 import (
 	"context"
 	"errors"
 	"sync"
 
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func (a *Application) parallelMaterials(ctx context.Context, ids []string) (domain.MaterialsResult, error) {

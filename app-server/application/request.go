@@ -1,31 +1,14 @@
-package core
+package application
 
 import (
-	"context"
 	"regexp"
 
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 var materialID = regexp.MustCompile(`^[A-Z]+\d+$`)
 var resourceID = regexp.MustCompile(`^SRS\d+$`)
-
-func (a *Application) submit(ctx context.Context, r operation.Request) (operation.Job, error) {
-	if err := validateJobRequest(r); err != nil {
-		return operation.Job{}, err
-	}
-	seen := map[string]bool{}
-	ids := []string{}
-	for _, id := range r.CourseIDs {
-		if !seen[id] {
-			seen[id] = true
-			ids = append(ids, id)
-		}
-	}
-	r.CourseIDs = ids
-	return a.queue.Enqueue(ctx, r)
-}
 
 func validateJobRequest(r operation.Request) error {
 	for _, id := range r.CourseIDs {

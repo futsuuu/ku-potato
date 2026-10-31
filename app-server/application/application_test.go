@@ -1,4 +1,4 @@
-package core
+package application
 
 import (
 	"context"
@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type stalledSource struct{ outport.ContentSource }
@@ -18,7 +18,7 @@ func (stalledSource) Materials(ctx context.Context, _ string) (domain.Snapshot, 
 	return domain.Snapshot{}, ctx.Err()
 }
 func TestBatchTimeoutIsNotReportedAsSuccessfulPartialResult(t *testing.T) {
-	app := New(stalledSource{}, nil, nil, nil, nil, time.Millisecond, 2)
+	app := New(stalledSource{}, nil, nil, nil, time.Millisecond, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
 	_, err := app.execute(ctx, operation.Request{Kind: "sync-materials", CourseIDs: []string{"KOG1", "KOG2"}})
@@ -71,7 +71,7 @@ func (i *loginIdentity) Login(context.Context, bool) error {
 
 func TestAuthenticationUsesDedicatedIdentityPort(t *testing.T) {
 	identity := &loginIdentity{}
-	app := New(stalledSource{}, nil, authState{}, nil, nil, time.Second, 1, WithLMSAuthentication(identity))
+	app := New(stalledSource{}, nil, authState{}, nil, time.Second, 1, WithLMSAuthentication(identity))
 	if _, err := app.execute(context.Background(), operation.Request{Kind: "login"}); err != nil || !identity.called {
 		t.Fatal("login did not use the injected identity port", err)
 	}
@@ -84,7 +84,7 @@ func TestAuthenticationWaitsForNormalJobsAndExcludesNewJobs(t *testing.T) {
 		parallelSource: &parallelSource{entered: make(chan string, 2), release: make(chan struct{})},
 		loginEntered:   make(chan struct{}), loginRelease: make(chan struct{}),
 	}
-	app := New(source, &materialArchive{values: map[string]domain.CourseMaterials{}}, authState{}, nil, nil, time.Second, 2)
+	app := New(source, &materialArchive{values: map[string]domain.CourseMaterials{}}, authState{}, nil, time.Second, 2)
 	done := make(chan error, 3)
 	materials := func(id string) {
 		_, err := app.executeJob(ctx, operation.Request{Kind: "sync-materials", CourseIDs: []string{id}})

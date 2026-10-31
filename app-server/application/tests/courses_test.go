@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
-	"github.com/futsuuu/ku-potato/server/memory"
-	"github.com/futsuuu/ku-potato/server/sqlite"
+	"github.com/futsuuu/ku-potato/app-server/application"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/authstate"
+	"github.com/futsuuu/ku-potato/app-server/domain"
+	"github.com/futsuuu/ku-potato/app-server/sqlite"
 )
 
 type courseSource struct {
@@ -45,7 +45,7 @@ func TestCoursePlacementsDoNotDuplicateMaterialSyncOrAssignments(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	source := &placementSource{}
-	app := core.New(source, store, memory.NewAuthenticationState(), memory.NewQueue(), nil, time.Second, 2)
+	app := application.New(source, store, authstate.NewAuthenticationState(), nil, time.Second, 2)
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
 	t.Cleanup(func() {
@@ -100,7 +100,7 @@ func TestCourseSyncReturnsRetainedHistory(t *testing.T) {
 			if _, err := store.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: previous}); err != nil {
 				t.Fatal(err)
 			}
-			app := core.New(courseSource{courses: test.current}, store, memory.NewAuthenticationState(), memory.NewQueue(), nil, time.Second, 1)
+			app := application.New(courseSource{courses: test.current}, store, authstate.NewAuthenticationState(), nil, time.Second, 1)
 			done := make(chan error, 1)
 			go func() { done <- app.Run(ctx) }()
 			t.Cleanup(func() {

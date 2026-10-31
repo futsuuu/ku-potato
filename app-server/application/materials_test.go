@@ -1,4 +1,4 @@
-package core
+package application
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/authentication"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/authentication"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type parallelSource struct {
@@ -56,7 +56,7 @@ func (authState) SetAuth(context.Context, string) error { return nil }
 func TestMaterialsBatchRunsInParallelAndKeepsInputOrder(t *testing.T) {
 	source := &parallelSource{entered: make(chan string, 2), release: make(chan struct{})}
 	archive := &materialArchive{values: make(map[string]domain.CourseMaterials)}
-	app := New(source, archive, authState{}, nil, nil, time.Second, 2)
+	app := New(source, archive, authState{}, nil, time.Second, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	progress := []operation.Progress{}
