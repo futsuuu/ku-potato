@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/futsuuu/ku-potato/server/sqlite/schema"
+	"github.com/futsuuu/ku-potato/app-server/sqlite/schema"
 	"github.com/go-jet/jet/v2/generator/sqlite"
 	_ "modernc.org/sqlite"
 )
@@ -22,7 +22,7 @@ func main() {
 }
 
 func run() error {
-	destination := flag.String("out", "server/sqlite/internal/gen", "generated code directory")
+	destination := flag.String("out", "app-server/sqlite/gen", "generated code directory")
 	check := flag.Bool("check", false, "check committed code without modifying it")
 	flag.Parse()
 	output := *destination
