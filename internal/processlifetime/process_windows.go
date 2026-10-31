@@ -1,4 +1,4 @@
-package chromedp
+package processlifetime
 
 import (
 	"os"
@@ -7,9 +7,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Closing the server also closes this non-inherited job handle, even on forced
-// termination. Otherwise Chrome can outlive it and lock the persistent profile.
-func manageProcess(process *os.Process) (func(), error) {
+func BindToParent(process *os.Process) (func(), error) {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return nil, err
