@@ -1,0 +1,326 @@
+syntax = "proto3";
+
+package kupotato.browser.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/futsuuu/ku-potato/browser-worker/protocol;workerproto";
+
+service BrowserWorker {
+  rpc Courses(google.protobuf.Empty) returns (CourseListing);
+  rpc Materials(MaterialsRequest) returns (Snapshot);
+  rpc Resources(ResourcesRequest) returns (Snapshot);
+  rpc Download(DownloadRequest) returns (stream DownloadPart);
+  rpc SetSSOCookies(SSOCookies) returns (google.protobuf.Empty);
+}
+
+message CourseId {
+  string value = 1;
+}
+message MaterialId {
+  string value = 1;
+}
+message ResourceId {
+  string value = 1;
+}
+
+message MaterialsRequest {
+  CourseId course_id = 1;
+}
+message ResourcesRequest {
+  MaterialId material_id = 1;
+  CourseId preferred_course_id = 2;
+}
+message DownloadRequest {
+  MaterialId material_id = 1;
+  ResourceId resource_id = 2;
+  CourseId preferred_course_id = 3;
+}
+
+message PartitionKey {
+  string top_level_site = 1;
+  bool has_cross_site_ancestor = 2;
+}
+enum CookieSameSite {
+  COOKIE_SAME_SITE_UNSPECIFIED = 0;
+  COOKIE_SAME_SITE_STRICT = 1;
+  COOKIE_SAME_SITE_LAX = 2;
+  COOKIE_SAME_SITE_NONE = 3;
+}
+enum CookiePriority {
+  COOKIE_PRIORITY_UNSPECIFIED = 0;
+  COOKIE_PRIORITY_LOW = 1;
+  COOKIE_PRIORITY_MEDIUM = 2;
+  COOKIE_PRIORITY_HIGH = 3;
+}
+enum CookieSourceScheme {
+  COOKIE_SOURCE_SCHEME_UNSPECIFIED = 0;
+  COOKIE_SOURCE_SCHEME_UNSET = 1;
+  COOKIE_SOURCE_SCHEME_NON_SECURE = 2;
+  COOKIE_SOURCE_SCHEME_SECURE = 3;
+}
+message Cookie {
+  string name = 1;
+  string value = 2;
+  string domain = 3;
+  string path = 4;
+  bool secure = 5;
+  bool http_only = 6;
+  CookieSameSite same_site = 7;
+  google.protobuf.Timestamp expires = 8;
+  CookiePriority priority = 9;
+  CookieSourceScheme source_scheme = 10;
+  int64 source_port = 11;
+  PartitionKey partition_key = 12;
+}
+message SSOCookies {
+  repeated Cookie cookies = 1;
+}
+
+enum FailureReason {
+  FAILURE_REASON_UNSPECIFIED = 0;
+  FAILURE_REASON_AUTHENTICATION_REQUIRED = 1;
+  FAILURE_REASON_AUTHENTICATION_STORAGE = 2;
+  FAILURE_REASON_BROWSER_START = 3;
+  FAILURE_REASON_COURSE_NOT_FOUND = 4;
+  FAILURE_REASON_MATERIAL_NOT_FOUND = 5;
+  FAILURE_REASON_RESOURCE_NOT_FOUND = 6;
+  FAILURE_REASON_UNSUPPORTED_RESOURCE = 7;
+  FAILURE_REASON_SOURCE = 8;
+  FAILURE_REASON_FORBIDDEN = 9;
+}
+message Failure {
+  FailureReason reason = 1;
+  string message = 2;
+}
+
+message Schedule {
+  int32 weekday = 1;
+  int32 period = 2;
+}
+message Course {
+  string name = 1;
+  oneof access {
+    CourseId available = 2;
+    google.protobuf.Empty unavailable = 3;
+  }
+  oneof schedule {
+    Schedule scheduled = 4;
+    google.protobuf.Empty other = 5;
+    google.protobuf.Empty unknown_schedule = 6;
+  }
+}
+message CourseListing {
+  int32 academic_year = 1;
+  repeated Course courses = 2;
+}
+
+enum DocumentStatus {
+  DOCUMENT_STATUS_UNSPECIFIED = 0;
+  DOCUMENT_STATUS_UNVIEWED = 1;
+  DOCUMENT_STATUS_VIEWED = 2;
+  DOCUMENT_STATUS_PARTIALLY_VIEWED = 3;
+  DOCUMENT_STATUS_UNKNOWN = 4;
+}
+enum ReportMaterialStatus {
+  REPORT_MATERIAL_STATUS_UNSPECIFIED = 0;
+  REPORT_MATERIAL_STATUS_UNVIEWED = 1;
+  REPORT_MATERIAL_STATUS_UNSUBMITTED = 2;
+  REPORT_MATERIAL_STATUS_SUBMITTED = 3;
+  REPORT_MATERIAL_STATUS_RESUBMISSION_REQUIRED = 4;
+  REPORT_MATERIAL_STATUS_EVALUATED = 5;
+  REPORT_MATERIAL_STATUS_UNKNOWN = 6;
+}
+enum TestStatus {
+  TEST_STATUS_UNSPECIFIED = 0;
+  TEST_STATUS_NOT_STARTED = 1;
+  TEST_STATUS_IN_PROGRESS = 2;
+  TEST_STATUS_COMPLETED = 3;
+  TEST_STATUS_UNKNOWN = 4;
+}
+enum QuestionnaireStatus {
+  QUESTIONNAIRE_STATUS_UNSPECIFIED = 0;
+  QUESTIONNAIRE_STATUS_UNANSWERED = 1;
+  QUESTIONNAIRE_STATUS_ANSWERED = 2;
+  QUESTIONNAIRE_STATUS_UNKNOWN = 3;
+}
+enum ELearningStatus {
+  E_LEARNING_STATUS_UNSPECIFIED = 0;
+  E_LEARNING_STATUS_NOT_STARTED = 1;
+  E_LEARNING_STATUS_IN_PROGRESS = 2;
+  E_LEARNING_STATUS_COMPLETED = 3;
+  E_LEARNING_STATUS_UNKNOWN = 4;
+}
+enum BoardStatus {
+  BOARD_STATUS_UNSPECIFIED = 0;
+  BOARD_STATUS_UNPOSTED = 1;
+  BOARD_STATUS_EVALUATED = 2;
+  BOARD_STATUS_UNKNOWN = 3;
+}
+enum FeedbackStatus {
+  FEEDBACK_STATUS_UNSPECIFIED = 0;
+  FEEDBACK_STATUS_UNEVALUATED = 1;
+  FEEDBACK_STATUS_EVALUATED = 2;
+  FEEDBACK_STATUS_UNKNOWN = 3;
+}
+enum LinkAvailability {
+  LINK_AVAILABILITY_UNSPECIFIED = 0;
+  LINK_AVAILABILITY_AVAILABLE = 1;
+  LINK_AVAILABILITY_UNAVAILABLE = 2;
+}
+message DocumentMaterial {
+  DocumentStatus status = 1;
+  LinkAvailability resource_availability = 2;
+}
+message ReportMaterial {
+  ReportMaterialStatus status = 1;
+}
+message TestMaterial {
+  TestStatus status = 1;
+}
+message QuestionnaireMaterial {
+  QuestionnaireStatus status = 1;
+}
+message ELearningMaterial {
+  ELearningStatus status = 1;
+}
+message BoardMaterial {
+  BoardStatus status = 1;
+}
+message FeedbackMaterial {
+  FeedbackStatus status = 1;
+}
+message PublicationDeadline {
+  oneof value {
+    google.protobuf.Timestamp at = 1;
+    google.protobuf.Empty unlisted = 2;
+    google.protobuf.Empty closed = 3;
+    google.protobuf.Empty unknown = 4;
+  }
+}
+message Material {
+  MaterialId id = 1;
+  string name = 2;
+  PublicationDeadline publication_deadline = 3;
+  bool material_link_available = 4;
+  oneof kind {
+    DocumentMaterial document = 5;
+    ReportMaterial report = 6;
+    TestMaterial test = 7;
+    QuestionnaireMaterial questionnaire = 8;
+    ELearningMaterial e_learning = 9;
+    BoardMaterial board = 10;
+    FeedbackMaterial feedback = 11;
+    google.protobuf.Empty unknown = 12;
+  }
+}
+message CalendarDate {
+  int32 year = 1;
+  int32 month = 2;
+  int32 day = 3;
+}
+message Folder {
+  string name = 1;
+  CalendarDate class_date = 2;
+  optional string description_html = 3;
+  repeated Material materials = 4;
+}
+message CourseMaterials {
+  CourseId course_id = 1;
+  repeated Folder folders = 2;
+}
+
+enum ResourceStatus {
+  RESOURCE_STATUS_UNSPECIFIED = 0;
+  RESOURCE_STATUS_UNVIEWED = 1;
+  RESOURCE_STATUS_VIEWED = 2;
+  RESOURCE_STATUS_UNKNOWN = 3;
+}
+message ResourceFile {
+  string url = 1;
+}
+message ResourceUnknown {
+  string url = 1;
+}
+message Resource {
+  ResourceId id = 1;
+  string name = 2;
+  ResourceStatus status = 3;
+  CalendarDate registered_on = 4;
+  CalendarDate first_viewed_on = 5;
+  optional string description = 6;
+  oneof content {
+    ResourceFile file = 7;
+    string external_url = 8;
+    ResourceUnknown unknown = 9;
+  }
+}
+message ResourceList {
+  repeated Resource resources = 1;
+}
+
+enum ReportStatus {
+  REPORT_STATUS_UNSPECIFIED = 0;
+  REPORT_STATUS_UNVIEWED = 1;
+  REPORT_STATUS_UNSUBMITTED = 2;
+  REPORT_STATUS_SUBMITTED = 3;
+  REPORT_STATUS_RESUBMISSION_REQUIRED = 4;
+  REPORT_STATUS_EVALUATED = 5;
+  REPORT_STATUS_UNKNOWN = 6;
+}
+message SubmissionWindow {
+  google.protobuf.Timestamp starts_at = 1;
+  google.protobuf.Timestamp due_at = 2;
+}
+message SubmissionPeriod {
+  oneof kind {
+    SubmissionWindow at = 1;
+    google.protobuf.Empty unlisted = 2;
+    google.protobuf.Empty unknown = 3;
+  }
+}
+message CorrectionPolicy {
+  oneof kind {
+    google.protobuf.Empty unknown = 1;
+    google.protobuf.Empty not_allowed = 2;
+    google.protobuf.Empty unlimited = 3;
+    int64 limited = 4;
+  }
+}
+message Report {
+  optional string prompt_html = 1;
+  ReportStatus status = 2;
+  SubmissionPeriod submission_period = 3;
+  CorrectionPolicy correction_policy = 4;
+  optional bool text_answer_allowed = 5;
+  optional bool file_answer_allowed = 6;
+  optional int64 max_total_file_bytes = 7;
+}
+message Snapshot {
+  int32 academic_year = 1;
+  repeated Course courses = 2;
+  CourseMaterials course_materials = 3;
+  MaterialId material_id = 4;
+  ResourceList resource_list = 5;
+  Report report = 6;
+}
+
+message FileDownload {
+  string filename = 1;
+  int64 byte_size = 2;
+}
+message DownloadHeader {
+  Snapshot snapshot = 1;
+  oneof outcome {
+    FileDownload file = 2;
+    string external_url = 3;
+    Failure failure = 4;
+  }
+}
+message DownloadPart {
+  oneof part {
+    DownloadHeader header = 1;
+    bytes chunk = 2;
+  }
+}
