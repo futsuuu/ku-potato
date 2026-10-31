@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func TestOpenerCopiesFileForDefaultApp(t *testing.T) {
