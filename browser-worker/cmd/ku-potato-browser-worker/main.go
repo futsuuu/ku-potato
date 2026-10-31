@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -48,13 +49,20 @@ func run() error {
 		return err
 	}
 	defer os.RemoveAll(root)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		io.Copy(io.Discard, os.Stdin)
+		stop()
+	}()
 	browser, err := chromedp.New(chromedp.Options{StateDir: root, ProfileDir: filepath.Join(root, "profile"), CacheDir: filepath.Join(root, "cache"), DownloadDir: filepath.Join(root, "downloads"), Executable: *chrome, Parallelism: *parallel, LMSURL: *lmsURL, SSOURL: *ssoURL})
 	if err != nil {
 		return err
 	}
 	defer browser.Close()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	worker, err := browserworker.NewServer(browser, browserworker.NewScheduler(ctx, *parallel), *ssoURL)
 	if err != nil {
 		return err
