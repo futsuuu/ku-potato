@@ -1,4 +1,4 @@
-package core
+package application
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/authentication"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/authentication"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type googleAuthentication struct {
@@ -24,7 +24,7 @@ type providerDownloadSource struct {
 	err error
 }
 
-func (s providerDownloadSource) Download(context.Context, string, string, string, string) (outport.Download, error) {
+func (s providerDownloadSource) Download(context.Context, string, string, string) (outport.Download, error) {
 	return outport.Download{Snapshot: domain.Snapshot{MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Type: "external"}}}}, s.err
 }
 
@@ -56,7 +56,7 @@ func TestExternalDownloadAuthenticationFailureKeepsLMSSession(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			lms := &savedAuthentication{status: "authenticated"}
 			google := &savedAuthentication{status: "authenticated"}
-			app := New(providerDownloadSource{err: test.err}, providerDownloadArchive{}, lms, nil, nil, time.Second, 1, WithGoogle(&googleAuthentication{}, google))
+			app := New(providerDownloadSource{err: test.err}, providerDownloadArchive{}, lms, nil, time.Second, 1, WithGoogle(&googleAuthentication{}, google))
 			_, err := app.executeJob(context.Background(), operation.Request{Kind: "download-resource", MaterialID: "SRY1", ResourceID: "SRS1"})
 			if !errors.Is(err, test.err) || lms.status != test.lms || google.status != test.google {
 				t.Fatal("wrong provider invalidated", err, lms, google)
@@ -87,7 +87,7 @@ func TestGoogleOperationsUseTheirOwnAuthenticationState(t *testing.T) {
 	lms := &savedAuthentication{status: "authenticated"}
 	state := &savedAuthentication{status: "unknown"}
 	google := &googleAuthentication{}
-	app := New(nil, nil, lms, nil, nil, time.Second, 1, WithGoogle(google, state))
+	app := New(nil, nil, lms, nil, time.Second, 1, WithGoogle(google, state))
 	for _, test := range []struct{ kind, status string }{
 		{"google-login", "authenticated"},
 		{"google-auth-check", "authenticated"},

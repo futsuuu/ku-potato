@@ -1,47 +1,41 @@
-package core
+package application
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
-	"github.com/futsuuu/ku-potato/server/core/authentication"
-	"github.com/futsuuu/ku-potato/server/core/inport"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/authentication"
+	"github.com/futsuuu/ku-potato/app-server/application/inport"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
-// submitAndObserve detaches observation from execution. Disconnecting one client
-// does not cancel a shared operation or an in-flight credential registration.
 func submitAndObserve[T any](ctx context.Context, a *Application, request operation.Request, progress inport.StatusObserver) (result T, err error) {
-	job, err := a.submit(ctx, request)
+	e, err := a.start(ctx, request)
 	if err != nil {
 		return result, err
 	}
-	var terminal operation.Job
-	err = a.queue.Observe(ctx, job.ID, func(job operation.Job) error {
-		status := job.Status
-		if status == "queued" && job.Attempts > 0 {
-			status = "retrying"
+	for {
+		a.activeMu.Lock()
+		status, changed, done, value, failure := e.status, e.changed, e.done, e.result, e.err
+		a.activeMu.Unlock()
+		if done {
+			if failure != nil {
+				return result, publicError(failure)
+			}
+			return value.(T), nil
 		}
-		if progress != nil && job.Status != "succeeded" && job.Status != "failed" && job.Status != "blocked" {
-			if err := progress(operation.OperationStatus{Status: status, Attempt: job.Attempts, Progress: job.Progress, Error: job.Error}); err != nil {
-				return err
+		if progress != nil {
+			if err := progress(status); err != nil {
+				return result, err
 			}
 		}
-		terminal = job
-		return nil
-	})
-	if err != nil {
-		return result, err
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		case <-changed:
+		}
 	}
-	if terminal.Error != nil {
-		return result, terminal.Error
-	}
-	if err := json.Unmarshal(terminal.Result, &result); err != nil {
-		return result, err
-	}
-	return result, nil
 }
 
 func loadOrSynchronize[T any](policy string, load func() (T, error), synchronize func() (T, error)) (zero T, err error) {

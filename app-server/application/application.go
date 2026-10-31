@@ -1,4 +1,4 @@
-package core
+package application
 
 import (
 	"context"
@@ -7,19 +7,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/authentication"
-	"github.com/futsuuu/ku-potato/server/core/inport"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/authentication"
+	"github.com/futsuuu/ku-potato/app-server/application/inport"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type Application struct {
 	content     outport.ContentSource
+	external    outport.ExternalDownloader
 	lmsAuth     outport.LMSAuthentication
 	archive     outport.Archive
 	lmsState    outport.AuthenticationState
-	queue       outport.Queue
+	active      map[string]*execution
+	activeMu    sync.Mutex
+	background  context.Context
+	stop        context.CancelFunc
 	files       outport.Files
 	opener      outport.ResourceOpener
 	timeout     time.Duration
@@ -39,12 +43,17 @@ func WithResourceOpener(opener outport.ResourceOpener) Option {
 	return func(a *Application) { a.opener = opener }
 }
 
+func WithExternalDownloader(downloader outport.ExternalDownloader) Option {
+	return func(a *Application) { a.external = downloader }
+}
+
 func WithGoogle(authentication outport.Authentication, state outport.AuthenticationState) Option {
 	return func(a *Application) { a.google, a.googleState = authentication, state }
 }
 
-func New(content outport.ContentSource, archive outport.Archive, state outport.AuthenticationState, queue outport.Queue, files outport.Files, timeout time.Duration, workers int, options ...Option) *Application {
-	a := &Application{content: content, archive: archive, lmsState: state, queue: queue, files: files, timeout: timeout, workers: max(1, workers)}
+func New(content outport.ContentSource, archive outport.Archive, state outport.AuthenticationState, files outport.Files, timeout time.Duration, workers int, options ...Option) *Application {
+	ctx, stop := context.WithCancel(context.Background())
+	a := &Application{content: content, archive: archive, lmsState: state, files: files, timeout: timeout, workers: max(1, workers), active: make(map[string]*execution), background: ctx, stop: stop}
 	// Existing single-browser clients can still supply both contracts.
 	if authentication, ok := content.(outport.LMSAuthentication); ok {
 		a.lmsAuth = authentication

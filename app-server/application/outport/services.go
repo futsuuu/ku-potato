@@ -4,9 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/futsuuu/ku-potato/server/core/authentication"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/authentication"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type Authentication interface {
@@ -29,9 +28,14 @@ type ContentSource interface {
 	Courses(context.Context) (domain.CourseListing, error)
 	Materials(context.Context, string) (domain.Snapshot, error)
 	Resources(context.Context, string, string) (domain.Snapshot, error)
-	// The final argument is an archived external URL, used only speculatively.
-	Download(context.Context, string, string, string, string) (Download, error)
+	Download(context.Context, string, string, string) (Download, error)
 }
+
+type ExternalDownloader interface {
+	Key(string) (string, bool)
+	Download(context.Context, string) (string, string, error)
+}
+
 type Archive interface {
 	Courses(context.Context) ([]domain.Course, error)
 	Materials(context.Context, string) (domain.CourseMaterials, error)
@@ -43,13 +47,6 @@ type Archive interface {
 type AuthenticationState interface {
 	Auth(context.Context) (authentication.AuthState, error)
 	SetAuth(context.Context, string) error
-}
-type Queue interface {
-	Observe(context.Context, string, func(operation.Job) error) error
-	Progress(context.Context, operation.Job, operation.Progress) error
-	Enqueue(context.Context, operation.Request) (operation.Job, error)
-	Claim(context.Context) (*operation.Job, error)
-	Finish(context.Context, operation.Job, any, error) error
 }
 
 // ResourceOpener materializes an acquired file for the server's default application.

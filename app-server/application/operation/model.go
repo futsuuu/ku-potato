@@ -1,12 +1,6 @@
-// Package operation defines the application's queued work and observable status.
 package operation
 
-import (
-	"encoding/json"
-	"time"
-
-	"github.com/futsuuu/ku-potato/server/domain"
-)
+import "github.com/futsuuu/ku-potato/app-server/domain"
 
 type Request struct {
 	Kind        string   `json:"kind"`
@@ -14,18 +8,6 @@ type Request struct {
 	MaterialID  string   `json:"materialId,omitempty"`
 	ResourceID  string   `json:"resourceId,omitempty"`
 	Interactive bool     `json:"interactive,omitempty"`
-}
-
-type Job struct {
-	ID        string          `json:"id"`
-	Request   Request         `json:"request"`
-	Status    string          `json:"status"`
-	Attempts  int             `json:"attempts"`
-	CreatedAt time.Time       `json:"createdAt"`
-	UpdatedAt time.Time       `json:"updatedAt"`
-	Result    json.RawMessage `json:"result,omitempty"`
-	Error     *domain.Error   `json:"error,omitempty"`
-	Progress  *Progress       `json:"progress,omitempty"`
 }
 
 // Progress counts completed work units, including individual course failures.
