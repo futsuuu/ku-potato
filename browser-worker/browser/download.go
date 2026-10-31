@@ -1,4 +1,4 @@
-package chromedp
+package browser
 
 import (
 	"context"
@@ -9,17 +9,10 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
 )
 
-func (b *Browser) Download(ctx context.Context, material, resource, preferred, cachedURL string) (outport.Download, error) {
-	return downloadWithCachedURL(ctx, cachedURL, func(ctx context.Context) (outport.Download, error) {
-		return b.downloadCurrent(ctx, material, resource, preferred)
-	}, b.startDriveDownload)
-}
-
-func (b *Browser) downloadCurrent(ctx context.Context, material, resource, preferred string) (download outport.Download, err error) {
+func (b *Browser) Download(ctx context.Context, material, resource, preferred string) (download DownloadResult, err error) {
 	err = b.withPage(ctx, func(tab context.Context) error {
 		snapshot, err := b.materialSnapshot(tab, material, preferred)
 		if err != nil {
@@ -27,23 +20,23 @@ func (b *Browser) downloadCurrent(ctx context.Context, material, resource, prefe
 		}
 		download.Snapshot = snapshot
 		position := -1
-		var selected domain.Resource
-		for i, r := range snapshot.Resources {
-			if r.ID == resource {
+		var selected *workerproto.Resource
+		for i, r := range snapshot.GetResourceList().GetResources() {
+			if r.GetId().GetValue() == resource {
 				position = i
 				selected = r
 				break
 			}
 		}
 		if position < 0 {
-			return domain.Fail("resource-not-found", "資料が現在の一覧にありません。保存済み内容を参照してください。")
+			return Fail(workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND, "資料が現在の一覧にありません。保存済み内容を参照してください。")
 		}
-		if selected.Type == "external" {
-			download.URL = selected.URL
+		if selected.GetExternalUrl() != "" {
+			download.URL = selected.GetExternalUrl()
 			return nil
 		}
-		if selected.Type != "file" {
-			return domain.Fail("unsupported-resource", "この資料種別はダウンロードに対応していません。")
+		if selected.GetFile() == nil {
+			return Fail(workerproto.FailureReason_FAILURE_REASON_UNSUPPORTED_RESOURCE, "この資料種別はダウンロードに対応していません。")
 		}
 		directory := b.opts.DownloadDir
 		if err = os.MkdirAll(directory, 0700); err != nil {
@@ -106,7 +99,7 @@ func (b *Browser) downloadCurrent(ctx context.Context, material, resource, prefe
 						continue
 					}
 					if e.State == browser.DownloadProgressStateCanceled {
-						return domain.Fail("source", "資料のダウンロードが中断されました。")
+						return Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "資料のダウンロードが中断されました。")
 					}
 					if e.State == browser.DownloadProgressStateCompleted {
 						download.Path = filepath.Join(directory, guid)

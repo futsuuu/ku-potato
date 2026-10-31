@@ -1,4 +1,4 @@
-package chromedp
+package browser
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/cdp"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/server/domain"
+	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
 )
 
 func testChrome(t *testing.T) string {
@@ -42,7 +42,7 @@ func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
 	defer b.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := b.start(ctx, false); err != nil {
+	if err := b.start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	op, stop := operationContext(b.root, ctx)
@@ -70,9 +70,9 @@ func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		for range 2 {
-			_, err := b.Status(ctx)
-			var failure *domain.Error
-			if !errors.As(err, &failure) || failure.Reason != "browser-start" {
+			err := b.start(ctx)
+			var failure *Failure
+			if !errors.As(err, &failure) || failure.Reason != workerproto.FailureReason_FAILURE_REASON_BROWSER_START {
 				done <- fmt.Errorf("missing browser startup error: %v", err)
 				return
 			}
@@ -102,7 +102,7 @@ func TestOccupiedProfileReportsBrowserStartupFailure(t *testing.T) {
 	defer owner.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	if err := owner.start(ctx, false); err != nil {
+	if err := owner.start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	other, err := New(opts)
@@ -110,9 +110,9 @@ func TestOccupiedProfileReportsBrowserStartupFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer other.Close()
-	_, err = other.Status(ctx)
-	var failure *domain.Error
-	if !errors.As(err, &failure) || failure.Reason != "browser-start" {
+	err = other.start(ctx)
+	var failure *Failure
+	if !errors.As(err, &failure) || failure.Reason != workerproto.FailureReason_FAILURE_REASON_BROWSER_START {
 		t.Fatalf("occupied profile startup error: %v", err)
 	}
 }
@@ -205,97 +205,6 @@ func TestPoolRetainsPagesAndIsolatesParallelLeases(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	// A successful login check must not discard working LMS pages.
-	if err := b.Login(ctx, false); err != nil {
-		t.Fatal(err)
-	}
-	if ok, err := b.Status(ctx); err != nil || !ok {
-		t.Fatal("LMS status check failed", ok, err)
-	}
-	for range 2 {
-		if err := b.withPage(ctx, func(tab context.Context) error {
-			info := cd.FromContext(tab)
-			var name string
-			if err := cd.Run(tab, cd.Evaluate("window.name", &name)); err != nil {
-				return err
-			}
-			if !ids[string(info.Target.TargetID)] || name != string(info.Target.TargetID) || info.Browser != instance {
-				return fmt.Errorf("login check replaced a healthy page")
-			}
-			return nil
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Authentication on the root tab and work on a prepared page can overlap.
-	authEntered, releaseAuth := make(chan struct{}), make(chan struct{})
-	authDone := make(chan error, 1)
-	go func() {
-		authDone <- b.withSessionAuth(ctx, false, false, func(tab context.Context) error {
-			close(authEntered)
-			select {
-			case <-releaseAuth:
-				return nil
-			case <-tab.Done():
-				return tab.Err()
-			}
-		})
-	}()
-	select {
-	case <-authEntered:
-	case <-ctx.Done():
-		t.Fatal("authentication did not start")
-	}
-	pageEntered := make(chan struct{})
-	pageDone := make(chan error, 1)
-	go func() {
-		pageDone <- b.withPage(ctx, func(context.Context) error { close(pageEntered); return nil })
-	}()
-	select {
-	case <-pageEntered:
-	case <-ctx.Done():
-		t.Fatal("prepared page waited for authentication")
-	}
-	close(releaseAuth)
-	if err := <-authDone; err != nil {
-		t.Fatal(err)
-	}
-	if err := <-pageDone; err != nil {
-		t.Fatal(err)
-	}
-	pageEntered, releasePage := make(chan struct{}), make(chan struct{})
-	go func() {
-		pageDone <- b.withPage(ctx, func(tab context.Context) error {
-			close(pageEntered)
-			select {
-			case <-releasePage:
-				return nil
-			case <-tab.Done():
-				return tab.Err()
-			}
-		})
-	}()
-	select {
-	case <-pageEntered:
-	case <-ctx.Done():
-		t.Fatal("page operation did not start")
-	}
-	authEntered = make(chan struct{})
-	go func() {
-		authDone <- b.withSessionAuth(ctx, false, false, func(context.Context) error { close(authEntered); return nil })
-	}()
-	select {
-	case <-authEntered:
-	case <-ctx.Done():
-		t.Fatal("authentication waited for a prepared page")
-	}
-	close(releasePage)
-	if err := <-pageDone; err != nil {
-		t.Fatal(err)
-	}
-	if err := <-authDone; err != nil {
-		t.Fatal(err)
 	}
 	// Cancelling a request destroys its lease, while retaining the browser and
 	// the other context. A later request gets a clean replacement for that page.

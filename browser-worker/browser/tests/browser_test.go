@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
-	adapter "github.com/futsuuu/ku-potato/server/chromedp"
+	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
+
+	adapter "github.com/futsuuu/ku-potato/browser-worker/browser"
 )
 
 func chrome(t *testing.T) string {
@@ -128,12 +130,9 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	t.Cleanup(func() { browser.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	if err = browser.Login(ctx, false); err != nil {
-		t.Fatal("login", err)
-	}
-	allowed.Store(false)
 	courses, err := browser.Courses(ctx)
-	if err != nil || len(courses.Courses) != 4 || courses.Courses[0].ID != "KOG1" {
+	allowed.Store(false)
+	if err != nil || len(courses.Courses) != 4 || courses.Courses[0].GetAvailable().GetValue() != "KOG1" {
 		t.Fatal("persistent authentication", courses, err)
 	}
 	for i, want := range []struct {
@@ -141,35 +140,35 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 		weekday, period int64
 	}{{"scheduled", 1, 2}, {"scheduled", 1, 3}, {"other", 0, 0}, {"scheduled", 5, 6}} {
 		course := courses.Courses[i]
-		if courses.AcademicYear != 2026 || course.AcademicYear != 2026 || course.Type != want.kind {
-			t.Fatalf("course %d: incorrect year or kind: %+v", i, course)
+		if courses.AcademicYear != 2026 {
+			t.Fatalf("course %d: incorrect year: %+v", i, course)
 		}
 		if want.kind == "other" {
-			if course.Weekday != nil || course.Period != nil {
+			if course.GetOther() == nil || course.GetScheduled() != nil {
 				t.Fatal("other course retained a schedule", course)
 			}
-		} else if course.Weekday == nil || course.Period == nil || *course.Weekday != want.weekday || *course.Period != want.period {
+		} else if course.GetScheduled() == nil || int64(course.GetScheduled().GetWeekday()) != want.weekday || int64(course.GetScheduled().GetPeriod()) != want.period {
 			t.Fatalf("course %d: incorrect schedule: %+v", i, course)
 		}
 	}
-	if courses.Courses[1].Availability != "unavailable" || courses.Courses[3].ID != "KOG1" {
+	if courses.Courses[1].GetUnavailable() == nil || courses.Courses[3].GetAvailable().GetValue() != "KOG1" {
 		t.Fatal("unavailable or duplicate course placement was lost", courses)
 	}
 	materials, err := browser.Materials(ctx, "KOG1")
 	if err != nil {
 		t.Fatal("materials", err)
 	}
-	if len(materials.Materials.Folders) != 1 || materials.Materials.Folders[0].Materials[0].PublicationDeadline != "2026-10-31T15:00:00Z" {
+	if len(materials.GetCourseMaterials().GetFolders()) != 1 || materials.GetCourseMaterials().GetFolders()[0].GetMaterials()[0].GetPublicationDeadline().GetAt().AsTime().Format(time.RFC3339) != "2026-10-31T15:00:00Z" {
 		t.Fatal(materials)
 	}
-	if got := materials.Materials.Folders[0].DescriptionHTML; got == nil || *got != "<p>今週の教材<br>予習してください。</p>" {
+	if got := materials.GetCourseMaterials().GetFolders()[0].DescriptionHtml; got == nil || *got != "<p>今週の教材<br>予習してください。</p>" {
 		t.Fatalf("folder description = %v", got)
 	}
 	resources, err := browser.Resources(ctx, "SRY1", "KOG1")
-	if err != nil || len(resources.Resources) != 2 || resources.Resources[0].ID != "SRS1" {
+	if err != nil || len(resources.GetResourceList().GetResources()) != 2 || resources.GetResourceList().GetResources()[0].GetId().GetValue() != "SRS1" {
 		t.Fatal("resources", resources, err)
 	}
-	download, err := browser.Download(ctx, "SRY1", "SRS1", "KOG1", "")
+	download, err := browser.Download(ctx, "SRY1", "SRS1", "KOG1")
 	if err != nil {
 		t.Fatal("download", err)
 	}
@@ -181,18 +180,18 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 		t.Fatal(string(body), download, err)
 	}
 	os.Remove(download.Path)
-	external, err := browser.Download(ctx, "SRY1", "SRS2", "KOG1", "")
+	external, err := browser.Download(ctx, "SRY1", "SRS2", "KOG1")
 	if err != nil || external.URL != "https://example.org/resource#anchor" {
 		t.Fatal(external, err)
 	}
 	materialPrivate.Store(true)
 	private, err := browser.Resources(ctx, "SRY1", "KOG1")
-	if err != nil || private.Resources != nil || private.Materials == nil || private.Materials.Folders[0].Materials[0].ResourceAvailability != "unavailable" {
+	if err != nil || private.GetResourceList() != nil || private.GetCourseMaterials() == nil || private.GetCourseMaterials().GetFolders()[0].GetMaterials()[0].GetDocument().GetResourceAvailability() != workerproto.LinkAvailability_LINK_AVAILABILITY_UNAVAILABLE {
 		t.Fatal("private material must not become a fetched empty list", private, err)
 	}
 	materialRemoved.Store(true)
 	removed, err := browser.Resources(ctx, "SRY1", "KOG1")
-	if err != nil || removed.Resources != nil || removed.Materials == nil || len(removed.Materials.Folders[0].Materials) != 1 {
+	if err != nil || removed.GetResourceList() != nil || removed.GetCourseMaterials() == nil || len(removed.GetCourseMaterials().GetFolders()[0].GetMaterials()) != 1 {
 		t.Fatal("removed material must keep the latest listing observation", removed, err)
 	}
 	materialMalformed.Store(true)
