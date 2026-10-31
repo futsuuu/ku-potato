@@ -4,7 +4,7 @@ import (
 	"maps"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 // The schema alias applies to materials nested in every API response without

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func TestMaterialTypeConstrainsStatus(t *testing.T) {

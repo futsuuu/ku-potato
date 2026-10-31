@@ -8,9 +8,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/sse"
-	"github.com/futsuuu/ku-potato/server/core/inport"
-	"github.com/futsuuu/ku-potato/server/core/operation"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/inport"
+	"github.com/futsuuu/ku-potato/app-server/application/operation"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func registerStream[T, I any](api huma.API, op huma.Operation, handler func(context.Context, *I, inport.StatusObserver) (T, error)) {
