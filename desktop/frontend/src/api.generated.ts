@@ -398,7 +398,8 @@ export interface components {
         | "authentication-storage"
         | "resource-storage"
         | "not-found"
-        | "forbidden";
+        | "forbidden"
+        | "browser-start";
     };
     ErrorBody: {
       error: components["schemas"]["Error"];

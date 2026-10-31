@@ -1,4 +1,4 @@
-package chromedp
+package browserauth
 
 import (
 	"context"
@@ -12,15 +12,12 @@ import (
 	"github.com/chromedp/cdproto/storage"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 // LMSAuthenticator uses only the authentication profile. The content browser never
 // opens this profile or receives a WebAuthn private key.
 type LMSAuthenticator struct{ *Browser }
-
-var _ outport.LMSAuthentication = (*LMSAuthenticator)(nil)
 
 func NewLMSAuthenticator(browser *Browser) *LMSAuthenticator {
 	return &LMSAuthenticator{Browser: browser}

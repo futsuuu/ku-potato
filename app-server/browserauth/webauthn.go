@@ -1,4 +1,4 @@
-package chromedp
+package browserauth
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 var loginID = regexp.MustCompile(`ログインID:\s*([^\s]+)`)
@@ -42,9 +42,6 @@ func registrationForm(request *network.Request) (url.Values, error) {
 }
 
 func (b *Browser) RegisterWebAuthn(ctx context.Context, interactive bool) error {
-	if b.sso != nil {
-		return domain.Fail("authentication-storage", "ワーカーはWebAuthn認証情報を登録できません。")
-	}
 	return b.withAuth(ctx, interactive, true, func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
 		if stored != nil {
 			return domain.Fail("conflict", "WebAuthn認証情報は保存済みです。")

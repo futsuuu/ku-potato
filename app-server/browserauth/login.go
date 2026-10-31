@@ -1,4 +1,4 @@
-package chromedp
+package browserauth
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func js(value any) string { body, _ := json.Marshal(value); return string(body) }

@@ -1,4 +1,4 @@
-package chromedp
+package browserauth
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func googleOptions(t *testing.T) Options {
 	root := t.TempDir()
 	return Options{
 		StateDir: filepath.Join(root, "state"), ProfileDir: filepath.Join(root, "state", "user-profile"),
-		CacheDir: filepath.Join(root, "cache"), DownloadDir: filepath.Join(root, "downloads"), Parallelism: 1,
+		CacheDir: filepath.Join(root, "cache"),
 	}
 }
 
