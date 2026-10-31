@@ -1,0 +1,84 @@
+package browserauth
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"sync"
+
+	"github.com/chromedp/cdproto/cdp"
+	cd "github.com/chromedp/chromedp"
+	"github.com/futsuuu/ku-potato/app-server/domain"
+)
+
+type Options struct {
+	StateDir   string
+	ProfileDir string
+	CacheDir   string
+	Executable string
+	LMSURL     string
+	SSOURL     string
+}
+type Browser struct {
+	opts         Options
+	authMu       sync.Mutex
+	root         context.Context
+	cancelRoot   context.CancelFunc
+	cancelAlloc  context.CancelFunc
+	closeProcess func()
+	interactive  bool
+	closed       bool
+}
+
+func New(opts Options) (*Browser, error) {
+	if opts.ProfileDir == "" {
+		opts.ProfileDir = filepath.Join(opts.StateDir, "profile")
+	}
+	for _, path := range []*string{&opts.StateDir, &opts.CacheDir} {
+		if *path == "" {
+			return nil, errors.New("state and cache directories are required")
+		}
+		absolute, err := filepath.Abs(*path)
+		if err != nil {
+			return nil, err
+		}
+		*path = absolute
+		if err := os.MkdirAll(*path, 0700); err != nil {
+			return nil, err
+		}
+	}
+	profile, err := filepath.Abs(opts.ProfileDir)
+	if err != nil {
+		return nil, err
+	}
+	opts.ProfileDir = profile
+	if err := os.MkdirAll(filepath.Dir(profile), 0700); err != nil {
+		return nil, err
+	}
+	if opts.LMSURL == "" {
+		opts.LMSURL = "https://study.ns.kogakuin.ac.jp"
+	}
+	if opts.SSOURL == "" {
+		opts.SSOURL = "https://slink.secioss.com"
+	}
+	return &Browser{opts: opts}, nil
+}
+
+func sourceError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	var known *domain.Error
+	if errors.As(err, &known) {
+		return err
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	// CDP diagnostics can include page contents or credential material.
+	return domain.Fail("source", "ブラウザ操作に失敗しました。ページ構造、Chrome の起動設定、通信状態を確認してください。")
+}
+func executor(ctx context.Context) context.Context {
+	return cdp.WithExecutor(ctx, cd.FromContext(ctx).Target)
+}

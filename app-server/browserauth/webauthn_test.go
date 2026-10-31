@@ -1,4 +1,4 @@
-package chromedp
+package browserauth
 
 import (
 	"encoding/base64"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/chromedp/cdproto/network"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func TestRegistrationFormRejectsUninspectableRequests(t *testing.T) {

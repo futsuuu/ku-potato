@@ -1,4 +1,4 @@
-package chromedp
+package browserauth
 
 import (
 	"net/url"

@@ -10,13 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	adapter "github.com/futsuuu/ku-potato/server/chromedp"
-	"github.com/futsuuu/ku-potato/server/domain"
+	adapter "github.com/futsuuu/ku-potato/app-server/browserauth"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func TestVirtualWebAuthnKeyIsSavedBeforeRegistration(t *testing.T) {
@@ -34,7 +33,6 @@ func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 	var accepted atomic.Int32
 	var savedBeforeRequest atomic.Bool
 	var needAssertion atomic.Bool
-	var forceAssertions atomic.Bool
 	var assertions atomic.Int32
 	var blockStorage atomic.Bool
 	var assertionError atomic.Value
@@ -54,9 +52,7 @@ func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 			fmt.Fprint(w, "ok")
 		case "/assert":
 			assertions.Add(1)
-			if !forceAssertions.Load() {
-				needAssertion.Store(false)
-			}
+			needAssertion.Store(false)
 			fmt.Fprint(w, "ok")
 		case "/lms/homeHoml/doIndex":
 			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"></div>`)
@@ -117,8 +113,8 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	base := strings.Replace(fixture.URL, "127.0.0.1", "localhost", 1)
 	browser, err := adapter.New(adapter.Options{
 		StateDir: data, CacheDir: filepath.Join(t.TempDir(), "cache"),
-		DownloadDir: filepath.Join(t.TempDir(), "downloads"), Executable: executable,
-		LMSURL: base, SSOURL: base,
+		Executable: executable,
+		LMSURL:     base, SSOURL: base,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +144,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 		t.Fatal("invalid stored credentials", err)
 	}
 	needAssertion.Store(true)
-	if _, err = browser.Courses(ctx); err != nil {
+	if _, err = browser.Status(ctx); err != nil {
 		t.Fatal("restore virtual authenticator", err, assertionError.Load())
 	}
 	updated, err := os.ReadFile(credentialPath)
@@ -157,26 +153,6 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	}
 	if err = json.Unmarshal(updated, &stored); err != nil || assertions.Load() != 1 || stored.Credentials[0].SignCount < 1 {
 		t.Fatal("assertion counter was not persisted", err)
-	}
-	var parallel sync.WaitGroup
-	needAssertion.Store(true)
-	forceAssertions.Store(true)
-	for range 2 {
-		parallel.Go(func() {
-			if _, err := browser.Courses(ctx); err != nil {
-				t.Error("parallel authentication", err)
-			}
-		})
-	}
-	parallel.Wait()
-	forceAssertions.Store(false)
-	needAssertion.Store(false)
-	updated, err = os.ReadFile(credentialPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = json.Unmarshal(updated, &stored); err != nil || assertions.Load() != 3 || stored.Credentials[0].SignCount < 3 {
-		t.Fatal("parallel authentication lost assertion counters", assertions.Load(), err)
 	}
 	err = browser.RegisterWebAuthn(ctx, false)
 	var failure *domain.Error

@@ -1,4 +1,4 @@
-package chromedp
+package browserauth
 
 import (
 	"context"
@@ -13,8 +13,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/storage"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -24,12 +23,8 @@ type Google struct {
 	signin  string
 }
 
-var _ outport.Authentication = (*Google)(nil)
-
 func NewGoogle(browser *Browser) *Google {
-	g := &Google{browser: browser, origin: "https://myaccount.google.com", signin: "https://accounts.google.com/v3/signin/identifier"}
-	browser.UseDriveCookies(g)
-	return g
+	return &Google{browser: browser, origin: "https://myaccount.google.com", signin: "https://accounts.google.com/v3/signin/identifier"}
 }
 
 func (g *Google) accountExpression() string {
