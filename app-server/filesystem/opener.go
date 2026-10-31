@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 // Opener reuses decoded copies for the lifetime of the server process.
