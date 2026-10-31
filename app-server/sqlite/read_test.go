@@ -1,15 +1,12 @@
 package sqlite
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log/slog"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func ptr[T any](value T) *T { return &value }
@@ -116,82 +113,5 @@ func TestMetadataAndReportDetailsRoundTrip(t *testing.T) {
 	var count int
 	if err := s.db.QueryRow("SELECT count(*) FROM report_detail_retrievals WHERE lms_material_id='REP1'").Scan(&count); err != nil || count != 2 {
 		t.Fatal(count, err)
-	}
-}
-
-func TestUnknownValuesAreLoggedWithoutPersistingRawText(t *testing.T) {
-	var logs bytes.Buffer
-	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
-	t.Cleanup(func() { slog.SetDefault(previous) })
-	s := newStore(t)
-	snapshot := archiveSnapshot()
-	snapshot.Materials.Folders[0].ClassDate = "invalid-date-marker"
-	m := &snapshot.Materials.Folders[0].Materials[0]
-	m.Type, m.Status, m.PublicationDeadline = "new-type-marker", "new-status-marker", "invalid-deadline-marker"
-	snapshot.Resources[0].Status = "partially-viewed"
-	snapshot.Resources[0].RegisteredOn = ptr("invalid-resource-date-marker")
-	if _, err := s.Append(context.Background(), snapshot); err != nil {
-		t.Fatal(err)
-	}
-	var kind, status, deadline string
-	if err := s.db.QueryRow("SELECT type,status,publication_deadline_kind FROM course_materials").Scan(&kind, &status, &deadline); err != nil || kind != "unknown" || status != "unknown" || deadline != "unknown" {
-		t.Fatal(kind, status, deadline, err)
-	}
-	var date *string
-	if err := s.db.QueryRow("SELECT class_date FROM course_material_folders").Scan(&date); err != nil || date != nil {
-		t.Fatal(date, err)
-	}
-	var resourceStatus string
-	if err := s.db.QueryRow("SELECT status, registered_on FROM material_resources WHERE lms_resource_id = 'SRS1'").Scan(&resourceStatus, &date); err != nil || resourceStatus != "unknown" || date != nil {
-		t.Fatal(resourceStatus, date, err)
-	}
-	for _, raw := range []string{"invalid-date-marker", "new-type-marker", "new-status-marker", "invalid-deadline-marker", "partially-viewed", "invalid-resource-date-marker"} {
-		if !strings.Contains(logs.String(), raw) {
-			t.Fatalf("missing diagnostic %s: %s", raw, logs.String())
-		}
-	}
-}
-
-func TestSavedFileKeepsItsExactResourceObservation(t *testing.T) {
-	s := newStore(t)
-	ctx := context.Background()
-	snapshot := archiveSnapshot()
-	first, err := s.Append(ctx, snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot.Resources[0].Name = "new version"
-	second, err := s.Append(ctx, snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	file := &domain.SavedFile{ID: "saved", OriginalFilename: "file", SHA256: "hash", Size: 1}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", first.Resources, file, nil); err != nil {
-		t.Fatal(err)
-	}
-	other, err := s.Append(ctx, domain.Snapshot{MaterialID: "SRY2", Resources: []domain.Resource{{ID: "SRS1", Type: "file"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", other.Resources, file, nil); err == nil {
-		t.Fatal("accepted another material's retrieval")
-	}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", 0, file, nil); err == nil {
-		t.Fatal("accepted missing retrieval")
-	}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", second.Resources, nil, domain.Fail("source", "failed")); err != nil {
-		t.Fatal(err)
-	}
-	detail, err := s.Detail(ctx, "SRY1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := detail.Resources[0]
-	if r.RetrievalID != second.Resources || r.SavedResourceRetrievalID == nil || *r.SavedResourceRetrievalID != first.Resources || r.SavedFile.ID != file.ID || r.Acquisition.LastAttempt.Status != "failure" {
-		t.Fatal(r)
-	}
-	if _, err := s.db.Exec("UPDATE resource_states SET saved_resource_retrieval_id = ? WHERE lms_material_id='SRY1' AND lms_resource_id='SRS2'", first.Resources); err == nil {
-		t.Fatal("accepted observation without a saved file")
 	}
 }

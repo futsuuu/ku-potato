@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/domain"
+	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func TestStoreReopensAndKeepsArchive(t *testing.T) {

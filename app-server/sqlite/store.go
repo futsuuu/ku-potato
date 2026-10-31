@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/futsuuu/ku-potato/server/core/outport"
-	"github.com/futsuuu/ku-potato/server/domain"
-	"github.com/futsuuu/ku-potato/server/sqlite/schema"
+	"github.com/futsuuu/ku-potato/app-server/application/outport"
+	"github.com/futsuuu/ku-potato/app-server/domain"
+	"github.com/futsuuu/ku-potato/app-server/sqlite/schema"
 	_ "modernc.org/sqlite"
 )
 

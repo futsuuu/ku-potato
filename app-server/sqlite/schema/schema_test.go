@@ -1,18 +1,39 @@
-package sqlite
+package schema_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
+
+	"github.com/futsuuu/ku-potato/app-server/sqlite/schema"
+	_ "modernc.org/sqlite"
 )
 
+func newDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(schema.SQL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		t.Fatal(err)
+	}
+	return db
+}
+
 func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
-	s := newStore(t)
+	db := newDB(t)
 	for _, year := range []any{nil, 0, 10000} {
-		if _, err := s.db.Exec("INSERT INTO course_retrievals(fetched_at, academic_year) VALUES (0, ?)", year); err == nil {
+		if _, err := db.Exec("INSERT INTO course_retrievals(fetched_at, academic_year) VALUES (0, ?)", year); err == nil {
 			t.Fatalf("accepted year %v", year)
 		}
 	}
-	if _, err := s.db.Exec("INSERT INTO course_retrievals(id, fetched_at, academic_year) VALUES (1, 0, 2026)"); err != nil {
+	if _, err := db.Exec("INSERT INTO course_retrievals(id, fetched_at, academic_year) VALUES (1, 0, 2026)"); err != nil {
 		t.Fatal(err)
 	}
 	for _, test := range []struct {
@@ -27,7 +48,7 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 		{"other", 1, nil, false}, {"other", nil, 2, false}, {"unknown", 1, 2, false},
 	} {
 		t.Run(test.kind, func(t *testing.T) {
-			tx, err := s.db.BeginTx(context.Background(), nil)
+			tx, err := db.BeginTx(context.Background(), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -41,9 +62,18 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 }
 
 func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
-	s := newStore(t)
-	if _, err := s.Append(context.Background(), archiveSnapshot()); err != nil {
-		t.Fatal(err)
+	db := newDB(t)
+	for _, query := range []string{
+		"INSERT INTO course_material_retrievals(id, lms_course_id, fetched_at) VALUES (1, 'KOG1', 0)",
+		"INSERT INTO course_material_folders(retrieval_id, position, name) VALUES (1, 0, 'week')",
+		"INSERT INTO course_materials(retrieval_id, position, folder_position, lms_material_id, name, type, status, material_link_available, publication_deadline_kind, publication_deadline_at, resource_availability) VALUES (1, 0, 0, 'SRY1', 'handout', 'material', 'unknown', 1, 'at', 0, 'available')",
+		"INSERT INTO material_resource_retrievals(id, lms_material_id, fetched_at) VALUES (1, 'SRY1', 0)",
+		"INSERT INTO material_resources(retrieval_id, position, lms_resource_id, name, type, status, url) VALUES (1, 0, 'SRS1', 'file', 'file', 'unknown', '')",
+		"INSERT INTO resource_states(lms_material_id, lms_resource_id) VALUES ('SRY1', 'SRS1')",
+	} {
+		if _, err := db.Exec(query); err != nil {
+			t.Fatal(err)
+		}
 	}
 	allowed := map[string][]string{
 		"material":      {"unviewed", "viewed", "partially-viewed"},
@@ -55,13 +85,13 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 	}
 	for kind, statuses := range allowed {
 		for _, status := range append(statuses, "unknown") {
-			if _, err := s.db.Exec("UPDATE course_materials SET type = ?, status = ?", kind, status); err != nil {
+			if _, err := db.Exec("UPDATE course_materials SET type = ?, status = ?", kind, status); err != nil {
 				t.Fatalf("%s/%s: %v", kind, status, err)
 			}
 		}
 	}
 	for _, pair := range [][2]string{{"material", "submitted"}, {"test", "answered"}, {"report", "unevaluated"}, {"feedback", "evaluating"}, {"board", "unevaluated"}, {"unknown", "viewed"}} {
-		if _, err := s.db.Exec("UPDATE course_materials SET type = ?, status = ?", pair[0], pair[1]); err == nil {
+		if _, err := db.Exec("UPDATE course_materials SET type = ?, status = ?", pair[0], pair[1]); err == nil {
 			t.Fatalf("accepted %v", pair)
 		}
 	}
@@ -74,27 +104,27 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 		"UPDATE course_materials SET publication_deadline_at = NULL",       // at needs a timestamp
 		"UPDATE resource_states SET last_attempt_status = 'success'",       // missing attempt timestamp
 	} {
-		if _, err := s.db.Exec(query); err == nil {
+		if _, err := db.Exec(query); err == nil {
 			t.Fatalf("accepted: %s", query)
 		}
 	}
 	for _, kind := range []string{"unlisted", "closed", "unknown"} {
-		if _, err := s.db.Exec("UPDATE course_materials SET publication_deadline_kind = ?, publication_deadline_at = NULL", kind); err != nil {
+		if _, err := db.Exec("UPDATE course_materials SET publication_deadline_kind = ?, publication_deadline_at = NULL", kind); err != nil {
 			t.Fatal(err)
 		}
 	}
 	var status any
-	if err := s.db.QueryRow("SELECT last_attempt_status FROM resource_states LIMIT 1").Scan(&status); err != nil || status != nil {
+	if err := db.QueryRow("SELECT last_attempt_status FROM resource_states LIMIT 1").Scan(&status); err != nil || status != nil {
 		t.Fatal(status, err)
 	}
 }
 
 func TestSchemaEnforcesReportConditions(t *testing.T) {
-	s := newStore(t)
-	if _, err := s.db.Exec("INSERT INTO report_detail_retrievals(id,lms_material_id,fetched_at) VALUES(1,'REP1',0)"); err != nil {
+	db := newDB(t)
+	if _, err := db.Exec("INSERT INTO report_detail_retrievals(id,lms_material_id,fetched_at) VALUES(1,'REP1',0)"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.Exec("INSERT INTO report_details(retrieval_id,status,submission_period_kind,correction_mode) VALUES(1,'unknown','unknown','unknown')"); err != nil {
+	if _, err := db.Exec("INSERT INTO report_details(retrieval_id,status,submission_period_kind,correction_mode) VALUES(1,'unknown','unknown','unknown')"); err != nil {
 		t.Fatal(err)
 	}
 	for _, query := range []string{
@@ -111,11 +141,11 @@ func TestSchemaEnforcesReportConditions(t *testing.T) {
 		"UPDATE report_details SET file_answer_allowed = 2",
 		"UPDATE report_details SET max_total_file_bytes = -1",
 	} {
-		if _, err := s.db.Exec(query); err == nil {
+		if _, err := db.Exec(query); err == nil {
 			t.Fatalf("accepted: %s", query)
 		}
 	}
-	if _, err := s.db.Exec("UPDATE report_details SET submission_period_kind = 'at', submission_due_at = 0, correction_mode = 'limited', correction_limit = 0, text_answer_allowed = 0, file_answer_allowed = 1, max_total_file_bytes = 0"); err != nil {
+	if _, err := db.Exec("UPDATE report_details SET submission_period_kind = 'at', submission_due_at = 0, correction_mode = 'limited', correction_limit = 0, text_answer_allowed = 0, file_answer_allowed = 1, max_total_file_bytes = 0"); err != nil {
 		t.Fatal(err)
 	}
 }
