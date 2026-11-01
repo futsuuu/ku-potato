@@ -110,7 +110,7 @@ func run() error {
 	defer authBrowser.Close()
 	lmsAuth := chromedp.NewLMSAuthenticator(authBrowser)
 	google := chromedp.NewGoogle(authBrowser)
-	opener, err := filesystem.NewOpener(tempRoot)
+	materializer, err := filesystem.NewMaterializer(tempRoot)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func run() error {
 		return err
 	}
 	content := browserworker.New(workerProcess.Client, lmsAuth, downloads)
-	application := application.New(content, store, authstate.NewAuthenticationState(), files, *timeout, *parallel, application.WithLMSAuthentication(lmsAuth), application.WithGoogle(google, authstate.NewAuthenticationState()), application.WithExternalDownloader(googledrive.New(google, downloads)), application.WithResourceOpener(opener))
+	application := application.New(content, store, authstate.NewAuthenticationState(), files, *timeout, *parallel, application.WithLMSAuthentication(lmsAuth), application.WithGoogle(google, authstate.NewAuthenticationState()), application.WithExternalDownloader(googledrive.New(google, downloads)), application.WithResourceMaterializer(materializer))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err

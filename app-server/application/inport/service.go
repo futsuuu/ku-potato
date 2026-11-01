@@ -38,7 +38,7 @@ type Content interface {
 	Detail(context.Context, string, string, StatusObserver) (domain.Detail, error)
 	Download(context.Context, string, string, StatusObserver) (domain.DownloadResult, error)
 	File(context.Context, string, string) (File, error)
-	OpenResource(context.Context, string, string) error
+	PrepareResource(context.Context, string, string) (string, error)
 }
 
 // Service is the combined HTTP API surface; individual callers can depend on

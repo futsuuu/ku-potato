@@ -1,4 +1,4 @@
-package filesystem
+package main
 
 import "golang.org/x/sys/windows"
 

@@ -59,6 +59,10 @@ type dataBody[T any] struct {
 }
 type dataResponse[T any] struct{ Body dataBody[T] }
 
+type resourcePath struct {
+	Path string `json:"path"`
+}
+
 type healthResponse struct {
 	Body struct {
 		Status  string `json:"status" enum:"ok"`
@@ -118,11 +122,9 @@ func (h *Handler) register(api huma.API) {
 		}
 		return output, nil
 	})
-	register(api, huma.Operation{OperationID: "openResource", Method: http.MethodPost, Path: "/materials/{materialId}/resources/{resourceId}/open", Summary: "Open a saved resource on the server"}, func(ctx context.Context, input *ResourceInput) (*dataResponse[bool], error) {
-		if err := h.service.OpenResource(ctx, input.MaterialID, input.ResourceID); err != nil {
-			return nil, failure(err)
-		}
-		return &dataResponse[bool]{Body: dataBody[bool]{Data: true}}, nil
+	register(api, huma.Operation{OperationID: "prepareResource", Method: http.MethodPost, Path: "/materials/{materialId}/resources/{resourceId}/prepare", Summary: "Materialize a saved resource for local clients"}, func(ctx context.Context, input *ResourceInput) (*dataResponse[resourcePath], error) {
+		path, err := h.service.PrepareResource(ctx, input.MaterialID, input.ResourceID)
+		return &dataResponse[resourcePath]{Body: dataBody[resourcePath]{Data: resourcePath{Path: path}}}, failure(err)
 	})
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		id := "getSavedFile"

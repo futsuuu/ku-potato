@@ -25,10 +25,10 @@ import (
 	"github.com/futsuuu/ku-potato/app-server/sqlite"
 )
 
-type openerFunc func(context.Context, io.Reader, domain.SavedFile) error
+type materializerFunc func(context.Context, io.Reader, domain.SavedFile) (string, error)
 
-func (open openerFunc) Open(ctx context.Context, content io.Reader, file domain.SavedFile) error {
-	return open(ctx, content, file)
+func (prepare materializerFunc) Prepare(ctx context.Context, content io.Reader, file domain.SavedFile) (string, error) {
+	return prepare(ctx, content, file)
 }
 
 type source struct {
@@ -113,19 +113,19 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	fake := &source{path: filepath.Join(dir, "staging")}
-	opened := 0
-	failOpen := false
+	prepared := 0
+	failPrepare := false
 	app := application.New(fake, store, authstate.NewAuthenticationState(), files, time.Second, 4,
-		application.WithResourceOpener(openerFunc(func(_ context.Context, content io.Reader, file domain.SavedFile) error {
-			if failOpen {
-				return errors.New("no application for this file")
+		application.WithResourceMaterializer(materializerFunc(func(_ context.Context, content io.Reader, file domain.SavedFile) (string, error) {
+			if failPrepare {
+				return "", errors.New("cannot prepare file")
 			}
 			body, err := io.ReadAll(content)
 			if err != nil || file.OriginalFilename != "file.txt" || string(body) != "saved bytes" {
-				t.Fatalf("incorrect opened resource: %q %q %v", file.OriginalFilename, body, err)
+				t.Fatalf("incorrect prepared resource: %q %q %v", file.OriginalFilename, body, err)
 			}
-			opened++
-			return nil
+			prepared++
+			return filepath.Join(dir, "prepared", "file.txt"), nil
 		})))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -250,12 +250,15 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	if err := json.Unmarshal(download.Result, &downloadResult); err != nil || downloadResult.DownloadURL != "/materials/SRY1/resources/SRS1/file" {
 		t.Fatal("invalid download URL", string(download.Result), err)
 	}
-	openPath := "/materials/SRY1/resources/SRS1/open"
-	if res := request("POST", openPath, ""); res.Code != 200 || opened != 1 {
-		t.Fatal("saved resource did not open", res.Code, res.Body, opened)
+	preparePath := "/materials/SRY1/resources/SRS1/prepare"
+	if res := request("POST", preparePath, ""); res.Code != 200 || prepared != 1 || !strings.Contains(res.Body.String(), `"path":`) || strings.Contains(res.Body.String(), "saved bytes") {
+		t.Fatal("saved resource was not prepared as a path", res.Code, res.Body, prepared)
 	}
-	if res := request("POST", "/materials/SRY1/resources/SRS9/open", ""); res.Code != 404 || opened != 1 {
-		t.Fatal("missing resource was opened", res.Code, res.Body)
+	if res := request("POST", "/materials/SRY1/resources/SRS9/prepare", ""); res.Code != 404 || prepared != 1 {
+		t.Fatal("missing resource was prepared", res.Code, res.Body)
+	}
+	if res := request("POST", "/materials/SRY1/resources/SRS1/open", ""); res.Code != 404 {
+		t.Fatal("server GUI launch endpoint is still available", res.Code, res.Body)
 	}
 	fake.failDownload.Store(true)
 	failed := wait(request("POST", "/materials/SRY1/resources/SRS1/download", ""))
@@ -306,12 +309,12 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	if res := request("GET", downloadResult.DownloadURL, ""); res.Code != 200 || res.Body.String() != "saved bytes" {
 		t.Fatal("private material file became inaccessible", res.Code, res.Body)
 	}
-	if res := request("POST", openPath, ""); res.Code != 200 || opened != 2 {
-		t.Fatal("archived resource could not be opened", res.Code, res.Body, opened)
+	if res := request("POST", preparePath, ""); res.Code != 200 || prepared != 2 {
+		t.Fatal("archived resource could not be prepared", res.Code, res.Body, prepared)
 	}
-	failOpen = true
-	if res := request("POST", openPath, ""); res.Code != 500 || !strings.Contains(res.Body.String(), "ファイルを開けませんでした") {
-		t.Fatal("failed launch was not reported to the client", res.Code, res.Body)
+	failPrepare = true
+	if res := request("POST", preparePath, ""); res.Code != 500 || !strings.Contains(res.Body.String(), "ファイルを展開できませんでした") {
+		t.Fatal("failed preparation was not reported to the client", res.Code, res.Body)
 	}
 	deletedWebAuthn := wait(request("DELETE", "/auth/webauthn", ""))
 	if deletedWebAuthn.Status != "succeeded" || !bytes.Contains(deletedWebAuthn.Result, []byte(`"registered":false`)) {

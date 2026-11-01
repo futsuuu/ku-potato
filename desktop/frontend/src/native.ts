@@ -4,6 +4,7 @@ declare global {
       main: {
         App: {
           ServerURL(): Promise<string>;
+          OpenResource(materialId: string, resourceId: string): Promise<void>;
         };
       };
     };
@@ -17,6 +18,17 @@ export async function serverURL() {
     : import.meta.env.DEV
       ? "/api"
       : "http://127.0.0.1:8787";
+}
+
+export async function openResource(baseUrl: string, materialId: string, resourceId: string) {
+  if (window.go) {
+    await window.go.main.App.OpenResource(materialId, resourceId);
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = `${baseUrl.replace(/\/$/, "")}/materials/${encodeURIComponent(materialId)}/resources/${encodeURIComponent(resourceId)}/file`;
+  link.download = "";
+  link.click();
 }
 
 export function openExternal(url: string) {
