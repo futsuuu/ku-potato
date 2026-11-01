@@ -3,6 +3,7 @@ package browserauth
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,6 +18,7 @@ type Options struct {
 	ProfileDir string
 	CacheDir   string
 	Executable string
+	Logger     *slog.Logger
 	LMSURL     string
 	SSOURL     string
 }
@@ -32,6 +34,9 @@ type Browser struct {
 }
 
 func New(opts Options) (*Browser, error) {
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
 	if opts.ProfileDir == "" {
 		opts.ProfileDir = filepath.Join(opts.StateDir, "profile")
 	}
