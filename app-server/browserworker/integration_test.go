@@ -3,6 +3,7 @@ package browserworker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,9 +19,12 @@ import (
 )
 
 func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T) {
-	chrome, err := exec.LookPath("chromium")
+	chrome, err := exec.LookPath("google-chrome")
 	if err != nil {
-		t.Skip("chromium unavailable")
+		chrome, err = exec.LookPath("chromium")
+		if err != nil {
+			t.Skip("Chrome unavailable")
+		}
 	}
 	root := t.TempDir()
 	binary := filepath.Join(root, "ku-potato-browser-worker")
@@ -80,7 +84,12 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	lmsAddress.Store(lms.URL)
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer cancel()
-	authBrowser, err := chromedp.New(chromedp.Options{StateDir: filepath.Join(root, "state"), ProfileDir: filepath.Join(root, "auth-profile"), CacheDir: filepath.Join(root, "auth-cache"), Executable: chrome, LMSURL: lms.URL, SSOURL: ssoURL})
+	authBrowser, err := chromedp.New(chromedp.Options{
+		StateDir: filepath.Join(root, "state"), ProfileDir: filepath.Join(root, "auth-profile"),
+		CacheDir: filepath.Join(root, "auth-cache"), Executable: chrome,
+		LMSURL: lms.URL, SSOURL: ssoURL,
+		Logger: slog.New(slog.NewTextHandler(t.Output(), nil)),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
