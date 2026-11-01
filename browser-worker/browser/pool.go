@@ -87,6 +87,7 @@ func (b *Browser) start(ctx context.Context) error {
 	stop := context.AfterFunc(ctx, b.cancelRoot)
 	defer stop()
 	if err := cd.Run(b.root); err != nil {
+		b.opts.Logger.ErrorContext(ctx, "Chrome startup failed", "executable", b.opts.Executable, "error", err)
 		b.stopRuntime()
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -95,6 +96,7 @@ func (b *Browser) start(ctx context.Context) error {
 	}
 	closeProcess, err := processlifetime.BindToParent(cd.FromContext(b.root).Browser.Process())
 	if err != nil {
+		b.opts.Logger.ErrorContext(ctx, "Chrome process management failed", "executable", b.opts.Executable, "error", err)
 		b.stopRuntime()
 		return Fail(workerproto.FailureReason_FAILURE_REASON_BROWSER_START, "Chrome のプロセス管理を設定できません。")
 	}

@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,6 +20,7 @@ type Options struct {
 	CacheDir    string
 	DownloadDir string
 	Executable  string
+	Logger      *slog.Logger
 	LMSURL      string
 	SSOURL      string
 	Parallelism int
@@ -51,6 +53,9 @@ type ssoCookieSource interface {
 func (b *Browser) UseCookieSource(source ssoCookieSource) { b.sso = source }
 
 func New(opts Options) (*Browser, error) {
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
 	if opts.ProfileDir == "" {
 		opts.ProfileDir = filepath.Join(opts.StateDir, "profile")
 	}
