@@ -87,7 +87,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func desktopOrigin(origin string) bool {
 	switch origin {
-	case "http://wails.localhost", "http://wails.localhost:34115", "wails://wails", "wails://wails:34115", "wails://wails.localhost:34115":
+	case "http://wails.localhost", "http://wails.localhost:9245", "http://wails.localhost:34115",
+		"wails://localhost", "wails://localhost:9245",
+		"wails://wails", "wails://wails:34115", "wails://wails.localhost:34115":
 		return true
 	default:
 		return false
