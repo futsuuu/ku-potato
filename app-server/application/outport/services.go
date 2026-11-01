@@ -49,9 +49,8 @@ type AuthenticationState interface {
 	SetAuth(context.Context, string) error
 }
 
-// ResourceOpener materializes an acquired file for the server's default application.
-type ResourceOpener interface {
-	Open(context.Context, io.Reader, domain.SavedFile) error
+type ResourceMaterializer interface {
+	Prepare(context.Context, io.Reader, domain.SavedFile) (string, error)
 }
 
 type Files interface {

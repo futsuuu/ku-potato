@@ -1,6 +1,7 @@
 import createClient from "openapi-fetch";
 import type { components, operations, paths } from "./api.generated";
 import { readEvents } from "./sse";
+import { openResource } from "./native";
 
 export type Schema = components["schemas"];
 export type Status = Schema["OperationStatus"];
@@ -170,12 +171,8 @@ export function createAPI(baseUrl: string) {
         options,
       );
     },
-    async openResource(materialId: string, resourceId: string) {
-      const { data, error } = await client.POST(
-        "/materials/{materialId}/resources/{resourceId}/open",
-        { params: { path: { materialId, resourceId } } },
-      );
-      if (!data) throw new Error(errorMessage(error));
+    openResource(materialId: string, resourceId: string) {
+      return openResource(baseUrl, materialId, resourceId);
     },
   };
 }

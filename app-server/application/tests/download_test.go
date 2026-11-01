@@ -16,12 +16,6 @@ import (
 	"github.com/futsuuu/ku-potato/app-server/sqlite"
 )
 
-type resourceOpener func(context.Context, io.Reader, domain.SavedFile) error
-
-func (open resourceOpener) Open(ctx context.Context, content io.Reader, file domain.SavedFile) error {
-	return open(ctx, content, file)
-}
-
 type externalFileSource struct {
 	outport.ContentSource
 	snapshot domain.Snapshot
@@ -61,17 +55,13 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opens := 0
+	materializer, err := filesystem.NewMaterializer(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	app := application.New(externalFileSource{snapshot: snapshot}, store, authstate.NewAuthenticationState(), files, time.Second, 1,
 		application.WithExternalDownloader(externalFileDownloader{path: staging}),
-		application.WithResourceOpener(resourceOpener(func(_ context.Context, content io.Reader, saved domain.SavedFile) error {
-			body, err := io.ReadAll(content)
-			if err != nil || string(body) != "%PDF fixture" || saved.OriginalFilename != "handout.pdf" {
-				t.Fatalf("wrong external file: %q %v %v", body, saved, err)
-			}
-			opens++
-			return nil
-		})))
+		application.WithResourceMaterializer(materializer))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
@@ -87,8 +77,13 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	if err != nil || result.Type != "file" || result.File == nil || result.File.Size != 12 {
 		t.Fatal("external resource was not saved as file", result, err)
 	}
-	if err := app.OpenResource(request, "SRY1", "SRS1"); err != nil || opens != 1 {
-		t.Fatal("downloaded external file did not open", err, opens)
+	prepared, err := app.PrepareResource(request, "SRY1", "SRS1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	preparedBody, err := os.ReadFile(prepared)
+	if err != nil || string(preparedBody) != "%PDF fixture" || filepath.Base(prepared) != "handout.pdf" {
+		t.Fatal("downloaded external file was not prepared", prepared, string(preparedBody), err)
 	}
 	detail, err := store.Detail(request, "SRY1")
 	if err != nil || len(detail.Resources) != 1 || detail.Resources[0].Type != "external" || detail.Resources[0].SavedFile == nil || detail.Resources[0].URL != snapshot.Resources[0].URL {

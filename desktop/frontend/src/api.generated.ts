@@ -273,7 +273,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/materials/{materialId}/resources/{resourceId}/open": {
+  "/materials/{materialId}/resources/{resourceId}/prepare": {
     parameters: {
       query?: never;
       header?: never;
@@ -282,8 +282,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Open a saved resource on the server */
-    post: operations["openResource"];
+    /** Materialize a saved resource for local clients */
+    post: operations["prepareResource"];
     delete?: never;
     options?: never;
     head?: never;
@@ -355,9 +355,6 @@ export interface components {
     DataBodyAuthState: {
       data: components["schemas"]["AuthState"];
     };
-    DataBodyBool: {
-      data: boolean;
-    };
     DataBodyCourseMaterials: {
       data: components["schemas"]["CourseMaterials"];
     };
@@ -372,6 +369,9 @@ export interface components {
     };
     DataBodyRegistrationResult: {
       data: components["schemas"]["RegistrationResult"];
+    };
+    DataBodyResourcePath: {
+      data: components["schemas"]["ResourcePath"];
     };
     Detail: {
       course: components["schemas"]["Course"];
@@ -704,6 +704,9 @@ export interface components {
       type: "file" | "external" | "unknown";
       /** Format: uri */
       url?: string;
+    };
+    ResourcePath: {
+      path: string;
     };
     SavedFile: {
       id: string;
@@ -2673,7 +2676,7 @@ export interface operations {
       };
     };
   };
-  openResource: {
+  prepareResource: {
     parameters: {
       query?: never;
       header?: never;
@@ -2691,7 +2694,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DataBodyBool"];
+          "application/json": components["schemas"]["DataBodyResourcePath"];
         };
       };
       /** @description Bad Request */

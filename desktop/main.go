@@ -21,15 +21,36 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// ServerURL resolves the endpoint; API features use frontend fetch.
-func (a *App) ServerURL() (string, error) {
+func (a *App) server() (resourceOpener, error) {
+	if endpoint := os.Getenv("KU_POTATO_SERVER_URL"); endpoint != "" {
+		return resourceOpener{endpoint: endpoint}, nil
+	}
 	ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
 	defer cancel()
 	dirs, err := appdirs.DefaultDirectories()
 	if err != nil {
-		return "", err
+		return resourceOpener{}, err
 	}
-	return (launcher.Manager{StateDir: dirs.State}).Ensure(ctx)
+	endpoint, err := (launcher.Manager{StateDir: dirs.State}).Ensure(ctx)
+	return resourceOpener{endpoint: endpoint, sharedFiles: true}, err
+}
+
+func (a *App) ServerURL() (string, error) {
+	server, err := a.server()
+	return server.endpoint, err
+}
+
+func (a *App) OpenResource(material, resource string) error {
+	opener, err := a.server()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
+	defer cancel()
+	if err := opener.open(ctx, material, resource, openDefault); err != nil {
+		return fmt.Errorf("ファイルを開けませんでした。接続先と既定のアプリを確認してください: %w", err)
+	}
+	return nil
 }
 
 func main() {

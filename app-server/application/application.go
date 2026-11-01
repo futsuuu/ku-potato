@@ -15,22 +15,22 @@ import (
 )
 
 type Application struct {
-	content     outport.ContentSource
-	external    outport.ExternalDownloader
-	lmsAuth     outport.LMSAuthentication
-	archive     outport.Archive
-	lmsState    outport.AuthenticationState
-	active      map[string]*execution
-	activeMu    sync.Mutex
-	background  context.Context
-	stop        context.CancelFunc
-	files       outport.Files
-	opener      outport.ResourceOpener
-	timeout     time.Duration
-	workers     int
-	auth        sync.RWMutex
-	google      outport.Authentication
-	googleState outport.AuthenticationState
+	content      outport.ContentSource
+	external     outport.ExternalDownloader
+	lmsAuth      outport.LMSAuthentication
+	archive      outport.Archive
+	lmsState     outport.AuthenticationState
+	active       map[string]*execution
+	activeMu     sync.Mutex
+	background   context.Context
+	stop         context.CancelFunc
+	files        outport.Files
+	materializer outport.ResourceMaterializer
+	timeout      time.Duration
+	workers      int
+	auth         sync.RWMutex
+	google       outport.Authentication
+	googleState  outport.AuthenticationState
 }
 
 type Option func(*Application)
@@ -39,8 +39,8 @@ func WithLMSAuthentication(authentication outport.LMSAuthentication) Option {
 	return func(a *Application) { a.lmsAuth = authentication }
 }
 
-func WithResourceOpener(opener outport.ResourceOpener) Option {
-	return func(a *Application) { a.opener = opener }
+func WithResourceMaterializer(materializer outport.ResourceMaterializer) Option {
+	return func(a *Application) { a.materializer = materializer }
 }
 
 func WithExternalDownloader(downloader outport.ExternalDownloader) Option {
@@ -70,23 +70,24 @@ func (a *Application) CachedLMSAuthentication(ctx context.Context) (authenticati
 	return a.lmsState.Auth(ctx)
 }
 
-func (a *Application) OpenResource(ctx context.Context, material, resource string) error {
-	if a.opener == nil {
-		return domain.Fail("unsupported-resource", "このサーバではファイルを開けません。")
+func (a *Application) PrepareResource(ctx context.Context, material, resource string) (string, error) {
+	if a.materializer == nil {
+		return "", domain.Fail("unsupported-resource", "このサーバではファイルを展開できません。")
 	}
 	file, err := a.File(ctx, material, resource)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer file.Content.Close()
-	if err := a.opener.Open(ctx, file.Content, file.Metadata); err != nil {
+	path, err := a.materializer.Prepare(ctx, file.Content, file.Metadata)
+	if err != nil {
 		if ctx.Err() != nil {
-			return err
+			return "", err
 		}
-		slog.Error("open saved resource", "error", err)
-		return domain.Fail("resource-storage", "ファイルを開けませんでした。既定のアプリを確認してください。")
+		slog.Error("prepare saved resource", "error", err)
+		return "", domain.Fail("resource-storage", "ファイルを展開できませんでした。")
 	}
-	return nil
+	return path, nil
 }
 
 func (a *Application) File(ctx context.Context, material, resource string) (inport.File, error) {
