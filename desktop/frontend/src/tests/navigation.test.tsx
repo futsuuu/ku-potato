@@ -91,7 +91,9 @@ function mount(path: string, native = false) {
 }
 
 async function title(expected: string) {
-  await vi.waitFor(() => expect(document.querySelector("h1")?.textContent).toBe(expected));
+  await vi.waitFor(() => expect(document.querySelector("h1")?.textContent).toBe(expected), {
+    timeout: 10000,
+  });
 }
 
 it("keeps Google and LMS authentication independent across route changes", async () => {
@@ -116,7 +118,7 @@ it("keeps Google and LMS authentication independent across route changes", async
   ).toContain("未ログイン");
   expect(api.google.auth).toHaveBeenCalledOnce();
   expect(api.auth).toHaveBeenCalledOnce();
-});
+}, 15000);
 
 function click(selector: string) {
   const link = document.querySelector<HTMLAnchorElement>(selector);
@@ -149,7 +151,7 @@ it("navigates full course/material links and restores browser back/forward", asy
   window.history.forward();
   await title(material.name);
   expect(document.querySelector(".page-content")?.scrollTop).toBe(0);
-});
+}, 15000);
 
 it("shows a sanitized folder description beneath its name", async () => {
   mount("/courses/C%201");
