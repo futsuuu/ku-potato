@@ -1,0 +1,17 @@
+version: 3
+project:
+  name: ku-potato
+  package: ./desktop
+  product_name: KU-POTATO
+  identifier: com.github.futsuuu.ku-potato
+  version: "1.0.0"
+frontend:
+  directory: desktop/frontend
+  install: [vp, install, --frozen-lockfile]
+  build: [vp, run, -w, frontend:build]
+  dev: [vp, dev]
+  output: dist/client
+  bindings:
+    output: bindings
+build:
+  output: desktop/build/bin

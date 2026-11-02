@@ -4,7 +4,7 @@ import { fileRoutes } from "@solidjs/router/fs";
 import { pageRoutes } from "virtual:file-routes";
 import { createAPI, type API } from "./api";
 import { createOperation } from "./operation";
-import { serverURL } from "./native";
+import { isDesktop, serverURL } from "./native";
 import { WorkspaceProvider } from "./workspace";
 import Layout from "./components/Layout";
 import Progress from "./components/Progress";
@@ -13,7 +13,7 @@ import "virtual:uno.css";
 
 const Router = createRouter({
   routes: fileRoutes(pageRoutes),
-  history: typeof window !== "undefined" && window.go ? hashHistory() : undefined,
+  history: isDesktop() ? hashHistory() : undefined,
 });
 
 export default function App() {

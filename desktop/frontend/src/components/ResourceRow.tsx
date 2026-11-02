@@ -39,7 +39,7 @@ export default function ResourceRow(props: {
     await operation.run(async (observe) => {
       const result = await api.download(materialId, resource.lmsResourceId, observe);
       if (result.type === "external") {
-        if (openAfter) openExternal(result.url);
+        if (openAfter) await openExternal(result.url);
         return;
       }
       if (openAfter) await api.openResource(materialId, resource.lmsResourceId);

@@ -19,11 +19,10 @@
             nix-vite-plus.packages.${pkgs.stdenv.hostPlatform.system}.vp
             pkgs.chromium
             pkgs.pkg-config
-            pkgs.gtk3
-            pkgs.webkitgtk_4_1
+            pkgs.gtk4
+            pkgs.webkitgtk_6_0
           ];
 
-          WAILS_TAGS = "webkit2_41";
           FONTCONFIG_FILE = pkgs.makeFontsConf {
             fontDirectories = [
               pkgs.noto-fonts
@@ -33,8 +32,7 @@
           };
 
           shellHook = ''
-            # https://wails.io/docs/guides/nixos-font/
-            export XDG_DATA_DIRS="${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:$XDG_DATA_DIRS"
+            export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH:$XDG_DATA_DIRS"
             export GIO_MODULE_DIR="${pkgs.glib-networking}/lib/gio/modules"
           '';
         };

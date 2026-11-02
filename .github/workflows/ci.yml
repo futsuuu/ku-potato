@@ -22,13 +22,14 @@ jobs:
       - name: Install desktop build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
       - run: vp run frontend:build
       - run: vp run frontend:test
       - run: vp check
       - run: vp run db:check
-      - run: go vet -tags webkit2_41 ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...
-      - run: go test -tags webkit2_41 -short ./app-server/... ./browser-worker/... ./internal/... ./desktop/...
+      - run: go vet ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...
+      - run: go test -short ./app-server/... ./browser-worker/... ./internal/... ./desktop/...
+      - run: vp run build
 
   platform:
     strategy:

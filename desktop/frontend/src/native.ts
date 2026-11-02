@@ -1,28 +1,25 @@
 declare global {
   interface Window {
-    go?: {
-      main: {
-        App: {
-          ServerURL(): Promise<string>;
-          OpenResource(materialId: string, resourceId: string): Promise<void>;
-        };
-      };
-    };
-    runtime?: { BrowserOpenURL(url: string): void };
+    _wails?: { environment?: unknown };
   }
 }
 
+export function isDesktop() {
+  return typeof window !== "undefined" && Boolean(window._wails?.environment);
+}
+
 export async function serverURL() {
-  return window.go
-    ? window.go.main.App.ServerURL()
-    : import.meta.env.DEV
-      ? "/api"
-      : "http://127.0.0.1:8787";
+  if (isDesktop()) {
+    const { ServerURL } = await import("../bindings/github.com/futsuuu/ku-potato/desktop/app");
+    return ServerURL();
+  }
+  return import.meta.env.DEV ? "/api" : "http://127.0.0.1:8787";
 }
 
 export async function openResource(baseUrl: string, materialId: string, resourceId: string) {
-  if (window.go) {
-    await window.go.main.App.OpenResource(materialId, resourceId);
+  if (isDesktop()) {
+    const { OpenResource } = await import("../bindings/github.com/futsuuu/ku-potato/desktop/app");
+    await OpenResource(materialId, resourceId);
     return;
   }
   const link = document.createElement("a");
@@ -31,10 +28,14 @@ export async function openResource(baseUrl: string, materialId: string, resource
   link.click();
 }
 
-export function openExternal(url: string) {
+export async function openExternal(url: string) {
   const parsed = new URL(url);
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
     throw new Error("このリンクは開けません。");
-  if (window.runtime) window.runtime.BrowserOpenURL(parsed.href);
-  else window.open(parsed.href, "_blank", "noopener,noreferrer");
+  if (isDesktop()) {
+    const { Browser } = await import("@wailsio/runtime");
+    await Browser.OpenURL(parsed.href);
+  } else {
+    window.open(parsed.href, "_blank", "noopener,noreferrer");
+  }
 }

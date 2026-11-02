@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -37,6 +39,24 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+func prepareDevelopmentBinary(t *testing.T) string {
+	t.Helper()
+	t.Chdir(t.TempDir())
+	t.Setenv("PATH", "")
+	name := "ku-potato-server"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	binary := filepath.Join("desktop", "build", "bin", name)
+	if err := os.MkdirAll(filepath.Dir(binary), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binary, nil, 0700); err != nil {
+		t.Fatal(err)
+	}
+	return binary
 }
 
 func TestRunningServerIsReusedWithoutLaunchingBinary(t *testing.T) {

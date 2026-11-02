@@ -19,6 +19,9 @@ export default defineConfig({
     assetsInlineLimit: 0,
   },
   server: {
+    host: "127.0.0.1",
+    port: process.env.WAILS_VITE_PORT ? Number(process.env.WAILS_VITE_PORT) : undefined,
+    strictPort: true,
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8787",

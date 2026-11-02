@@ -106,7 +106,8 @@ func findBinary() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, dir := range []string{filepath.Dir(executable), filepath.Join(filepath.Dir(executable), "..", "Resources")} {
+	directories := []string{filepath.Dir(executable), filepath.Join(filepath.Dir(executable), "..", "Resources")}
+	for _, dir := range append(directories, developmentBinaryDirectories()...) {
 		candidate := filepath.Join(dir, name)
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate, nil

@@ -73,6 +73,6 @@ export function openLmsHtmlLink(event: MouseEvent) {
   const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
   if (link instanceof HTMLAnchorElement) {
     event.preventDefault();
-    openExternal(link.href);
+    void openExternal(link.href);
   }
 }

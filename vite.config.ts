@@ -1,8 +1,6 @@
 import { defineConfig } from "vite-plus";
 import solidLint from "eslint-plugin-solid/configs/v2";
 
-const wailsTags = process.env.WAILS_TAGS ? ` -tags ${process.env.WAILS_TAGS}` : "";
-
 export default defineConfig({
   run: {
     tasks: {
@@ -82,14 +80,12 @@ export default defineConfig({
         },
       },
       dev: {
-        command: `go tool wails dev -s -m${wailsTags}`,
-        cwd: "desktop",
+        command: "node tools/wails.mjs dev",
         dependsOn: ["server:build", "frontend:install"],
         cache: false,
       },
       build: {
-        command: `go tool wails build${wailsTags}`,
-        cwd: "desktop",
+        command: "node tools/wails.mjs build",
         dependsOn: ["server:build"],
         cache: false,
       },
@@ -119,14 +115,20 @@ export default defineConfig({
         ],
         cache: false,
       },
+      "desktop:bindings": {
+        command: "go tool wails3 generate bindings -ts -d frontend/bindings .",
+        cwd: "desktop",
+        cache: false,
+      },
       "frontend:build": {
         command: "vp build",
         cwd: "desktop/frontend",
-        dependsOn: ["api:generate"],
+        dependsOn: ["api:generate", "desktop:bindings"],
       },
       "frontend:test": {
         command: "vp test run",
         cwd: "desktop/frontend",
+        dependsOn: ["desktop:bindings"],
       },
     },
   },
@@ -176,9 +178,9 @@ export default defineConfig({
         },
       },
     ],
-    ignorePatterns: ["**/api.generated.ts", "**/dist/**"],
+    ignorePatterns: ["**/api.generated.ts", "**/bindings/**", "**/dist/**"],
   },
   fmt: {
-    ignorePatterns: ["**/*.md", "**/dist/**"],
+    ignorePatterns: ["**/*.md", "**/bindings/**", "**/dist/**"],
   },
 });

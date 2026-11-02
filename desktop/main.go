@@ -8,24 +8,16 @@ import (
 
 	"github.com/futsuuu/ku-potato/desktop/launcher"
 	"github.com/futsuuu/ku-potato/internal/appdirs"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-type App struct {
-	ctx context.Context
-}
+type App struct{}
 
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
-}
-
-func (a *App) server() (resourceOpener, error) {
+func (a *App) server(ctx context.Context) (resourceOpener, error) {
 	if endpoint := os.Getenv("KU_POTATO_SERVER_URL"); endpoint != "" {
 		return resourceOpener{endpoint: endpoint}, nil
 	}
-	ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	dirs, err := appdirs.DefaultDirectories()
 	if err != nil {
@@ -35,17 +27,17 @@ func (a *App) server() (resourceOpener, error) {
 	return resourceOpener{endpoint: endpoint, sharedFiles: true}, err
 }
 
-func (a *App) ServerURL() (string, error) {
-	server, err := a.server()
+func (a *App) ServerURL(ctx context.Context) (string, error) {
+	server, err := a.server(ctx)
 	return server.endpoint, err
 }
 
-func (a *App) OpenResource(material, resource string) error {
-	opener, err := a.server()
+func (a *App) OpenResource(ctx context.Context, material, resource string) error {
+	opener, err := a.server(ctx)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if err := opener.open(ctx, material, resource, openDefault); err != nil {
 		return fmt.Errorf("ファイルを開けませんでした。接続先と既定のアプリを確認してください: %w", err)
@@ -54,14 +46,22 @@ func (a *App) OpenResource(material, resource string) error {
 }
 
 func main() {
-	app := &App{}
-	err := wails.Run(&options.App{
-		Title: "KU-POTATO", Width: 1120, Height: 780, MinWidth: 760, MinHeight: 560,
-		AssetServer:      &assetserver.Options{Assets: assets},
-		BackgroundColour: options.NewRGB(247, 248, 250),
-		OnStartup:        app.startup, Bind: []interface{}{app},
+	app := application.New(application.Options{
+		Name:     "KU-POTATO",
+		Services: []application.Service{application.NewService(&App{})},
+		Assets: application.AssetOptions{
+			Handler: application.BundledAssetFileServer(assets),
+		},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
 	})
-	if err != nil {
+	app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title: "KU-POTATO", Width: 1120, Height: 780, MinWidth: 760, MinHeight: 560,
+		BackgroundColour:           application.NewRGB(247, 248, 250),
+		DefaultContextMenuDisabled: true,
+	})
+	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
