@@ -7,6 +7,7 @@ import { createOperation } from "./operation";
 import { isDesktop, serverURL } from "./native";
 import { WorkspaceProvider } from "./workspace";
 import Layout from "./components/Layout";
+import WindowFrame from "./components/WindowFrame";
 import Progress from "./components/Progress";
 import "virtual:app-fonts";
 import "./styles/tokens.css";
@@ -27,25 +28,29 @@ export default function App() {
     },
   );
   return (
-    <Show
-      when={connection.data()}
-      fallback={
-        <div class="connection-screen">
-          <span class="app-brand">KU-POTATO</span>
-          <Progress pending={connection.pending()} error={connection.error()} />
-          <Show when={connection.error()}>
-            <button class="app-button" onClick={() => window.location.reload()}>
-              再読み込み
-            </button>
-          </Show>
-        </div>
-      }
-    >
-      {(api) => (
-        <WorkspaceProvider api={api()}>
-          <Router>{(props) => <Layout>{props.children}</Layout>}</Router>
-        </WorkspaceProvider>
-      )}
-    </Show>
+    <WindowFrame>
+      <Show
+        when={connection.data()}
+        fallback={
+          <div class="connection-screen">
+            <header class="connection-header">
+              <span class="app-brand">KU-POTATO</span>
+            </header>
+            <Progress pending={connection.pending()} error={connection.error()} />
+            <Show when={connection.error()}>
+              <button class="app-button" onClick={() => window.location.reload()}>
+                再読み込み
+              </button>
+            </Show>
+          </div>
+        }
+      >
+        {(api) => (
+          <WorkspaceProvider api={api()}>
+            <Router>{(props) => <Layout>{props.children}</Layout>}</Router>
+          </WorkspaceProvider>
+        )}
+      </Show>
+    </WindowFrame>
   );
 }

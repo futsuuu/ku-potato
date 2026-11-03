@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from "vite-plus/test";
 import { Browser } from "@wailsio/runtime";
 import { OpenResource, ServerURL } from "../bindings/github.com/futsuuu/ku-potato/desktop/app";
 import { createAPI } from "./api";
-import { isDesktop, openExternal, serverURL } from "./native";
+import { isDesktop, isWindowsDesktop, openExternal, serverURL } from "./native";
 
 vi.mock("@wailsio/runtime", () => ({ Browser: { OpenURL: vi.fn(async () => {}) } }));
 vi.mock("../bindings/github.com/futsuuu/ku-potato/desktop/app", () => ({
@@ -16,6 +16,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.clearAllMocks();
+});
+
+it.each(["windows", "linux", "darwin"])("detects the desktop OS: %s", (OS) => {
+  window._wails = { environment: { OS } };
+  expect(isWindowsDesktop()).toBe(OS === "windows");
+});
+
+it("detects Windows before the Wails environment is injected", () => {
+  vi.stubGlobal("chrome", { webview: { postMessage: vi.fn() } });
+  expect(isWindowsDesktop()).toBe(true);
+});
+
+it("does not display Windows controls in browsers or macOS WebViews", () => {
+  vi.stubGlobal("chrome", { runtime: {} });
+  expect(isWindowsDesktop()).toBe(false);
+  vi.stubGlobal("webkit", { messageHandlers: { external: { postMessage: vi.fn() } } });
+  expect(isWindowsDesktop()).toBe(false);
 });
 
 it("uses the native bridge to open saved resources without an HTTP launch request", async () => {

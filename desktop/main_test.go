@@ -5,8 +5,23 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 )
+
+func TestMainWindowKeepsNativeWebViewInput(t *testing.T) {
+	options := mainWindowOptions()
+	if options.Windows.WebView2CompositionHosting {
+		t.Fatal("composition hosting loses native touchpad gestures")
+	}
+	if !options.Windows.NonClientRegionSupport {
+		t.Fatal("native header dragging must remain enabled")
+	}
+	windows := runtime.GOOS == "windows"
+	if options.Frameless != windows || options.ZoomControlEnabled != windows {
+		t.Fatal("frameless chrome and zoom controls must only be enabled on Windows")
+	}
+}
 
 func TestOpenResourceRespectsCallCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

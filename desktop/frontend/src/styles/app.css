@@ -152,6 +152,99 @@
 }
 
 /* Application shell. */
+.window-frame {
+  height: 100dvh;
+}
+
+.windows-window {
+  --window-controls-width: 138px;
+  --window-controls-height: 32px;
+}
+
+.window-content {
+  height: 100%;
+  overflow: auto;
+}
+
+/* Reuse the page header instead of reserving a separate titlebar row. */
+.windows-window :is(.page-header, .connection-header) {
+  app-region: drag;
+  user-select: none;
+  padding-right: calc(var(--window-controls-width) + var(--app-space-lg));
+}
+
+.windows-window
+  :is(.page-header, .connection-header)
+  :is(a, button, input, select, textarea, summary) {
+  app-region: no-drag;
+}
+
+/* Reset the backdrop's inherited drag region without subtracting the header's
+   own padding, as no-drag would. The fade below the header stays client content. */
+.windows-window .page-header::before {
+  app-region: initial;
+}
+
+.window-control-error {
+  position: fixed;
+  top: calc(var(--window-controls-height) + var(--app-space-sm));
+  right: var(--app-space-sm);
+  z-index: var(--app-z-skip);
+  max-width: calc(100vw - var(--app-space-lg));
+  background: var(--app-canvas);
+  padding: var(--app-space-sm);
+  font-size: var(--app-font-small);
+  color: var(--app-danger);
+}
+
+.window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: calc(var(--app-z-header) + var(--app-z-action));
+  width: var(--window-controls-width);
+  height: var(--window-controls-height);
+  display: flex;
+}
+
+.window-control {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+.window-control:hover {
+  background: color-mix(in srgb, var(--app-ink) 10%, transparent);
+}
+
+.window-control:active {
+  background: color-mix(in srgb, var(--app-ink) 20%, transparent);
+}
+
+.window-control-close:hover {
+  color: #fff;
+  background: #c42b1c;
+}
+
+.window-control-close:active {
+  color: #fff;
+  background: #a82418;
+}
+
+.window-control:focus-visible {
+  outline-offset: calc(-1 * var(--app-focus-width));
+}
+
+.window-caption-icon {
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .connection-screen {
   display: grid;
   justify-items: start;
