@@ -1,11 +1,21 @@
 declare global {
   interface Window {
     _wails?: { environment?: unknown };
+    chrome?: { webview?: { postMessage?: (message: unknown) => void } };
+    webkit?: { messageHandlers?: { external?: { postMessage?: (message: unknown) => void } } };
   }
 }
 
 export function isDesktop() {
-  return typeof window !== "undefined" && Boolean(window._wails?.environment);
+  // WebView2 injects environment after navigation completes, which can be after App starts.
+  return (
+    typeof window !== "undefined" &&
+    Boolean(
+      window._wails?.environment ||
+      window.chrome?.webview?.postMessage ||
+      window.webkit?.messageHandlers?.external?.postMessage,
+    )
+  );
 }
 
 export async function serverURL() {

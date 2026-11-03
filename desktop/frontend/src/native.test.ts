@@ -13,6 +13,7 @@ vi.mock("../bindings/github.com/futsuuu/ku-potato/desktop/app", () => ({
 
 afterEach(() => {
   delete window._wails;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
@@ -26,6 +27,21 @@ it("uses the native bridge to open saved resources without an HTTP launch reques
   await api.openResource("SRY1", "SRS1");
   expect(OpenResource).toHaveBeenCalledExactlyOnceWith("SRY1", "SRS1");
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it.each([
+  { chrome: { webview: { postMessage: vi.fn() } } },
+  { webkit: { messageHandlers: { external: { postMessage: vi.fn() } } } },
+])("uses the native bridge before Wails injects environment: %o", async (bridge) => {
+  for (const [name, value] of Object.entries(bridge)) vi.stubGlobal(name, value);
+  expect(window._wails?.environment).toBeUndefined();
+  expect(isDesktop()).toBe(true);
+  expect(await serverURL()).toBe("http://127.0.0.1:8787");
+  expect(ServerURL).toHaveBeenCalledExactlyOnceWith();
+  await createAPI(await serverURL()).openResource("SRY1", "SRS1");
+  expect(OpenResource).toHaveBeenCalledExactlyOnceWith("SRY1", "SRS1");
+  await openExternal("https://example.com");
+  expect(Browser.OpenURL).toHaveBeenCalledExactlyOnceWith("https://example.com/");
 });
 
 it("propagates native launch failures", async () => {
@@ -48,6 +64,14 @@ it("downloads the saved file in a browser without requesting a server launch or 
   expect(link.download).toBe("");
   expect(fetch).not.toHaveBeenCalled();
   expect(OpenResource).not.toHaveBeenCalled();
+});
+
+it("does not treat browser globals without a native transport as a desktop bridge", async () => {
+  vi.stubGlobal("chrome", { runtime: {} });
+  vi.stubGlobal("webkit", { messageHandlers: {} });
+  expect(isDesktop()).toBe(false);
+  expect(await serverURL()).toBe("/api");
+  expect(ServerURL).not.toHaveBeenCalled();
 });
 
 it("does not treat an initialized browser runtime as a desktop bridge", async () => {
