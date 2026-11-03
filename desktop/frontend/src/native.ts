@@ -1,6 +1,6 @@
 declare global {
   interface Window {
-    _wails?: { environment?: unknown };
+    _wails?: { environment?: unknown; setResizable?: (resizable: boolean) => void };
     chrome?: { webview?: { postMessage?: (message: unknown) => void } };
     webkit?: { messageHandlers?: { external?: { postMessage?: (message: unknown) => void } } };
   }
@@ -16,6 +16,16 @@ export function isDesktop() {
       window.webkit?.messageHandlers?.external?.postMessage,
     )
   );
+}
+
+export function isWindowsDesktop() {
+  if (!isDesktop()) return false;
+  const environment = window._wails?.environment;
+  if (environment && typeof environment === "object" && "OS" in environment) {
+    return environment.OS === "windows";
+  }
+  // WebView2 is Windows-only and is available before the Wails environment.
+  return Boolean(window.chrome?.webview?.postMessage);
 }
 
 export async function serverURL() {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/futsuuu/ku-potato/desktop/launcher"
@@ -45,6 +46,18 @@ func (a *App) OpenResource(ctx context.Context, material, resource string) error
 	return nil
 }
 
+func mainWindowOptions() application.WebviewWindowOptions {
+	return application.WebviewWindowOptions{
+		Title: "KU-POTATO", Width: 1120, Height: 780, MinWidth: 760, MinHeight: 560,
+		Frameless:          runtime.GOOS == "windows",
+		ZoomControlEnabled: runtime.GOOS == "windows",
+		// Keep HWND hosting for native touchpad scrolling and gestures.
+		Windows:                    application.WindowsWindow{NonClientRegionSupport: true},
+		BackgroundColour:           application.NewRGB(247, 248, 250),
+		DefaultContextMenuDisabled: true,
+	}
+}
+
 func main() {
 	app := application.New(application.Options{
 		Name:     "KU-POTATO",
@@ -56,11 +69,7 @@ func main() {
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "KU-POTATO", Width: 1120, Height: 780, MinWidth: 760, MinHeight: 560,
-		BackgroundColour:           application.NewRGB(247, 248, 250),
-		DefaultContextMenuDisabled: true,
-	})
+	app.Window.NewWithOptions(mainWindowOptions())
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
