@@ -102,6 +102,7 @@ export default defineConfig({
       check: {
         command: [
           "vp check",
+          "node tools/gofmt.mjs --check",
           "go vet ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...",
         ],
         dependsOn: ["frontend:build", "db:check", "proto:check"],
@@ -110,7 +111,7 @@ export default defineConfig({
       format: {
         command: [
           "vp fmt",
-          "go fmt ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...",
+          "node tools/gofmt.mjs",
           "clang-format -i browser-worker/protocol/worker.proto",
         ],
         cache: false,
