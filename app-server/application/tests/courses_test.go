@@ -33,7 +33,12 @@ func (s *placementSource) Courses(context.Context) (domain.CourseListing, error)
 
 func (s *placementSource) Materials(context.Context, string) (domain.Snapshot, error) {
 	s.calls.Add(1)
-	return domain.Snapshot{Materials: &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Materials: []domain.Material{{ID: "REP1", Type: "report"}}}}}}, nil
+	return domain.Snapshot{
+		Materials: &domain.CourseMaterials{
+			CourseID: "KOG1",
+			Folders:  []domain.Folder{{Materials: []domain.Material{{ID: "REP1", Type: "report"}}}},
+		},
+	}, nil
 }
 
 func TestCoursePlacementsDoNotDuplicateMaterialSyncOrAssignments(t *testing.T) {
@@ -73,8 +78,20 @@ func (s courseSource) Courses(context.Context) (domain.CourseListing, error) {
 }
 
 func TestCourseSyncReturnsRetainedHistory(t *testing.T) {
-	old := domain.Course{ID: "KOG1", Name: "past course", Availability: "available", AcademicYear: 2026, Type: "unknown"}
-	current := domain.Course{ID: "KOG2", Name: "updated course", Availability: "available", AcademicYear: 2026, Type: "unknown"}
+	old := domain.Course{
+		ID:           "KOG1",
+		Name:         "past course",
+		Availability: "available",
+		AcademicYear: 2026,
+		Type:         "unknown",
+	}
+	current := domain.Course{
+		ID:           "KOG2",
+		Name:         "updated course",
+		Availability: "available",
+		AcademicYear: 2026,
+		Type:         "unknown",
+	}
 	archived := old
 	archived.Archived = true
 	for _, test := range []struct {
@@ -95,12 +112,31 @@ func TestCourseSyncReturnsRetainedHistory(t *testing.T) {
 			defer cancel()
 			previous := []domain.Course{old}
 			if len(test.current) > 0 {
-				previous = append(previous, domain.Course{ID: current.ID, Name: "previous name", Availability: "available", AcademicYear: 2026, Type: "unknown"})
+				previous = append(
+					previous,
+					domain.Course{
+						ID:           current.ID,
+						Name:         "previous name",
+						Availability: "available",
+						AcademicYear: 2026,
+						Type:         "unknown",
+					},
+				)
 			}
-			if _, err := store.Append(ctx, domain.Snapshot{AcademicYear: 2026, Courses: previous}); err != nil {
+			if _, err := store.Append(
+				ctx,
+				domain.Snapshot{AcademicYear: 2026, Courses: previous},
+			); err != nil {
 				t.Fatal(err)
 			}
-			app := application.New(courseSource{courses: test.current}, store, authstate.NewAuthenticationState(), nil, time.Second, 1)
+			app := application.New(
+				courseSource{courses: test.current},
+				store,
+				authstate.NewAuthenticationState(),
+				nil,
+				time.Second,
+				1,
+			)
 			done := make(chan error, 1)
 			go func() { done <- app.Run(ctx) }()
 			t.Cleanup(func() {
@@ -118,7 +154,12 @@ func TestCourseSyncReturnsRetainedHistory(t *testing.T) {
 			}
 			cached, err := app.Courses(ctx, "false", nil)
 			if err != nil || !reflect.DeepEqual(synced, cached) {
-				t.Fatalf("sync result differs from saved list: synced=%#v cached=%#v err=%v", synced, cached, err)
+				t.Fatalf(
+					"sync result differs from saved list: synced=%#v cached=%#v err=%v",
+					synced,
+					cached,
+					err,
+				)
 			}
 		})
 	}

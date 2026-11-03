@@ -27,9 +27,14 @@ type Client struct {
 
 var _ outport.ContentSource = (*Client)(nil)
 
-func New(worker workerproto.BrowserWorkerClient, auth *chromedp.LMSAuthenticator, directory string) *Client {
+func New(
+	worker workerproto.BrowserWorkerClient,
+	auth *chromedp.LMSAuthenticator,
+	directory string,
+) *Client {
 	return &Client{worker: worker, auth: auth, directory: directory}
 }
+
 func translate(err error) error {
 	if err == nil {
 		return nil
@@ -50,8 +55,17 @@ func translate(err error) error {
 	}
 	return domain.Fail("source", "ブラウザワーカーに接続できません。")
 }
+
 func encodeCookie(cookie *network.CookieParam) (*workerproto.Cookie, error) {
-	part := &workerproto.Cookie{Name: cookie.Name, Value: cookie.Value, Domain: cookie.Domain, Path: cookie.Path, Secure: cookie.Secure, HttpOnly: cookie.HTTPOnly, SourcePort: cookie.SourcePort}
+	part := &workerproto.Cookie{
+		Name:       cookie.Name,
+		Value:      cookie.Value,
+		Domain:     cookie.Domain,
+		Path:       cookie.Path,
+		Secure:     cookie.Secure,
+		HttpOnly:   cookie.HTTPOnly,
+		SourcePort: cookie.SourcePort,
+	}
 	switch cookie.SameSite {
 	case "":
 		part.SameSite = workerproto.CookieSameSite_COOKIE_SAME_SITE_UNSPECIFIED
@@ -89,13 +103,17 @@ func encodeCookie(cookie *network.CookieParam) (*workerproto.Cookie, error) {
 		return nil, domain.Fail("source", "認証Cookieが不正です。")
 	}
 	if cookie.PartitionKey != nil {
-		part.PartitionKey = &workerproto.PartitionKey{TopLevelSite: cookie.PartitionKey.TopLevelSite, HasCrossSiteAncestor: cookie.PartitionKey.HasCrossSiteAncestor}
+		part.PartitionKey = &workerproto.PartitionKey{
+			TopLevelSite:         cookie.PartitionKey.TopLevelSite,
+			HasCrossSiteAncestor: cookie.PartitionKey.HasCrossSiteAncestor,
+		}
 	}
 	if cookie.Expires != nil {
 		part.Expires = timestamppb.New(cookie.Expires.Time())
 	}
 	return part, nil
 }
+
 func (c *Client) refresh(ctx context.Context, renew bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -123,11 +141,18 @@ func (c *Client) refresh(ctx context.Context, renew bool) error {
 	_, err = c.worker.SetSSOCookies(ctx, request)
 	return translate(err)
 }
-func withSession[T any](ctx context.Context, c *Client, run func(context.Context) (T, error)) (T, error) {
+
+func withSession[T any](
+	ctx context.Context,
+	c *Client,
+	run func(context.Context) (T, error),
+) (T, error) {
 	for attempt := 0; attempt < 3; attempt++ {
 		value, err := run(ctx)
 		var failure *domain.Error
-		if !errors.As(err, &failure) || failure.Reason != "authentication-required" || attempt == 2 || ctx.Err() != nil {
+		if !errors.As(err, &failure) || failure.Reason != "authentication-required" ||
+			attempt == 2 ||
+			ctx.Err() != nil {
 			return value, err
 		}
 		if err = c.refresh(ctx, attempt == 1); err != nil {
@@ -137,6 +162,7 @@ func withSession[T any](ctx context.Context, c *Client, run func(context.Context
 	var zero T
 	return zero, context.DeadlineExceeded
 }
+
 func (c *Client) Courses(ctx context.Context) (domain.CourseListing, error) {
 	return withSession(ctx, c, func(ctx context.Context) (domain.CourseListing, error) {
 		value, err := c.worker.Courses(ctx, &emptypb.Empty{})
@@ -146,18 +172,28 @@ func (c *Client) Courses(ctx context.Context) (domain.CourseListing, error) {
 		return decodeListing(value)
 	})
 }
+
 func (c *Client) Materials(ctx context.Context, id string) (domain.Snapshot, error) {
 	return withSession(ctx, c, func(ctx context.Context) (domain.Snapshot, error) {
-		value, err := c.worker.Materials(ctx, &workerproto.MaterialsRequest{CourseId: &workerproto.CourseId{Value: id}})
+		value, err := c.worker.Materials(
+			ctx,
+			&workerproto.MaterialsRequest{CourseId: &workerproto.CourseId{Value: id}},
+		)
 		if err != nil {
 			return domain.Snapshot{}, translate(err)
 		}
 		return decodeSnapshot(value)
 	})
 }
-func (c *Client) Resources(ctx context.Context, material, preferred string) (domain.Snapshot, error) {
+
+func (c *Client) Resources(
+	ctx context.Context,
+	material, preferred string,
+) (domain.Snapshot, error) {
 	return withSession(ctx, c, func(ctx context.Context) (domain.Snapshot, error) {
-		request := &workerproto.ResourcesRequest{MaterialId: &workerproto.MaterialId{Value: material}}
+		request := &workerproto.ResourcesRequest{
+			MaterialId: &workerproto.MaterialId{Value: material},
+		}
 		if preferred != "" {
 			request.PreferredCourseId = &workerproto.CourseId{Value: preferred}
 		}
@@ -168,9 +204,16 @@ func (c *Client) Resources(ctx context.Context, material, preferred string) (dom
 		return decodeSnapshot(value)
 	})
 }
-func (c *Client) Download(ctx context.Context, material, resource, preferred string) (outport.Download, error) {
+
+func (c *Client) Download(
+	ctx context.Context,
+	material, resource, preferred string,
+) (outport.Download, error) {
 	return withSession(ctx, c, func(ctx context.Context) (outport.Download, error) {
-		request := &workerproto.DownloadRequest{MaterialId: &workerproto.MaterialId{Value: material}, ResourceId: &workerproto.ResourceId{Value: resource}}
+		request := &workerproto.DownloadRequest{
+			MaterialId: &workerproto.MaterialId{Value: material},
+			ResourceId: &workerproto.ResourceId{Value: resource},
+		}
 		if preferred != "" {
 			request.PreferredCourseId = &workerproto.CourseId{Value: preferred}
 		}

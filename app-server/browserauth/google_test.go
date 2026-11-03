@@ -26,8 +26,12 @@ func googleOptions(t *testing.T) Options {
 	t.Helper()
 	root := t.TempDir()
 	return Options{
-		StateDir: filepath.Join(root, "state"), ProfileDir: filepath.Join(root, "state", "user-profile"),
-		CacheDir: filepath.Join(root, "cache"),
+		StateDir: filepath.Join(
+			root,
+			"state",
+		),
+		ProfileDir: filepath.Join(root, "state", "user-profile"),
+		CacheDir:   filepath.Join(root, "cache"),
 	}
 }
 
@@ -54,8 +58,20 @@ func TestProvidersSharePersistentProfileAndGoogleClearingIsScoped(t *testing.T) 
 	}
 	exec := cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser)
 	cookies := []*network.CookieParam{
-		{Name: "ku", Value: "school", Domain: "slink.secioss.com", Path: "/", Expires: ptrExpiry(time.Now().Add(time.Hour))},
-		{Name: "google", Value: "account", Domain: ".google.com", Path: "/", Expires: ptrExpiry(time.Now().Add(time.Hour))},
+		{
+			Name:    "ku",
+			Value:   "school",
+			Domain:  "slink.secioss.com",
+			Path:    "/",
+			Expires: ptrExpiry(time.Now().Add(time.Hour)),
+		},
+		{
+			Name:    "google",
+			Value:   "account",
+			Domain:  ".google.com",
+			Path:    "/",
+			Expires: ptrExpiry(time.Now().Add(time.Hour)),
+		},
 	}
 	if err := storage.SetCookies(cookies).Do(exec); err != nil {
 		t.Fatal(err)
@@ -99,7 +115,10 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 			if r.URL.Query().Get("continue") == "" {
 				t.Error("login has no return destination")
 			}
-			fmt.Fprint(w, `<form action="/authenticate"><input id="identifierId" name="email" type="email"><button>Next</button></form>`)
+			fmt.Fprint(
+				w,
+				`<form action="/authenticate"><input id="identifierId" name="email" type="email"><button>Next</button></form>`,
+			)
 			return
 		}
 		if r.URL.Path == "/authenticate" {
@@ -107,7 +126,16 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 				http.Error(w, "wrong account", http.StatusUnauthorized)
 				return
 			}
-			http.SetCookie(w, &http.Cookie{Name: "session", Value: "signed-in", Path: "/", HttpOnly: true, Expires: time.Now().Add(24 * time.Hour)})
+			http.SetCookie(
+				w,
+				&http.Cookie{
+					Name:     "session",
+					Value:    "signed-in",
+					Path:     "/",
+					HttpOnly: true,
+					Expires:  time.Now().Add(24 * time.Hour),
+				},
+			)
 			http.Redirect(w, r, "/?hl=en&authuser=0", http.StatusFound)
 			return
 		}
@@ -129,10 +157,10 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	g.signin = server.URL + "/identifier"
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	if err := os.MkdirAll(filepath.Dir(g.browser.credentialPath()), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(g.browser.credentialPath()), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(g.browser.credentialPath(), []byte("invalid"), 0600); err != nil {
+	if err := os.WriteFile(g.browser.credentialPath(), []byte("invalid"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.browser.start(ctx, false); err != nil {
@@ -148,7 +176,11 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	loginPage := g.browser.root
-	if err := cd.Run(loginPage, cd.WaitVisible("#identifierId", cd.ByQuery), cd.SetValue("#identifierId", "student@g.kogakuin.jp", cd.ByQuery)); err != nil {
+	if err := cd.Run(
+		loginPage,
+		cd.WaitVisible("#identifierId", cd.ByQuery),
+		cd.SetValue("#identifierId", "student@g.kogakuin.jp", cd.ByQuery),
+	); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -198,7 +230,8 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	}
 	exec := cdp.WithExecutor(g.browser.root, cd.FromContext(g.browser.root).Browser)
 	for _, value := range []string{"first", "rotated"} {
-		if err := storage.SetCookies([]*network.CookieParam{{Name: "rotating", Value: value, Domain: parsed.Hostname(), Path: "/", Expires: ptrExpiry(time.Now().Add(time.Hour))}}).Do(exec); err != nil {
+		if err := storage.SetCookies([]*network.CookieParam{{Name: "rotating", Value: value, Domain: parsed.Hostname(), Path: "/", Expires: ptrExpiry(time.Now().Add(time.Hour))}}).
+			Do(exec); err != nil {
 			t.Fatal(err)
 		}
 		fresh, err := g.CookieJar(ctx)
@@ -221,7 +254,9 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 }
 
 func googleProfile(email string) string {
-	return `<a role="button" aria-label="Google Account: Student (` + html.EscapeString(email) + `)" href="https://accounts.google.com/SignOutOptions?authuser=0">Account</a>`
+	return `<a role="button" aria-label="Google Account: Student (` +
+		html.EscapeString(email) +
+		`)" href="https://accounts.google.com/SignOutOptions?authuser=0">Account</a>`
 }
 
 func TestGoogleRequiresActiveUniversityAccount(t *testing.T) {
@@ -232,7 +267,8 @@ func TestGoogleRequiresActiveUniversityAccount(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if r.URL.Path != "/" || r.URL.Query().Get("hl") != "en" || r.URL.Query().Get("authuser") != "0" {
+		if r.URL.Path != "/" || r.URL.Query().Get("hl") != "en" ||
+			r.URL.Query().Get("authuser") != "0" {
 			t.Errorf("unexpected authentication destination: %s", r.URL)
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -281,12 +317,40 @@ func TestGoogleCookieJarPreservesCookieScope(t *testing.T) {
 	}
 	expires := float64(time.Now().Add(-time.Hour).Unix())
 	cookies := []*network.Cookie{
-		{Name: "shared", Value: "test", Domain: ".google.com", Path: "/", Secure: true, Session: true},
-		{Name: "host", Value: "test", Domain: "drive.google.com", Path: "/", Secure: true, Session: true},
+		{
+			Name:    "shared",
+			Value:   "test",
+			Domain:  ".google.com",
+			Path:    "/",
+			Secure:  true,
+			Session: true,
+		},
+		{
+			Name:    "host",
+			Value:   "test",
+			Domain:  "drive.google.com",
+			Path:    "/",
+			Secure:  true,
+			Session: true,
+		},
 		{Name: "path", Value: "test", Domain: "drive.google.com", Path: "/download", Session: true},
 		{Name: "expired", Value: "test", Domain: ".google.com", Path: "/", Expires: expires},
-		{Name: "partitioned", Value: "test", Domain: ".google.com", Path: "/", Session: true, PartitionKey: &network.CookiePartitionKey{TopLevelSite: "https://google.com"}},
-		{Name: "usercontent", Value: "test", Domain: "drive.usercontent.google.com", Path: "/", Secure: true, Session: true},
+		{
+			Name:         "partitioned",
+			Value:        "test",
+			Domain:       ".google.com",
+			Path:         "/",
+			Session:      true,
+			PartitionKey: &network.CookiePartitionKey{TopLevelSite: "https://google.com"},
+		},
+		{
+			Name:    "usercontent",
+			Value:   "test",
+			Domain:  "drive.usercontent.google.com",
+			Path:    "/",
+			Secure:  true,
+			Session: true,
+		},
 		{Name: "school", Value: "test", Domain: "slink.secioss.com", Path: "/", Session: true},
 	}
 	jar, err := g.cookieJar(cookies)

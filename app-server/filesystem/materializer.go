@@ -29,7 +29,7 @@ var _ outport.ResourceMaterializer = (*Materializer)(nil)
 
 func NewMaterializer(temp string) (*Materializer, error) {
 	root := filepath.Join(temp, "ku-potato-opened-resources")
-	if err := os.MkdirAll(root, 0700); err != nil {
+	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, err
 	}
 	entries, _ := os.ReadDir(root)
@@ -46,7 +46,11 @@ func NewMaterializer(temp string) (*Materializer, error) {
 	return &Materializer{root: session}, nil
 }
 
-func (o *Materializer) Prepare(ctx context.Context, content io.Reader, saved domain.SavedFile) (string, error) {
+func (o *Materializer) Prepare(
+	ctx context.Context,
+	content io.Reader,
+	saved domain.SavedFile,
+) (string, error) {
 	copy, _ := o.copies.LoadOrStore(saved.ID+"\x00"+saved.OriginalFilename, &openedCopy{})
 	entry := copy.(*openedCopy)
 	entry.mu.Lock()
@@ -55,12 +59,15 @@ func (o *Materializer) Prepare(ctx context.Context, content io.Reader, saved dom
 		return "", err
 	}
 	if entry.path != "" {
-		if stat, err := os.Stat(entry.path); err == nil && stat.Mode().IsRegular() && stat.Size() == saved.Size && stat.ModTime().Equal(entry.modified) {
+		if stat, err := os.Stat(entry.path); err == nil &&
+			stat.Mode().IsRegular() && stat.Size() == saved.Size &&
+			stat.ModTime().Equal(entry.modified) {
 			return entry.path, nil
 		}
 	}
 	name := filepath.Base(strings.ReplaceAll(saved.OriginalFilename, "\\", "/"))
-	if name == "" || name == "." || name == ".." || name == "/" || strings.ContainsAny(name, "\x00:") {
+	if name == "" || name == "." || name == ".." || name == "/" ||
+		strings.ContainsAny(name, "\x00:") {
 		name = "resource"
 	}
 	dir, err := os.MkdirTemp(o.root, "file-")
@@ -74,7 +81,7 @@ func (o *Materializer) Prepare(ctx context.Context, content io.Reader, saved dom
 		}
 	}()
 	path := filepath.Join(dir, name)
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", err
 	}

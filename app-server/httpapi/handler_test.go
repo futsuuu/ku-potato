@@ -21,7 +21,8 @@ func TestDesktopCORSIsRestrictedToExactOrigins(t *testing.T) {
 			request.Header.Set("Access-Control-Request-Headers", "content-type")
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
-			if response.Code != 204 || response.Header().Get("Access-Control-Allow-Origin") != origin {
+			if response.Code != 204 ||
+				response.Header().Get("Access-Control-Allow-Origin") != origin {
 				t.Fatalf("preflight: %d %s", response.Code, response.Body.String())
 			}
 			request = httptest.NewRequest("GET", "http://127.0.0.1:8787/healthz", nil)
@@ -29,7 +30,8 @@ func TestDesktopCORSIsRestrictedToExactOrigins(t *testing.T) {
 			request.Header.Set("Sec-Fetch-Site", "cross-site")
 			response = httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
-			if response.Code != 200 || response.Header().Get("Access-Control-Allow-Origin") != origin {
+			if response.Code != 200 ||
+				response.Header().Get("Access-Control-Allow-Origin") != origin {
 				t.Fatalf("request: %d %s", response.Code, response.Body.String())
 			}
 		})
@@ -44,7 +46,8 @@ func TestDesktopCORSIsRestrictedToExactOrigins(t *testing.T) {
 		request.Header.Set("Origin", origin)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
-		if response.Code != http.StatusForbidden || response.Header().Get("Access-Control-Allow-Origin") != "" {
+		if response.Code != http.StatusForbidden ||
+			response.Header().Get("Access-Control-Allow-Origin") != "" {
 			t.Fatalf("untrusted origin %q accepted", origin)
 		}
 	}

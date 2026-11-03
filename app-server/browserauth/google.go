@@ -24,16 +24,40 @@ type Google struct {
 }
 
 func NewGoogle(browser *Browser) *Google {
-	return &Google{browser: browser, origin: "https://myaccount.google.com", signin: "https://accounts.google.com/v3/signin/identifier"}
+	return &Google{
+		browser: browser,
+		origin:  "https://myaccount.google.com",
+		signin:  "https://accounts.google.com/v3/signin/identifier",
+	}
 }
 
 func (g *Google) accountExpression() string {
 	// Read the active profile control, never remembered accounts or page text.
-	return `(()=>{if(document.readyState==='loading'||location.origin!==` + js(g.origin) + `)return '';for(const a of document.querySelectorAll('a[role="button"][aria-label][href]')){const u=new URL(a.href);if(u.origin!=='https://accounts.google.com'||u.pathname!=='/SignOutOptions'||!a.getClientRects().length)continue;const emails=a.getAttribute('aria-label').match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi)||[];if(emails.length===1)return emails[0].toLowerCase()}return ''})()`
+	return `(() => {
+		if (document.readyState === 'loading' || location.origin !== ` + js(g.origin) + `) {
+			return '';
+		}
+		for (const a of document.querySelectorAll('a[role="button"][aria-label][href]')) {
+			const u = new URL(a.href);
+			if (u.origin !== 'https://accounts.google.com' || u.pathname !== '/SignOutOptions'
+				|| !a.getClientRects().length) {
+				continue;
+			}
+			const emails = a.getAttribute('aria-label')
+				.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi) || [];
+			if (emails.length === 1) return emails[0].toLowerCase();
+		}
+		return '';
+	})()`
 }
 
 func (g *Google) signedOutExpression() string {
-	return `document.readyState==='complete' && ((location.origin==='https://www.google.com'&&location.pathname==='/account/about/')||(location.origin==='https://accounts.google.com'&&/^\/(?:ServiceLogin|(?:v\d+\/)?signin(?:\/|$))/.test(location.pathname))||(location.origin===` + js(g.origin) + `&&!!document.querySelector('#identifierId')))`
+	return `document.readyState === 'complete' && (
+		(location.origin === 'https://www.google.com' && location.pathname === '/account/about/')
+		|| (location.origin === 'https://accounts.google.com'
+			&& /^\/(?:ServiceLogin|(?:v\d+\/)?signin(?:\/|$))/.test(location.pathname))
+		|| (location.origin === ` + js(g.origin) + ` && !!document.querySelector('#identifierId'))
+	)`
 }
 
 func (g *Google) loginURL() string {
@@ -48,9 +72,15 @@ func (g *Google) loginURL() string {
 }
 
 func (g *Google) Login(ctx context.Context, interactive bool) error {
-	return g.browser.withProviderAuth(ctx, interactive, false, true, func(tab context.Context) error {
-		return g.verify(tab, interactive)
-	})
+	return g.browser.withProviderAuth(
+		ctx,
+		interactive,
+		false,
+		true,
+		func(tab context.Context) error {
+			return g.verify(tab, interactive)
+		},
+	)
 }
 
 func (g *Google) verify(tab context.Context, interactive bool) error {
@@ -67,7 +97,10 @@ func (g *Google) verify(tab context.Context, interactive bool) error {
 	if interactive {
 		return poll(tab, `(`+g.accountExpression()+`).endsWith('@g.kogakuin.jp')`)
 	}
-	if err := poll(tab, `!!(`+g.accountExpression()+`) || (`+g.signedOutExpression()+`)`); err != nil {
+	if err := poll(
+		tab,
+		`!!(`+g.accountExpression()+`) || (`+g.signedOutExpression()+`)`,
+	); err != nil {
 		return err
 	}
 	var email string
@@ -90,7 +123,9 @@ func (g *Google) clearCookies(tab context.Context) error {
 		if !g.cookieDomain(cookie.Domain) {
 			continue
 		}
-		deletion := network.DeleteCookies(cookie.Name).WithDomain(cookie.Domain).WithPath(cookie.Path)
+		deletion := network.DeleteCookies(cookie.Name).
+			WithDomain(cookie.Domain).
+			WithPath(cookie.Path)
 		if cookie.PartitionKey != nil && !cookie.PartitionKeyOpaque {
 			deletion = deletion.WithPartitionKey(cookie.PartitionKey)
 		}
@@ -145,7 +180,13 @@ func (g *Google) cookieJar(cookies []*network.Cookie) (http.CookieJar, error) {
 		if !stored.Session && stored.Expires <= float64(time.Now().Unix()) {
 			continue
 		}
-		cookie := &http.Cookie{Name: stored.Name, Value: stored.Value, Path: stored.Path, Secure: stored.Secure, HttpOnly: stored.HTTPOnly}
+		cookie := &http.Cookie{
+			Name:     stored.Name,
+			Value:    stored.Value,
+			Path:     stored.Path,
+			Secure:   stored.Secure,
+			HttpOnly: stored.HTTPOnly,
+		}
 		if strings.HasPrefix(stored.Domain, ".") {
 			cookie.Domain = stored.Domain
 		}

@@ -29,11 +29,16 @@ func newDB(t *testing.T) *sql.DB {
 func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 	db := newDB(t)
 	for _, year := range []any{nil, 0, 10000} {
-		if _, err := db.Exec("INSERT INTO course_retrievals(fetched_at, academic_year) VALUES (0, ?)", year); err == nil {
+		if _, err := db.Exec(
+			"INSERT INTO course_retrievals(fetched_at, academic_year) VALUES (0, ?)",
+			year,
+		); err == nil {
 			t.Fatalf("accepted year %v", year)
 		}
 	}
-	if _, err := db.Exec("INSERT INTO course_retrievals(id, fetched_at, academic_year) VALUES (1, 0, 2026)"); err != nil {
+	if _, err := db.Exec(
+		"INSERT INTO course_retrievals(id, fetched_at, academic_year) VALUES (1, 0, 2026)",
+	); err != nil {
 		t.Fatal(err)
 	}
 	for _, test := range []struct {
@@ -41,11 +46,18 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 		weekday, period any
 		valid           bool
 	}{
-		{"scheduled", 1, 2, true}, {"scheduled", 7, 100, true},
-		{"other", nil, nil, true}, {"unknown", nil, nil, true},
-		{"scheduled", nil, 2, false}, {"scheduled", 1, nil, false},
-		{"scheduled", 0, 2, false}, {"scheduled", 8, 2, false}, {"scheduled", 1, 0, false},
-		{"other", 1, nil, false}, {"other", nil, 2, false}, {"unknown", 1, 2, false},
+		{"scheduled", 1, 2, true},
+		{"scheduled", 7, 100, true},
+		{"other", nil, nil, true},
+		{"unknown", nil, nil, true},
+		{"scheduled", nil, 2, false},
+		{"scheduled", 1, nil, false},
+		{"scheduled", 0, 2, false},
+		{"scheduled", 8, 2, false},
+		{"scheduled", 1, 0, false},
+		{"other", 1, nil, false},
+		{"other", nil, 2, false},
+		{"unknown", 1, 2, false},
 	} {
 		t.Run(test.kind, func(t *testing.T) {
 			tx, err := db.BeginTx(context.Background(), nil)
@@ -53,7 +65,12 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			_, err = tx.Exec("INSERT INTO courses(retrieval_id, position, name, availability, type, weekday, period) VALUES (1, 0, '', '', ?, ?, ?)", test.kind, test.weekday, test.period)
+			_, err = tx.Exec(
+				"INSERT INTO courses(retrieval_id, position, name, availability, type, weekday, period) VALUES (1, 0, '', '', ?, ?, ?)",
+				test.kind,
+				test.weekday,
+				test.period,
+			)
 			if (err == nil) != test.valid {
 				t.Fatalf("%+v: %v", test, err)
 			}
@@ -76,22 +93,41 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 		}
 	}
 	allowed := map[string][]string{
-		"material":      {"unviewed", "viewed", "partially-viewed"},
-		"report":        {"unviewed", "unsubmitted", "submitted", "resubmission-required", "evaluated"},
+		"material": {"unviewed", "viewed", "partially-viewed"},
+		"report": {
+			"unviewed",
+			"unsubmitted",
+			"submitted",
+			"resubmission-required",
+			"evaluated",
+		},
 		"test":          {"not-started", "in-progress", "completed"},
 		"e-learning":    {"not-started", "in-progress", "completed"},
 		"questionnaire": {"unanswered", "answered"},
-		"board":         {"unposted", "evaluated"}, "feedback": {"unevaluated", "evaluated"}, "unknown": {},
+		"board": {
+			"unposted",
+			"evaluated",
+		},
+		"feedback": {"unevaluated", "evaluated"},
+		"unknown":  {},
 	}
 	for kind, statuses := range allowed {
 		for _, status := range append(statuses, "unknown") {
-			if _, err := db.Exec("UPDATE course_materials SET type = ?, status = ?", kind, status); err != nil {
+			if _, err := db.Exec(
+				"UPDATE course_materials SET type = ?, status = ?",
+				kind,
+				status,
+			); err != nil {
 				t.Fatalf("%s/%s: %v", kind, status, err)
 			}
 		}
 	}
 	for _, pair := range [][2]string{{"material", "submitted"}, {"test", "answered"}, {"report", "unevaluated"}, {"feedback", "evaluating"}, {"board", "unevaluated"}, {"unknown", "viewed"}} {
-		if _, err := db.Exec("UPDATE course_materials SET type = ?, status = ?", pair[0], pair[1]); err == nil {
+		if _, err := db.Exec(
+			"UPDATE course_materials SET type = ?, status = ?",
+			pair[0],
+			pair[1],
+		); err == nil {
 			t.Fatalf("accepted %v", pair)
 		}
 	}
@@ -109,22 +145,31 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 		}
 	}
 	for _, kind := range []string{"unlisted", "closed", "unknown"} {
-		if _, err := db.Exec("UPDATE course_materials SET publication_deadline_kind = ?, publication_deadline_at = NULL", kind); err != nil {
+		if _, err := db.Exec(
+			"UPDATE course_materials SET publication_deadline_kind = ?, publication_deadline_at = NULL",
+			kind,
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
 	var status any
-	if err := db.QueryRow("SELECT last_attempt_status FROM resource_states LIMIT 1").Scan(&status); err != nil || status != nil {
+	if err := db.QueryRow("SELECT last_attempt_status FROM resource_states LIMIT 1").
+		Scan(&status); err != nil ||
+		status != nil {
 		t.Fatal(status, err)
 	}
 }
 
 func TestSchemaEnforcesReportConditions(t *testing.T) {
 	db := newDB(t)
-	if _, err := db.Exec("INSERT INTO report_detail_retrievals(id,lms_material_id,fetched_at) VALUES(1,'REP1',0)"); err != nil {
+	if _, err := db.Exec(
+		"INSERT INTO report_detail_retrievals(id,lms_material_id,fetched_at) VALUES(1,'REP1',0)",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec("INSERT INTO report_details(retrieval_id,status,submission_period_kind,correction_mode) VALUES(1,'unknown','unknown','unknown')"); err != nil {
+	if _, err := db.Exec(
+		"INSERT INTO report_details(retrieval_id,status,submission_period_kind,correction_mode) VALUES(1,'unknown','unknown','unknown')",
+	); err != nil {
 		t.Fatal(err)
 	}
 	for _, query := range []string{
@@ -145,7 +190,9 @@ func TestSchemaEnforcesReportConditions(t *testing.T) {
 			t.Fatalf("accepted: %s", query)
 		}
 	}
-	if _, err := db.Exec("UPDATE report_details SET submission_period_kind = 'at', submission_due_at = 0, correction_mode = 'limited', correction_limit = 0, text_answer_allowed = 0, file_answer_allowed = 1, max_total_file_bytes = 0"); err != nil {
+	if _, err := db.Exec(
+		"UPDATE report_details SET submission_period_kind = 'at', submission_due_at = 0, correction_mode = 'limited', correction_limit = 0, text_answer_allowed = 0, file_answer_allowed = 1, max_total_file_bytes = 0",
+	); err != nil {
 		t.Fatal(err)
 	}
 }

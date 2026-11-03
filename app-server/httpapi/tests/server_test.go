@@ -27,7 +27,11 @@ import (
 
 type materializerFunc func(context.Context, io.Reader, domain.SavedFile) (string, error)
 
-func (prepare materializerFunc) Prepare(ctx context.Context, content io.Reader, file domain.SavedFile) (string, error) {
+func (prepare materializerFunc) Prepare(
+	ctx context.Context,
+	content io.Reader,
+	file domain.SavedFile,
+) (string, error) {
 	return prepare(ctx, content, file)
 }
 
@@ -47,13 +51,20 @@ func (s *source) WebAuthnRegistrationStatus(context.Context) (domain.Registratio
 }
 func (s *source) DeleteWebAuthn(context.Context) error         { return nil }
 func (s *source) RegisterWebAuthn(context.Context, bool) error { return nil }
-func (s *source) Status(context.Context) (bool, error)         { return s.authenticated.Load(), nil }
+
+func (s *source) Status(
+	context.Context,
+) (bool, error) {
+	return s.authenticated.Load(), nil
+}
+
 func (s *source) check() error {
 	if !s.authenticated.Load() {
 		return domain.Fail("authentication-required", "login required")
 	}
 	return nil
 }
+
 func (s *source) Courses(ctx context.Context) (domain.CourseListing, error) {
 	s.courseCalls.Add(1)
 	if s.release != nil {
@@ -66,15 +77,35 @@ func (s *source) Courses(ctx context.Context) (domain.CourseListing, error) {
 	if s.failCourses.Add(-1) >= 0 {
 		return domain.CourseListing{}, domain.Fail("source", "transient fixture error")
 	}
-	return domain.CourseListing{AcademicYear: 2026, Courses: []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}}}, s.check()
+	return domain.CourseListing{
+		AcademicYear: 2026,
+		Courses:      []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}},
+	}, s.check()
 }
+
 func (s *source) Materials(ctx context.Context, id string) (domain.Snapshot, error) {
 	if id == "KOG2" {
 		return domain.Snapshot{}, domain.Fail("course-not-found", "missing course fixture")
 	}
 	courses, err := s.Courses(ctx)
-	return domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, Materials: &domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1", Type: "material"}, {ID: "REP1", Type: "report"}}}}}}, err
+	return domain.Snapshot{
+		AcademicYear: courses.AcademicYear,
+		Courses:      courses.Courses,
+		Materials: &domain.CourseMaterials{
+			CourseID: id,
+			Folders: []domain.Folder{
+				{
+					Name: "week",
+					Materials: []domain.Material{
+						{ID: "SRY1", Type: "material"},
+						{ID: "REP1", Type: "report"},
+					},
+				},
+			},
+		},
+	}, err
 }
+
 func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, error) {
 	snapshot, err := s.Materials(ctx, "KOG1")
 	snapshot.MaterialID = id
@@ -87,15 +118,24 @@ func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, 
 	snapshot.Resources = []domain.Resource{{ID: "SRS1", Name: "file.txt", Type: "file"}}
 	return snapshot, err
 }
-func (s *source) Download(ctx context.Context, material, resource, preferred string) (outport.Download, error) {
+
+func (s *source) Download(
+	ctx context.Context,
+	material, resource, preferred string,
+) (outport.Download, error) {
 	snapshot, err := s.Resources(ctx, material, preferred)
 	if err != nil {
 		return outport.Download{}, err
 	}
 	if s.failDownload.Load() {
-		return outport.Download{Snapshot: snapshot}, domain.Fail("unsupported-resource", "failed fixture")
+		return outport.Download{
+			Snapshot: snapshot,
+		}, domain.Fail(
+			"unsupported-resource",
+			"failed fixture",
+		)
 	}
-	if err = os.WriteFile(s.path, []byte("saved bytes"), 0600); err != nil {
+	if err = os.WriteFile(s.path, []byte("saved bytes"), 0o600); err != nil {
 		return outport.Download{}, err
 	}
 	return outport.Download{Snapshot: snapshot, Path: s.path, Filename: "file.txt"}, nil
@@ -115,18 +155,35 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	fake := &source{path: filepath.Join(dir, "staging")}
 	prepared := 0
 	failPrepare := false
-	app := application.New(fake, store, authstate.NewAuthenticationState(), files, time.Second, 4,
-		application.WithResourceMaterializer(materializerFunc(func(_ context.Context, content io.Reader, file domain.SavedFile) (string, error) {
-			if failPrepare {
-				return "", errors.New("cannot prepare file")
-			}
-			body, err := io.ReadAll(content)
-			if err != nil || file.OriginalFilename != "file.txt" || string(body) != "saved bytes" {
-				t.Fatalf("incorrect prepared resource: %q %q %v", file.OriginalFilename, body, err)
-			}
-			prepared++
-			return filepath.Join(dir, "prepared", "file.txt"), nil
-		})))
+	app := application.New(
+		fake,
+		store,
+		authstate.NewAuthenticationState(),
+		files,
+		time.Second,
+		4,
+		application.WithResourceMaterializer(
+			materializerFunc(
+				func(_ context.Context, content io.Reader, file domain.SavedFile) (string, error) {
+					if failPrepare {
+						return "", errors.New("cannot prepare file")
+					}
+					body, err := io.ReadAll(content)
+					if err != nil || file.OriginalFilename != "file.txt" ||
+						string(body) != "saved bytes" {
+						t.Fatalf(
+							"incorrect prepared resource: %q %q %v",
+							file.OriginalFilename,
+							body,
+							err,
+						)
+					}
+					prepared++
+					return filepath.Join(dir, "prepared", "file.txt"), nil
+				},
+			),
+		),
+	)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
@@ -156,7 +213,8 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	}
 	wait := func(res *httptest.ResponseRecorder) observation {
 		t.Helper()
-		if res.Code != 200 || res.Header().Get("Content-Type") != "text/event-stream" || res.Header().Get("Location") != "" {
+		if res.Code != 200 || res.Header().Get("Content-Type") != "text/event-stream" ||
+			res.Header().Get("Location") != "" {
 			t.Fatalf("expected SSE, got %d %s", res.Code, res.Body)
 		}
 		job := observation{}
@@ -208,11 +266,13 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		t.Fatal(login)
 	}
 	checked := wait(request("POST", "/auth/check", ""))
-	if checked.Status != "succeeded" || !bytes.Contains(checked.Result, []byte(`"status":"authenticated"`)) {
+	if checked.Status != "succeeded" ||
+		!bytes.Contains(checked.Result, []byte(`"status":"authenticated"`)) {
 		t.Fatal(checked)
 	}
 	registered := wait(request("POST", "/auth/webauthn", `{"interactive":false}`))
-	if registered.Status != "succeeded" || !bytes.Contains(registered.Result, []byte(`"registered":true`)) {
+	if registered.Status != "succeeded" ||
+		!bytes.Contains(registered.Result, []byte(`"registered":true`)) {
 		t.Fatal(registered)
 	}
 	retried := wait(request("GET", "/courses?sync=true", ""))
@@ -222,18 +282,32 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	if res := request("GET", "/jobs/missing", ""); res.Code != 404 {
 		t.Fatal("job route still available", res.Code)
 	}
-	if res := request("GET", "/courses?sync=false", ""); res.Code != 200 || !bytes.Contains(res.Body.Bytes(), []byte("KOG1")) {
+	if res := request(
+		"GET",
+		"/courses?sync=false",
+		"",
+	); res.Code != 200 ||
+		!bytes.Contains(res.Body.Bytes(), []byte("KOG1")) {
 		t.Fatal(res.Code, res.Body)
 	}
 	materials := wait(request("GET", "/courses/KOG1/materials", ""))
-	if materials.Status != "succeeded" || !bytes.Contains(materials.Result, []byte(`"lmsCourseId":"KOG1"`)) || bytes.Contains(materials.Result, []byte(`"courseMaterials"`)) {
+	if materials.Status != "succeeded" ||
+		!bytes.Contains(materials.Result, []byte(`"lmsCourseId":"KOG1"`)) ||
+		bytes.Contains(materials.Result, []byte(`"courseMaterials"`)) {
 		t.Fatal(materials)
 	}
-	if res := request("GET", "/assignments?courseId=KOG1&sync=false", ""); res.Code != 200 || !strings.Contains(res.Body.String(), "REP1") {
+	if res := request(
+		"GET",
+		"/assignments?courseId=KOG1&sync=false",
+		"",
+	); res.Code != 200 ||
+		!strings.Contains(res.Body.String(), "REP1") {
 		t.Fatal(res.Code, res.Body)
 	}
 	syncedAssignments := wait(request("GET", "/assignments?courseId=KOG1&sync=true", ""))
-	if syncedAssignments.Status != "succeeded" || !bytes.Contains(syncedAssignments.Result, []byte(`"assignments"`)) || !bytes.Contains(syncedAssignments.Result, []byte("REP1")) {
+	if syncedAssignments.Status != "succeeded" ||
+		!bytes.Contains(syncedAssignments.Result, []byte(`"assignments"`)) ||
+		!bytes.Contains(syncedAssignments.Result, []byte("REP1")) {
 		t.Fatal(syncedAssignments)
 	}
 	resources := wait(request("GET", "/materials/SRY1", ""))
@@ -247,14 +321,28 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	var downloadResult struct {
 		DownloadURL string `json:"downloadUrl"`
 	}
-	if err := json.Unmarshal(download.Result, &downloadResult); err != nil || downloadResult.DownloadURL != "/materials/SRY1/resources/SRS1/file" {
+	if err := json.Unmarshal(
+		download.Result,
+		&downloadResult,
+	); err != nil ||
+		downloadResult.DownloadURL != "/materials/SRY1/resources/SRS1/file" {
 		t.Fatal("invalid download URL", string(download.Result), err)
 	}
 	preparePath := "/materials/SRY1/resources/SRS1/prepare"
-	if res := request("POST", preparePath, ""); res.Code != 200 || prepared != 1 || !strings.Contains(res.Body.String(), `"path":`) || strings.Contains(res.Body.String(), "saved bytes") {
+	if res := request(
+		"POST",
+		preparePath,
+		"",
+	); res.Code != 200 || prepared != 1 || !strings.Contains(res.Body.String(), `"path":`) ||
+		strings.Contains(res.Body.String(), "saved bytes") {
 		t.Fatal("saved resource was not prepared as a path", res.Code, res.Body, prepared)
 	}
-	if res := request("POST", "/materials/SRY1/resources/SRS9/prepare", ""); res.Code != 404 || prepared != 1 {
+	if res := request(
+		"POST",
+		"/materials/SRY1/resources/SRS9/prepare",
+		"",
+	); res.Code != 404 ||
+		prepared != 1 {
 		t.Fatal("missing resource was prepared", res.Code, res.Body)
 	}
 	if res := request("POST", "/materials/SRY1/resources/SRS1/open", ""); res.Code != 404 {
@@ -267,7 +355,8 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	}
 	res := request("GET", "/materials/SRY1/resources/SRS1/file", "")
 	body, _ := io.ReadAll(res.Result().Body)
-	if res.Code != 200 || string(body) != "saved bytes" || !strings.Contains(res.Header().Get("Content-Disposition"), "file.txt") {
+	if res.Code != 200 || string(body) != "saved bytes" ||
+		!strings.Contains(res.Header().Get("Content-Disposition"), "file.txt") {
 		t.Fatal(res.Code, string(body))
 	}
 	fileURL := "http://127.0.0.1:8787" + downloadResult.DownloadURL
@@ -288,43 +377,74 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, req)
 		if response.Code != check.status || response.Body.String() != check.body {
-			t.Fatalf("%s %s: %d %q", check.method, check.header, response.Code, response.Body.String())
+			t.Fatalf(
+				"%s %s: %d %q",
+				check.method,
+				check.header,
+				response.Code,
+				response.Body.String(),
+			)
 		}
 	}
 	partial := wait(request("GET", "/assignments?courseId=KOG1&courseId=KOG2&sync=true", ""))
 	var partialResult domain.AssignmentsResult
-	if partial.Status != "succeeded" || json.Unmarshal(partial.Result, &partialResult) != nil || len(partialResult.Failures) != 1 || partialResult.Failures[0].CourseID != "KOG2" || partial.Progress.Completed != 2 || partial.Progress.Total != 2 {
+	if partial.Status != "succeeded" || json.Unmarshal(partial.Result, &partialResult) != nil ||
+		len(partialResult.Failures) != 1 ||
+		partialResult.Failures[0].CourseID != "KOG2" ||
+		partial.Progress.Completed != 2 ||
+		partial.Progress.Total != 2 {
 		t.Fatal(partial, partialResult)
 	}
 	missingMaterials := wait(request("GET", "/courses/KOG2/materials?sync=true", ""))
-	if missingMaterials.Status != "failed" || missingMaterials.Error == nil || missingMaterials.Error.Reason != "course-not-found" {
+	if missingMaterials.Status != "failed" || missingMaterials.Error == nil ||
+		missingMaterials.Error.Reason != "course-not-found" {
 		t.Fatal(missingMaterials)
 	}
 	fake.privateMaterial.Store(true)
 	private := wait(request("GET", "/materials/SRY1?sync=true", ""))
 	var privateDetail domain.Detail
-	if private.Error != nil || json.Unmarshal(private.Result, &privateDetail) != nil || !privateDetail.Material.Archived || privateDetail.Material.ResourceAvailability != "unavailable" || len(privateDetail.Resources) != 1 || privateDetail.Resources[0].SavedFile == nil || privateDetail.Resources[0].Availability != "archived" {
+	if private.Error != nil || json.Unmarshal(private.Result, &privateDetail) != nil ||
+		!privateDetail.Material.Archived ||
+		privateDetail.Material.ResourceAvailability != "unavailable" ||
+		len(privateDetail.Resources) != 1 ||
+		privateDetail.Resources[0].SavedFile == nil ||
+		privateDetail.Resources[0].Availability != "archived" {
 		t.Fatal("private material lost its archive", private, privateDetail)
 	}
-	if res := request("GET", downloadResult.DownloadURL, ""); res.Code != 200 || res.Body.String() != "saved bytes" {
+	if res := request(
+		"GET",
+		downloadResult.DownloadURL,
+		"",
+	); res.Code != 200 ||
+		res.Body.String() != "saved bytes" {
 		t.Fatal("private material file became inaccessible", res.Code, res.Body)
 	}
 	if res := request("POST", preparePath, ""); res.Code != 200 || prepared != 2 {
 		t.Fatal("archived resource could not be prepared", res.Code, res.Body, prepared)
 	}
 	failPrepare = true
-	if res := request("POST", preparePath, ""); res.Code != 500 || !strings.Contains(res.Body.String(), "ファイルを展開できませんでした") {
+	if res := request(
+		"POST",
+		preparePath,
+		"",
+	); res.Code != 500 ||
+		!strings.Contains(res.Body.String(), "ファイルを展開できませんでした") {
 		t.Fatal("failed preparation was not reported to the client", res.Code, res.Body)
 	}
 	deletedWebAuthn := wait(request("DELETE", "/auth/webauthn", ""))
-	if deletedWebAuthn.Status != "succeeded" || !bytes.Contains(deletedWebAuthn.Result, []byte(`"registered":false`)) {
+	if deletedWebAuthn.Status != "succeeded" ||
+		!bytes.Contains(deletedWebAuthn.Result, []byte(`"registered":false`)) {
 		t.Fatal(deletedWebAuthn)
 	}
 	if res = request("POST", "/jobs", `{"kind":"unknown"}`); res.Code != 404 {
 		t.Fatal(res.Code)
 	}
 	for _, headers := range []map[string]string{{"Host": "attacker.example:8787"}, {"Origin": "https://attacker.example"}, {"Sec-Fetch-Site": "cross-site"}} {
-		req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8787/jobs", strings.NewReader(`{"kind":"unknown"}`))
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"http://127.0.0.1:8787/jobs",
+			strings.NewReader(`{"kind":"unknown"}`),
+		)
 		req.Header.Set("Content-Type", "application/json")
 		for key, value := range headers {
 			if key == "Host" {

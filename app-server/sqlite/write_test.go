@@ -24,7 +24,13 @@ func TestSavedFileKeepsItsExactResourceObservation(t *testing.T) {
 	if err := s.Acquired(ctx, "SRY1", "SRS1", first.Resources, file, nil); err != nil {
 		t.Fatal(err)
 	}
-	other, err := s.Append(ctx, domain.Snapshot{MaterialID: "SRY2", Resources: []domain.Resource{{ID: "SRS1", Type: "file"}}})
+	other, err := s.Append(
+		ctx,
+		domain.Snapshot{
+			MaterialID: "SRY2",
+			Resources:  []domain.Resource{{ID: "SRS1", Type: "file"}},
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +40,14 @@ func TestSavedFileKeepsItsExactResourceObservation(t *testing.T) {
 	if err := s.Acquired(ctx, "SRY1", "SRS1", 0, file, nil); err == nil {
 		t.Fatal("accepted missing retrieval")
 	}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", second.Resources, nil, domain.Fail("source", "failed")); err != nil {
+	if err := s.Acquired(
+		ctx,
+		"SRY1",
+		"SRS1",
+		second.Resources,
+		nil,
+		domain.Fail("source", "failed"),
+	); err != nil {
 		t.Fatal(err)
 	}
 	detail, err := s.Detail(ctx, "SRY1")
@@ -42,10 +55,16 @@ func TestSavedFileKeepsItsExactResourceObservation(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := detail.Resources[0]
-	if r.RetrievalID != second.Resources || r.SavedResourceRetrievalID == nil || *r.SavedResourceRetrievalID != first.Resources || r.SavedFile.ID != file.ID || r.Acquisition.LastAttempt.Status != "failure" {
+	if r.RetrievalID != second.Resources || r.SavedResourceRetrievalID == nil ||
+		*r.SavedResourceRetrievalID != first.Resources ||
+		r.SavedFile.ID != file.ID ||
+		r.Acquisition.LastAttempt.Status != "failure" {
 		t.Fatal(r)
 	}
-	if _, err := s.db.Exec("UPDATE resource_states SET saved_resource_retrieval_id = ? WHERE lms_material_id='SRY1' AND lms_resource_id='SRS2'", first.Resources); err == nil {
+	if _, err := s.db.Exec(
+		"UPDATE resource_states SET saved_resource_retrieval_id = ? WHERE lms_material_id='SRY1' AND lms_resource_id='SRS2'",
+		first.Resources,
+	); err == nil {
 		t.Fatal("accepted observation without a saved file")
 	}
 }

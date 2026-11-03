@@ -16,7 +16,7 @@ import (
 
 func TestSharedFilesOpensPreparedPathWithoutTransferringContent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "資料.pdf")
-	if err := os.WriteFile(path, []byte("saved bytes"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("saved bytes"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	requests := 0
@@ -43,10 +43,24 @@ func TestSharedFilesOpensPreparedPathWithoutTransferringContent(t *testing.T) {
 	}
 	entries, err := os.ReadDir(opener.tempDir)
 	if err != nil || len(entries) != 0 || requests != 1 || launches != 1 {
-		t.Fatal("local open copied content or made extra requests", entries, requests, launches, err)
+		t.Fatal(
+			"local open copied content or made extra requests",
+			entries,
+			requests,
+			launches,
+			err,
+		)
 	}
 	failed := errors.New("launch failed")
-	if err := opener.open(context.Background(), "SRY1", "SRS1", func(string) error { return failed }); !errors.Is(err, failed) {
+	if err := opener.open(
+		context.Background(),
+		"SRY1",
+		"SRS1",
+		func(string) error { return failed },
+	); !errors.Is(
+		err,
+		failed,
+	) {
 		t.Fatal("launch error was lost", err)
 	}
 	if _, err := os.Stat(path); err != nil {
@@ -61,7 +75,8 @@ func TestRemoteConnectionTransfersBytesEvenOnLoopback(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": `..\資料.pdf`}))
+		w.Header().
+			Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": `..\資料.pdf`}))
 		_, _ = w.Write([]byte("saved bytes"))
 	}))
 	defer server.Close()
@@ -70,7 +85,8 @@ func TestRemoteConnectionTransfersBytesEvenOnLoopback(t *testing.T) {
 	if err := opener.open(context.Background(), "SRY1", "SRS1", func(path string) error {
 		opened = path
 		body, err := os.ReadFile(path)
-		if err != nil || string(body) != "saved bytes" || filepath.Base(path) != "資料.pdf" || filepath.Dir(filepath.Dir(path)) != opener.tempDir {
+		if err != nil || string(body) != "saved bytes" || filepath.Base(path) != "資料.pdf" ||
+			filepath.Dir(filepath.Dir(path)) != opener.tempDir {
 			t.Error("incorrect downloaded file", path, string(body), err)
 		}
 		return nil
@@ -88,24 +104,26 @@ func TestRemoteConnectionTransfersBytesEvenOnLoopback(t *testing.T) {
 func TestRemoteFailuresNeverLaunchAndRemovePartialCopies(t *testing.T) {
 	for _, failure := range []string{"missing", "incomplete", "redirect", "invalid-filename", "launch"} {
 		t.Run(failure, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				switch failure {
-				case "missing":
-					w.WriteHeader(http.StatusNotFound)
-					_, _ = w.Write([]byte(`{"error":{"message":"saved file is missing"}}`))
-					return
-				case "redirect":
-					http.Redirect(w, r, "/unexpected", http.StatusFound)
-					return
-				case "invalid-filename":
-					w.Header().Set("Content-Disposition", "attachment; filename=")
-					return
-				case "incomplete":
-					w.Header().Set("Content-Length", "100")
-				}
-				w.Header().Set("Content-Disposition", `attachment; filename="file.txt"`)
-				_, _ = w.Write([]byte("partial"))
-			}))
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch failure {
+					case "missing":
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"error":{"message":"saved file is missing"}}`))
+						return
+					case "redirect":
+						http.Redirect(w, r, "/unexpected", http.StatusFound)
+						return
+					case "invalid-filename":
+						w.Header().Set("Content-Disposition", "attachment; filename=")
+						return
+					case "incomplete":
+						w.Header().Set("Content-Length", "100")
+					}
+					w.Header().Set("Content-Disposition", `attachment; filename="file.txt"`)
+					_, _ = w.Write([]byte("partial"))
+				}),
+			)
 			defer server.Close()
 			opener := resourceOpener{endpoint: server.URL, tempDir: t.TempDir()}
 			launches := 0
@@ -119,7 +137,8 @@ func TestRemoteFailuresNeverLaunchAndRemovePartialCopies(t *testing.T) {
 			if failure == "missing" && !strings.Contains(err.Error(), "saved file is missing") {
 				t.Fatal("server error was lost", err)
 			}
-			if failure == "launch" && (launches != 1 || !strings.Contains(err.Error(), "no default application")) {
+			if failure == "launch" &&
+				(launches != 1 || !strings.Contains(err.Error(), "no default application")) {
 				t.Fatal("launch error was lost", err, launches)
 			}
 			entries, err := os.ReadDir(opener.tempDir)
@@ -133,9 +152,12 @@ func TestRemoteFailuresNeverLaunchAndRemovePartialCopies(t *testing.T) {
 func TestSharedFilesRejectsInvalidPaths(t *testing.T) {
 	for _, path := range []string{"", "relative.pdf", t.TempDir(), filepath.Join(t.TempDir(), "missing")} {
 		t.Run(path, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{"path": path}})
-			}))
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_ = json.NewEncoder(w).
+						Encode(map[string]any{"data": map[string]string{"path": path}})
+				}),
+			)
 			defer server.Close()
 			opener := resourceOpener{endpoint: server.URL, sharedFiles: true}
 			if err := opener.open(context.Background(), "SRY1", "SRS1", func(string) error {

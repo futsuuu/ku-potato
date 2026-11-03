@@ -25,7 +25,9 @@ func (s *parallelSource) Materials(ctx context.Context, id string) (domain.Snaps
 		return domain.Snapshot{}, ctx.Err()
 	case <-s.release:
 	}
-	return domain.Snapshot{Materials: &domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}}}, nil
+	return domain.Snapshot{
+		Materials: &domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}},
+	}, nil
 }
 
 type materialArchive struct {
@@ -34,12 +36,16 @@ type materialArchive struct {
 	values map[string]domain.CourseMaterials
 }
 
-func (s *materialArchive) Append(_ context.Context, snapshot domain.Snapshot) (outport.ObservationIDs, error) {
+func (s *materialArchive) Append(
+	_ context.Context,
+	snapshot domain.Snapshot,
+) (outport.ObservationIDs, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.values[snapshot.Materials.CourseID] = *snapshot.Materials
 	return outport.ObservationIDs{}, nil
 }
+
 func (s *materialArchive) Materials(_ context.Context, id string) (domain.CourseMaterials, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -64,7 +70,8 @@ func TestMaterialsBatchRunsInParallelAndKeepsInputOrder(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		result, err := app.parallelMaterials(ctx, []string{"KOG2", "KOG1"})
-		if err == nil && (len(result.CourseMaterials) != 2 || result.CourseMaterials[0].CourseID != "KOG2" || result.CourseMaterials[1].CourseID != "KOG1") {
+		if err == nil &&
+			(len(result.CourseMaterials) != 2 || result.CourseMaterials[0].CourseID != "KOG2" || result.CourseMaterials[1].CourseID != "KOG1") {
 			t.Error("result order changed", result)
 		}
 		done <- err
@@ -80,7 +87,9 @@ func TestMaterialsBatchRunsInParallelAndKeepsInputOrder(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if len(progress) != 3 || progress[0].Total != 2 || progress[1].Completed != 1 || progress[2].Completed != 2 || progress[2].Total != 2 {
+	if len(progress) != 3 || progress[0].Total != 2 || progress[1].Completed != 1 ||
+		progress[2].Completed != 2 ||
+		progress[2].Total != 2 {
 		t.Fatal("incorrect progress", progress)
 	}
 }

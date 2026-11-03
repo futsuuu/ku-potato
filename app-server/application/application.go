@@ -51,9 +51,27 @@ func WithGoogle(authentication outport.Authentication, state outport.Authenticat
 	return func(a *Application) { a.google, a.googleState = authentication, state }
 }
 
-func New(content outport.ContentSource, archive outport.Archive, state outport.AuthenticationState, files outport.Files, timeout time.Duration, workers int, options ...Option) *Application {
+func New(
+	content outport.ContentSource,
+	archive outport.Archive,
+	state outport.AuthenticationState,
+	files outport.Files,
+	timeout time.Duration,
+	workers int,
+	options ...Option,
+) *Application {
 	ctx, stop := context.WithCancel(context.Background())
-	a := &Application{content: content, archive: archive, lmsState: state, files: files, timeout: timeout, workers: max(1, workers), active: make(map[string]*execution), background: ctx, stop: stop}
+	a := &Application{
+		content:    content,
+		archive:    archive,
+		lmsState:   state,
+		files:      files,
+		timeout:    timeout,
+		workers:    max(1, workers),
+		active:     make(map[string]*execution),
+		background: ctx,
+		stop:       stop,
+	}
 	// Existing single-browser clients can still supply both contracts.
 	if authentication, ok := content.(outport.LMSAuthentication); ok {
 		a.lmsAuth = authentication
@@ -66,11 +84,16 @@ func New(content outport.ContentSource, archive outport.Archive, state outport.A
 
 var _ inport.Service = (*Application)(nil)
 
-func (a *Application) CachedLMSAuthentication(ctx context.Context) (authentication.AuthState, error) {
+func (a *Application) CachedLMSAuthentication(
+	ctx context.Context,
+) (authentication.AuthState, error) {
 	return a.lmsState.Auth(ctx)
 }
 
-func (a *Application) PrepareResource(ctx context.Context, material, resource string) (string, error) {
+func (a *Application) PrepareResource(
+	ctx context.Context,
+	material, resource string,
+) (string, error) {
 	if a.materializer == nil {
 		return "", domain.Fail("unsupported-resource", "このサーバではファイルを展開できません。")
 	}
@@ -159,7 +182,10 @@ func (a *Application) execute(ctx context.Context, r operation.Request) (result 
 		if e != nil {
 			return nil, e
 		}
-		if _, e = a.append(ctx, domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses}); e != nil {
+		if _, e = a.append(
+			ctx,
+			domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses},
+		); e != nil {
 			return nil, e
 		}
 		return a.archive.Courses(ctx)
@@ -174,7 +200,10 @@ func (a *Application) execute(ctx context.Context, r operation.Request) (result 
 				}
 				return nil, e
 			}
-			if _, e = a.append(ctx, domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses}); e != nil {
+			if _, e = a.append(
+				ctx,
+				domain.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses},
+			); e != nil {
 				return nil, e
 			}
 			seen := map[string]bool{}
@@ -205,13 +234,18 @@ func (a *Application) execute(ctx context.Context, r operation.Request) (result 
 	}
 	return nil, domain.Fail("invalid-input", "unknown job kind")
 }
-func (a *Application) append(ctx context.Context, s domain.Snapshot) (outport.ObservationIDs, error) {
+
+func (a *Application) append(
+	ctx context.Context,
+	s domain.Snapshot,
+) (outport.ObservationIDs, error) {
 	ids, err := a.archive.Append(ctx, s)
 	if err != nil {
 		return outport.ObservationIDs{}, err
 	}
 	return ids, a.lmsState.SetAuth(ctx, "authenticated")
 }
+
 func publicError(err error) *domain.Error {
 	var e *domain.Error
 	if errors.As(err, &e) {

@@ -82,7 +82,14 @@ func text(value *string) string {
 // Only the explicit kind and timestamp are stored in SQLite.
 func deadline(material domain.Material) (string, *int64) {
 	if material.PublicationDeadlineKind != "" {
-		kind := enumValue(material.ID, "publication_deadline_kind", material.PublicationDeadlineKind, "at", "unlisted", "closed")
+		kind := enumValue(
+			material.ID,
+			"publication_deadline_kind",
+			material.PublicationDeadlineKind,
+			"at",
+			"unlisted",
+			"closed",
+		)
 		at := millis(material.PublicationDeadlineAt)
 		if (kind == "at") != (at != nil) {
 			unknown(material.ID, "publication_deadline", material.PublicationDeadlineKind)
@@ -131,7 +138,9 @@ func nonnegative(id, field string, value *int64) *int64 {
 func lecture(course domain.Course) (string, *int64, *int64) {
 	kind := enumValue(course.ID, "type", course.Type, "scheduled", "other")
 	if kind == "scheduled" {
-		if course.Weekday != nil && *course.Weekday >= 1 && *course.Weekday <= 7 && course.Period != nil && *course.Period >= 1 {
+		if course.Weekday != nil && *course.Weekday >= 1 && *course.Weekday <= 7 &&
+			course.Period != nil &&
+			*course.Period >= 1 {
 			return kind, course.Weekday, course.Period
 		}
 		unknown(course.ID, "schedule", []any{course.Weekday, course.Period})

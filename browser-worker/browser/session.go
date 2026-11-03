@@ -34,7 +34,8 @@ func ssoCookieParams(rawURL string, cookies []*network.Cookie) []*network.Cookie
 	}
 	var params []*network.CookieParam
 	for _, cookie := range cookies {
-		if cookie == nil || !ssoCookieDomain(ssoSystem.Hostname(), cookie.Domain) || (!cookie.Session && cookie.Expires <= float64(time.Now().Unix())) {
+		if cookie == nil || !ssoCookieDomain(ssoSystem.Hostname(), cookie.Domain) ||
+			(!cookie.Session && cookie.Expires <= float64(time.Now().Unix())) {
 			continue
 		}
 		if param := cookieParam(cookie); param != nil {

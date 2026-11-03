@@ -65,7 +65,15 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 		b.stopRuntime()
 	}
 	opts := append([]cd.ExecAllocatorOption{}, cd.DefaultExecAllocatorOptions[:]...)
-	opts = append(opts, cd.UserDataDir(b.opts.ProfileDir), cd.Flag("disk-cache-dir", b.opts.CacheDir), cd.Flag("headless", !interactive), cd.Flag("disable-dev-shm-usage", true), cd.Flag("allow-browser-signin", "false"), cd.Flag("restore-last-session", true))
+	opts = append(
+		opts,
+		cd.UserDataDir(b.opts.ProfileDir),
+		cd.Flag("disk-cache-dir", b.opts.CacheDir),
+		cd.Flag("headless", !interactive),
+		cd.Flag("disable-dev-shm-usage", true),
+		cd.Flag("allow-browser-signin", "false"),
+		cd.Flag("restore-last-session", true),
+	)
 	if !interactive {
 		opts = append(opts, cd.Flag("headless", "new"))
 	}
@@ -82,16 +90,25 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 	stop := context.AfterFunc(ctx, b.cancelRoot)
 	defer stop()
 	if err := cd.Run(b.root); err != nil {
-		b.opts.Logger.ErrorContext(ctx, "Chrome startup failed", "executable", b.opts.Executable, "error", err)
+		b.opts.Logger.ErrorContext(ctx, "Chrome startup failed",
+			"executable", b.opts.Executable,
+			"error", err,
+		)
 		b.stopRuntime()
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return domain.Fail("browser-start", "Chrome を起動できません。KU-POTATO 用の Chrome が残っていないか、Chrome のパスと認証プロファイルの使用状況を確認してください。")
+		return domain.Fail(
+			"browser-start",
+			"Chrome を起動できません。KU-POTATO 用の Chrome が残っていないか、Chrome のパスと認証プロファイルの使用状況を確認してください。",
+		)
 	}
 	closeProcess, err := processlifetime.BindToParent(cd.FromContext(b.root).Browser.Process())
 	if err != nil {
-		b.opts.Logger.ErrorContext(ctx, "Chrome process management failed", "executable", b.opts.Executable, "error", err)
+		b.opts.Logger.ErrorContext(ctx, "Chrome process management failed",
+			"executable", b.opts.Executable,
+			"error", err,
+		)
 		b.stopRuntime()
 		return domain.Fail("browser-start", "Chrome のプロセス管理を設定できません。")
 	}
@@ -99,23 +116,42 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 	return nil
 }
 
-func (b *Browser) withAuth(ctx context.Context, interactive, dedicated bool, use func(context.Context, *credentials, webauthn.AuthenticatorID) error) error {
+func (b *Browser) withAuth(
+	ctx context.Context,
+	interactive, dedicated bool,
+	use func(context.Context, *credentials, webauthn.AuthenticatorID) error,
+) error {
 	return b.withSessionAuth(ctx, interactive, dedicated, func(tab context.Context) error {
-		return b.authenticated(tab, func(stored *credentials, id webauthn.AuthenticatorID) error { return use(tab, stored, id) })
+		return b.authenticated(
+			tab,
+			func(stored *credentials, id webauthn.AuthenticatorID) error { return use(tab, stored, id) },
+		)
 	})
 }
 
-func (b *Browser) withSessionAuth(ctx context.Context, interactive, dedicated bool, use func(context.Context) error) error {
+func (b *Browser) withSessionAuth(
+	ctx context.Context,
+	interactive, dedicated bool,
+	use func(context.Context) error,
+) error {
 	return b.withProviderAuth(ctx, interactive, dedicated, false, use)
 }
 
-func (b *Browser) withProviderAuth(ctx context.Context, interactive, dedicated, google bool, use func(context.Context) error) error {
+func (b *Browser) withProviderAuth(
+	ctx context.Context,
+	interactive, dedicated, google bool,
+	use func(context.Context) error,
+) error {
 	b.authMu.Lock()
 	defer b.authMu.Unlock()
 	return sourceError(ctx, b.runProviderAuth(ctx, interactive, dedicated, google, use))
 }
 
-func (b *Browser) runProviderAuth(ctx context.Context, interactive, dedicated, google bool, use func(context.Context) error) error {
+func (b *Browser) runProviderAuth(
+	ctx context.Context,
+	interactive, dedicated, google bool,
+	use func(context.Context) error,
+) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -143,7 +179,8 @@ func (b *Browser) runProviderAuth(ctx context.Context, interactive, dedicated, g
 	op, cancel := operationContext(page, ctx)
 	defer cancel()
 	err := cd.Run(op, cd.ActionFunc(func(tab context.Context) error {
-		if err := target.ActivateTarget(cd.FromContext(tab).Target.TargetID).Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
+		if err := target.ActivateTarget(cd.FromContext(tab).Target.TargetID).
+			Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
 			return err
 		}
 		return use(tab)
@@ -160,7 +197,10 @@ func (b *Browser) runProviderAuth(ctx context.Context, interactive, dedicated, g
 	return err
 }
 
-func (b *Browser) authenticated(tab context.Context, use func(*credentials, webauthn.AuthenticatorID) error) error {
+func (b *Browser) authenticated(
+	tab context.Context,
+	use func(*credentials, webauthn.AuthenticatorID) error,
+) error {
 	stored, err := b.loadCredentials()
 	if err != nil {
 		return err

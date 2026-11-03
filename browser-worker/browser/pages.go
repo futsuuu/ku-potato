@@ -24,18 +24,23 @@ var materialsJS string
 //go:embed resources.js
 var resourcesJS string
 
-var courseHandler = regexp.MustCompile(`\bformSubmit\(\s*["']([^"']+)["']`)
-var coursePeriod = regexp.MustCompile(`^([1-9][0-9]*)限$`)
-var fileHandler = regexp.MustCompile(`downloadFile\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]*)['"]`)
-var windowHandler = regexp.MustCompile(`openWindow\s*\(\s*['"]([^'"]+)['"]`)
-var unknownHandler = regexp.MustCompile(`['"](SRS\d+)['"]`)
+var (
+	courseHandler  = regexp.MustCompile(`\bformSubmit\(\s*["']([^"']+)["']`)
+	coursePeriod   = regexp.MustCompile(`^([1-9][0-9]*)限$`)
+	fileHandler    = regexp.MustCompile(`downloadFile\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]*)['"]`)
+	windowHandler  = regexp.MustCompile(`openWindow\s*\(\s*['"]([^'"]+)['"]`)
+	unknownHandler = regexp.MustCompile(`['"](SRS\d+)['"]`)
+)
 
 func (b *Browser) readCourses(ctx context.Context) (*workerproto.CourseListing, error) {
 	if err := poll(ctx, b.homeExpression()); err != nil {
 		return nil, err
 	}
 	var year int
-	if err := cd.Run(ctx, cd.Evaluate(`Number(document.querySelector('select[name="nendo"]')?.value || 0)`, &year)); err != nil {
+	if err := cd.Run(
+		ctx,
+		cd.Evaluate(`Number(document.querySelector('select[name="nendo"]')?.value || 0)`, &year),
+	); err != nil {
 		return nil, err
 	}
 	if year < 1 || year > 9999 {
@@ -50,7 +55,10 @@ func (b *Browser) readCourses(ctx context.Context) (*workerproto.CourseListing, 
 	if err := cd.Run(ctx, cd.Evaluate(coursesJS, &entries)); err != nil {
 		return nil, err
 	}
-	listing := &workerproto.CourseListing{AcademicYear: int32(year), Courses: []*workerproto.Course{}}
+	listing := &workerproto.CourseListing{
+		AcademicYear: int32(year),
+		Courses:      []*workerproto.Course{},
+	}
 	for _, entry := range entries {
 		id := ""
 		if entry.Linked {
@@ -65,7 +73,12 @@ func (b *Browser) readCourses(ctx context.Context) (*workerproto.CourseListing, 
 		}
 		kind, weekday, period, err := parseCourseSchedule(entry.Category, entry.Period)
 		if err != nil {
-			slog.Error("unrecognized LMS value", "id", id, "field", "schedule", "category", entry.Category, "period", entry.Period)
+			slog.Error("unrecognized LMS value",
+				"id", id,
+				"field", "schedule",
+				"category", entry.Category,
+				"period", entry.Period,
+			)
 		}
 		item, err := course(entry.Name, id, kind, weekday, period)
 		if err != nil {
@@ -75,6 +88,7 @@ func (b *Browser) readCourses(ctx context.Context) (*workerproto.CourseListing, 
 	}
 	return listing, nil
 }
+
 func parseCourseSchedule(category, period string) (string, *int64, *int64, error) {
 	if category == "その他" {
 		return "other", nil, nil, nil
@@ -94,16 +108,33 @@ func parseCourseSchedule(category, period string) (string, *int64, *int64, error
 	}
 	return "unknown", nil, nil, fmt.Errorf("unrecognized course schedule")
 }
+
 func (b *Browser) openCourse(ctx context.Context, id string) error {
 	var clicked bool
-	expression := `(()=>{const id=` + js(id) + `;const a=[...document.querySelectorAll('.lms-weekly-area .lms-cardname a')].find(a=>{const m=(a.getAttribute('onclick')||'').match(/\bformSubmit\(\s*["']([^"']+)["']/);return m&&m[1]===id});if(!a)return false;a.click();return true})()`
+	expression := `(() => {
+		const id = ` + js(id) + `;
+		const a = [...document.querySelectorAll('.lms-weekly-area .lms-cardname a')].find(a => {
+			const m = (a.getAttribute('onclick') || '').match(/\bformSubmit\(\s*["']([^"']+)["']/);
+			return m && m[1] === id;
+		});
+		if (!a) return false;
+		a.click();
+		return true;
+	})()`
 	if err := cd.Run(ctx, cd.Evaluate(expression, &clicked)); err != nil {
 		return err
 	}
 	if !clicked {
 		return Fail(workerproto.FailureReason_FAILURE_REASON_COURSE_NOT_FOUND, "講義が現在のLMS一覧にありません。")
 	}
-	return poll(ctx, `document.readyState==='complete' && location.origin===`+js(b.opts.LMSURL)+` && /^\/lms\/(?:homeHoml\/doLinkKougi|corsColl\/doIndex)(?:;|$)/.test(location.pathname) && ([...document.querySelectorAll('th')].some(e=>e.textContent.trim()==='授業実施日') && !!document.querySelector('.courseFolderName') || !!document.body?.innerText.includes('授業が登録されていません。'))`)
+	return poll(
+		ctx,
+		`document.readyState === 'complete' && location.origin === `+js(b.opts.LMSURL)+`
+			&& /^\/lms\/(?:homeHoml\/doLinkKougi|corsColl\/doIndex)(?:;|$)/.test(location.pathname)
+			&& (([...document.querySelectorAll('th')].some(e => e.textContent.trim() === '授業実施日')
+					&& !!document.querySelector('.courseFolderName'))
+				|| !!document.body?.innerText.includes('授業が登録されていません。'))`,
+	)
 }
 
 type rawMaterial struct {
@@ -116,12 +147,18 @@ type rawFolder struct {
 	Materials       []rawMaterial
 }
 
-func (b *Browser) readMaterials(ctx context.Context, id string) (*workerproto.CourseMaterials, error) {
+func (b *Browser) readMaterials(
+	ctx context.Context,
+	id string,
+) (*workerproto.CourseMaterials, error) {
 	var folders []rawFolder
 	if err := cd.Run(ctx, cd.Evaluate(materialsJS, &folders)); err != nil {
 		return nil, err
 	}
-	result := &workerproto.CourseMaterials{CourseId: &workerproto.CourseId{Value: id}, Folders: []*workerproto.Folder{}}
+	result := &workerproto.CourseMaterials{
+		CourseId: &workerproto.CourseId{Value: id},
+		Folders:  []*workerproto.Folder{},
+	}
 	seen := map[string]bool{}
 	for _, raw := range folders {
 		date, err := parseCalendarDate(raw.Date)
@@ -132,20 +169,36 @@ func (b *Browser) readMaterials(ctx context.Context, id string) (*workerproto.Co
 		if err != nil {
 			return nil, err
 		}
-		folder := &workerproto.Folder{Name: raw.Name, ClassDate: calendar, DescriptionHtml: raw.DescriptionHTML, Materials: []*workerproto.Material{}}
+		folder := &workerproto.Folder{
+			Name:            raw.Name,
+			ClassDate:       calendar,
+			DescriptionHtml: raw.DescriptionHTML,
+			Materials:       []*workerproto.Material{},
+		}
 		for _, entry := range raw.Materials {
 			if !materialID.MatchString(entry.ID) || seen[entry.ID] {
-				return nil, Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "教材IDが不正または重複しています。")
+				return nil, Fail(
+					workerproto.FailureReason_FAILURE_REASON_SOURCE,
+					"教材IDが不正または重複しています。",
+				)
 			}
 			seen[entry.ID] = true
 			kind, err := parseType(entry.Type)
 			if err != nil {
-				slog.Error("unrecognized LMS value", "id", entry.ID, "field", "type", "value", entry.Type)
+				slog.Error("unrecognized LMS value",
+					"id", entry.ID,
+					"field", "type",
+					"value", entry.Type,
+				)
 				kind = "unknown"
 			}
 			deadline, err := parseDeadline(entry.Deadline)
 			if err != nil {
-				slog.Error("unrecognized LMS value", "id", entry.ID, "field", "publication_deadline", "value", entry.Deadline)
+				slog.Error("unrecognized LMS value",
+					"id", entry.ID,
+					"field", "publication_deadline",
+					"value", entry.Deadline,
+				)
 				deadline = "unknown"
 			}
 			item, err := material(entry, kind, deadline)
@@ -158,6 +211,7 @@ func (b *Browser) readMaterials(ctx context.Context, id string) (*workerproto.Co
 	}
 	return result, nil
 }
+
 func parseType(raw string) (string, error) {
 	switch raw {
 	case "Materials", "資料":
@@ -177,9 +231,11 @@ func parseType(raw string) (string, error) {
 	}
 	return "", Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "未対応の教材種別です。")
 }
+
 func optional(raw string) bool {
 	return raw == "" || strings.Trim(raw, "-‐‑‒–—―－ ") == ""
 }
+
 func parseCalendarDate(raw string) (string, error) {
 	if optional(raw) {
 		return "", nil
@@ -191,6 +247,7 @@ func parseCalendarDate(raw string) (string, error) {
 	}
 	return "", Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "LMSの日付を解析できません。")
 }
+
 func parseDate(raw string) (string, error) {
 	if optional(raw) {
 		return "", nil
@@ -212,6 +269,7 @@ func parseDate(raw string) (string, error) {
 	}
 	return "", Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "LMSの日付を解析できません。")
 }
+
 func parseDeadline(raw string) (string, error) {
 	if raw == "公開終了" || raw == "Unavailable" {
 		return "unavailable", nil
@@ -287,14 +345,22 @@ func (b *Browser) readResources(ctx context.Context) (*workerproto.ResourceList,
 	}
 	return resources, nil
 }
-func (b *Browser) materialSnapshot(ctx context.Context, material, preferred string) (*workerproto.Snapshot, error) {
+
+func (b *Browser) materialSnapshot(
+	ctx context.Context,
+	material, preferred string,
+) (*workerproto.Snapshot, error) {
 	courses, err := b.readCourses(ctx)
 	if err != nil {
 		return nil, err
 	}
 	ids := []string{}
 	seen := map[string]bool{}
-	missing := &workerproto.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, MaterialId: &workerproto.MaterialId{Value: material}}
+	missing := &workerproto.Snapshot{
+		AcademicYear: courses.AcademicYear,
+		Courses:      courses.Courses,
+		MaterialId:   &workerproto.MaterialId{Value: material},
+	}
 	for _, c := range courses.Courses {
 		id := c.GetAvailable().GetValue()
 		if c.GetAvailable() != nil && id == preferred && !seen[id] {
@@ -328,14 +394,36 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 				if m.GetId().GetValue() != material {
 					continue
 				}
-				snapshot := &workerproto.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, CourseMaterials: materials, MaterialId: &workerproto.MaterialId{Value: material}}
-				if m.GetDocument() == nil || m.GetDocument().GetResourceAvailability() != workerproto.LinkAvailability_LINK_AVAILABILITY_AVAILABLE {
+				snapshot := &workerproto.Snapshot{
+					AcademicYear:    courses.AcademicYear,
+					Courses:         courses.Courses,
+					CourseMaterials: materials,
+					MaterialId:      &workerproto.MaterialId{Value: material},
+				}
+				if m.GetDocument().GetResourceAvailability() !=
+					workerproto.LinkAvailability_LINK_AVAILABILITY_AVAILABLE {
 					return snapshot, nil
 				}
-				if err = cd.Run(ctx, cd.Evaluate(fmt.Sprintf(`document.querySelector('td.kyozaititleCell#%s a').click()`, material), nil)); err != nil {
+				if err = cd.Run(
+					ctx,
+					cd.Evaluate(
+						fmt.Sprintf(
+							`document.querySelector('td.kyozaititleCell#%s a').click()`,
+							material,
+						),
+						nil,
+					),
+				); err != nil {
 					return snapshot, err
 				}
-				if err = poll(ctx, `location.origin===`+js(b.opts.LMSURL)+` && /^\/lms\/corsColl\/doLinkKyozaiTitle(?:;|$)/.test(location.pathname) && [...document.querySelectorAll('th')].some(e=>e.textContent.trim()==='資料名')`); err != nil {
+				if err = poll(
+					ctx,
+					`location.origin === `+js(b.opts.LMSURL)+`
+						&& /^\/lms\/corsColl\/doLinkKyozaiTitle(?:;|$)/.test(location.pathname)
+						&& [...document.querySelectorAll('th')].some(
+							e => e.textContent.trim() === '資料名'
+						)`,
+				); err != nil {
 					return snapshot, err
 				}
 				snapshot.ResourceList, err = b.readResources(ctx)
@@ -346,7 +434,10 @@ func (b *Browser) materialSnapshot(ctx context.Context, material, preferred stri
 	if preferred != "" {
 		return missing, nil
 	}
-	return nil, Fail(workerproto.FailureReason_FAILURE_REASON_MATERIAL_NOT_FOUND, "教材が現在のLMS一覧にありません。保存済みデータを参照してください。")
+	return nil, Fail(
+		workerproto.FailureReason_FAILURE_REASON_MATERIAL_NOT_FOUND,
+		"教材が現在のLMS一覧にありません。保存済みデータを参照してください。",
+	)
 }
 
 func (b *Browser) Courses(ctx context.Context) (courses *workerproto.CourseListing, err error) {
@@ -358,7 +449,10 @@ func (b *Browser) Courses(ctx context.Context) (courses *workerproto.CourseListi
 	return
 }
 
-func (b *Browser) Materials(ctx context.Context, id string) (snapshot *workerproto.Snapshot, err error) {
+func (b *Browser) Materials(
+	ctx context.Context,
+	id string,
+) (snapshot *workerproto.Snapshot, err error) {
 	err = b.withPage(ctx, func(tab context.Context) error {
 		courses, e := b.readCourses(tab)
 		if e != nil {
@@ -368,13 +462,20 @@ func (b *Browser) Materials(ctx context.Context, id string) (snapshot *workerpro
 			return e
 		}
 		materials, e := b.readMaterials(tab, id)
-		snapshot = &workerproto.Snapshot{AcademicYear: courses.AcademicYear, Courses: courses.Courses, CourseMaterials: materials}
+		snapshot = &workerproto.Snapshot{
+			AcademicYear:    courses.AcademicYear,
+			Courses:         courses.Courses,
+			CourseMaterials: materials,
+		}
 		return e
 	})
 	return
 }
 
-func (b *Browser) Resources(ctx context.Context, material, preferred string) (snapshot *workerproto.Snapshot, err error) {
+func (b *Browser) Resources(
+	ctx context.Context,
+	material, preferred string,
+) (snapshot *workerproto.Snapshot, err error) {
 	err = b.withPage(ctx, func(tab context.Context) error {
 		var e error
 		snapshot, e = b.materialSnapshot(tab, material, preferred)

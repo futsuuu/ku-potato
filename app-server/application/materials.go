@@ -9,7 +9,10 @@ import (
 	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
-func (a *Application) parallelMaterials(ctx context.Context, ids []string) (domain.MaterialsResult, error) {
+func (a *Application) parallelMaterials(
+	ctx context.Context,
+	ids []string,
+) (domain.MaterialsResult, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	type outcome struct {
@@ -29,7 +32,15 @@ func (a *Application) parallelMaterials(ctx context.Context, ids []string) (doma
 		progressMu.Lock()
 		defer progressMu.Unlock()
 		completed++
-		report(ctx, operation.Progress{Stage: "fetching-materials", Completed: completed, Total: len(ids), CourseID: id})
+		report(
+			ctx,
+			operation.Progress{
+				Stage:     "fetching-materials",
+				Completed: completed,
+				Total:     len(ids),
+				CourseID:  id,
+			},
+		)
 	}
 	var workers sync.WaitGroup
 	for range min(a.workers, len(ids)) {
@@ -52,7 +63,10 @@ func (a *Application) parallelMaterials(ctx context.Context, ids []string) (doma
 						cancel(err)
 						return
 					}
-					outcomes[i].failure = &domain.CourseFailure{CourseID: id, Error: *publicError(err)}
+					outcomes[i].failure = &domain.CourseFailure{
+						CourseID: id,
+						Error:    *publicError(err),
+					}
 					finish(id)
 					continue
 				}
@@ -67,7 +81,10 @@ func (a *Application) parallelMaterials(ctx context.Context, ids []string) (doma
 		})
 	}
 	workers.Wait()
-	result := domain.MaterialsResult{CourseMaterials: []domain.CourseMaterials{}, Failures: []domain.CourseFailure{}}
+	result := domain.MaterialsResult{
+		CourseMaterials: []domain.CourseMaterials{},
+		Failures:        []domain.CourseFailure{},
+	}
 	if err := context.Cause(ctx); err != nil {
 		return result, err
 	}

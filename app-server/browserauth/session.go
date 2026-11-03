@@ -36,10 +36,12 @@ func googleCookieDomain(domain string) bool {
 	}
 	return false
 }
+
 func (g *Google) cookieDomain(domain string) bool {
 	if googleCookieDomain(domain) {
 		return true
 	}
 	origin, err := url.Parse(g.origin)
-	return err == nil && origin.Hostname() != "" && strings.TrimPrefix(domain, ".") == origin.Hostname()
+	return err == nil && origin.Hostname() != "" &&
+		strings.TrimPrefix(domain, ".") == origin.Hostname()
 }

@@ -15,8 +15,10 @@ func malformed() error {
 	return domain.Fail("source", "ブラウザワーカーの取得結果が不正です。")
 }
 
-var materialID = regexp.MustCompile(`^[A-Z]+\d+$`)
-var resourceID = regexp.MustCompile(`^SRS\d+$`)
+var (
+	materialID = regexp.MustCompile(`^[A-Z]+\d+$`)
+	resourceID = regexp.MustCompile(`^SRS\d+$`)
+)
 
 func courseID(value *workerproto.CourseId) (string, error) {
 	if value == nil || value.GetValue() == "" || len(value.GetValue()) > 200 {
@@ -24,18 +26,21 @@ func courseID(value *workerproto.CourseId) (string, error) {
 	}
 	return value.GetValue(), nil
 }
+
 func parsedMaterialID(value *workerproto.MaterialId) (string, error) {
 	if value == nil || !materialID.MatchString(value.GetValue()) {
 		return "", malformed()
 	}
 	return value.GetValue(), nil
 }
+
 func parsedResourceID(value *workerproto.ResourceId) (string, error) {
 	if value == nil || !resourceID.MatchString(value.GetValue()) {
 		return "", malformed()
 	}
 	return value.GetValue(), nil
 }
+
 func externalURL(raw string) (string, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
@@ -51,6 +56,7 @@ func fromEnum[T ~int32](value T, prefix string, names map[int32]string) (string,
 	}
 	return strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(name, prefix), "_", "-")), nil
 }
+
 func fromTimestamp(value *timestamppb.Timestamp) (*time.Time, error) {
 	if value == nil {
 		return nil, nil
@@ -61,19 +67,34 @@ func fromTimestamp(value *timestamppb.Timestamp) (*time.Time, error) {
 	date := value.AsTime()
 	return &date, nil
 }
+
 func fromDate(value *workerproto.CalendarDate) (string, error) {
 	if value == nil {
 		return "", nil
 	}
-	if value.GetYear() < 1 || value.GetYear() > 9999 || value.GetMonth() < 1 || value.GetMonth() > 12 || value.GetDay() < 1 || value.GetDay() > 31 {
+	if value.GetYear() < 1 || value.GetYear() > 9999 || value.GetMonth() < 1 ||
+		value.GetMonth() > 12 ||
+		value.GetDay() < 1 ||
+		value.GetDay() > 31 {
 		return "", malformed()
 	}
-	parsed := time.Date(int(value.GetYear()), time.Month(value.GetMonth()), int(value.GetDay()), 0, 0, 0, 0, time.UTC)
-	if int32(parsed.Year()) != value.GetYear() || int32(parsed.Month()) != value.GetMonth() || int32(parsed.Day()) != value.GetDay() {
+	parsed := time.Date(
+		int(value.GetYear()),
+		time.Month(value.GetMonth()),
+		int(value.GetDay()),
+		0,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+	if int32(parsed.Year()) != value.GetYear() || int32(parsed.Month()) != value.GetMonth() ||
+		int32(parsed.Day()) != value.GetDay() {
 		return "", malformed()
 	}
 	return parsed.Format("2006-01-02"), nil
 }
+
 func fromCourse(value *workerproto.Course, year int) (domain.Course, error) {
 	if value == nil || year < 1 || year > 9999 {
 		return domain.Course{}, malformed()
@@ -96,7 +117,9 @@ func fromCourse(value *workerproto.Course, year int) (domain.Course, error) {
 	}
 	switch schedule := value.GetSchedule().(type) {
 	case *workerproto.Course_Scheduled:
-		if schedule.Scheduled == nil || schedule.Scheduled.Weekday < 1 || schedule.Scheduled.Weekday > 7 || schedule.Scheduled.Period < 1 {
+		if schedule.Scheduled == nil || schedule.Scheduled.Weekday < 1 ||
+			schedule.Scheduled.Weekday > 7 ||
+			schedule.Scheduled.Period < 1 {
 			return result, malformed()
 		}
 		weekday, period := int64(schedule.Scheduled.Weekday), int64(schedule.Scheduled.Period)
@@ -116,11 +139,15 @@ func fromCourse(value *workerproto.Course, year int) (domain.Course, error) {
 	}
 	return result, nil
 }
+
 func decodeListing(value *workerproto.CourseListing) (domain.CourseListing, error) {
 	if value == nil || value.GetAcademicYear() < 1 || value.GetAcademicYear() > 9999 {
 		return domain.CourseListing{}, malformed()
 	}
-	result := domain.CourseListing{AcademicYear: int(value.GetAcademicYear()), Courses: []domain.Course{}}
+	result := domain.CourseListing{
+		AcademicYear: int(value.GetAcademicYear()),
+		Courses:      []domain.Course{},
+	}
 	for _, course := range value.GetCourses() {
 		item, err := fromCourse(course, result.AcademicYear)
 		if err != nil {
@@ -130,6 +157,7 @@ func decodeListing(value *workerproto.CourseListing) (domain.CourseListing, erro
 	}
 	return result, nil
 }
+
 func fromDeadline(value *workerproto.PublicationDeadline) (string, string, *time.Time, error) {
 	if value == nil {
 		return "", "", nil, malformed()
@@ -162,6 +190,7 @@ func fromDeadline(value *workerproto.PublicationDeadline) (string, string, *time
 	}
 	return "", "", nil, malformed()
 }
+
 func fromMaterial(value *workerproto.Material) (domain.Material, error) {
 	if value == nil {
 		return domain.Material{}, malformed()
@@ -174,14 +203,25 @@ func fromMaterial(value *workerproto.Material) (domain.Material, error) {
 	if err != nil {
 		return domain.Material{}, err
 	}
-	result := domain.Material{ID: id, Name: value.GetName(), PublicationDeadline: deadline, PublicationDeadlineKind: deadlineKind, PublicationDeadlineAt: at, MaterialLinkAvailable: value.GetMaterialLinkAvailable()}
+	result := domain.Material{
+		ID:                      id,
+		Name:                    value.GetName(),
+		PublicationDeadline:     deadline,
+		PublicationDeadlineKind: deadlineKind,
+		PublicationDeadlineAt:   at,
+		MaterialLinkAvailable:   value.GetMaterialLinkAvailable(),
+	}
 	switch kind := value.GetKind().(type) {
 	case *workerproto.Material_Document:
 		if kind.Document == nil {
 			return domain.Material{}, malformed()
 		}
 		result.Type = "material"
-		result.Status, err = fromEnum(kind.Document.GetStatus(), "DOCUMENT_STATUS_", workerproto.DocumentStatus_name)
+		result.Status, err = fromEnum(
+			kind.Document.GetStatus(),
+			"DOCUMENT_STATUS_",
+			workerproto.DocumentStatus_name,
+		)
 		switch kind.Document.GetResourceAvailability() {
 		case workerproto.LinkAvailability_LINK_AVAILABILITY_AVAILABLE:
 			result.ResourceAvailability = "available"
@@ -195,37 +235,61 @@ func fromMaterial(value *workerproto.Material) (domain.Material, error) {
 			return domain.Material{}, malformed()
 		}
 		result.Type = "report"
-		result.Status, err = fromEnum(kind.Report.GetStatus(), "REPORT_MATERIAL_STATUS_", workerproto.ReportMaterialStatus_name)
+		result.Status, err = fromEnum(
+			kind.Report.GetStatus(),
+			"REPORT_MATERIAL_STATUS_",
+			workerproto.ReportMaterialStatus_name,
+		)
 	case *workerproto.Material_Test:
 		if kind.Test == nil {
 			return domain.Material{}, malformed()
 		}
 		result.Type = "test"
-		result.Status, err = fromEnum(kind.Test.GetStatus(), "TEST_STATUS_", workerproto.TestStatus_name)
+		result.Status, err = fromEnum(
+			kind.Test.GetStatus(),
+			"TEST_STATUS_",
+			workerproto.TestStatus_name,
+		)
 	case *workerproto.Material_Questionnaire:
 		if kind.Questionnaire == nil {
 			return domain.Material{}, malformed()
 		}
 		result.Type = "questionnaire"
-		result.Status, err = fromEnum(kind.Questionnaire.GetStatus(), "QUESTIONNAIRE_STATUS_", workerproto.QuestionnaireStatus_name)
+		result.Status, err = fromEnum(
+			kind.Questionnaire.GetStatus(),
+			"QUESTIONNAIRE_STATUS_",
+			workerproto.QuestionnaireStatus_name,
+		)
 	case *workerproto.Material_ELearning:
 		if kind.ELearning == nil {
 			return domain.Material{}, malformed()
 		}
 		result.Type = "e-learning"
-		result.Status, err = fromEnum(kind.ELearning.GetStatus(), "E_LEARNING_STATUS_", workerproto.ELearningStatus_name)
+		result.Status, err = fromEnum(
+			kind.ELearning.GetStatus(),
+			"E_LEARNING_STATUS_",
+			workerproto.ELearningStatus_name,
+		)
 	case *workerproto.Material_Board:
 		if kind.Board == nil {
 			return domain.Material{}, malformed()
 		}
 		result.Type = "board"
-		result.Status, err = fromEnum(kind.Board.GetStatus(), "BOARD_STATUS_", workerproto.BoardStatus_name)
+		result.Status, err = fromEnum(
+			kind.Board.GetStatus(),
+			"BOARD_STATUS_",
+			workerproto.BoardStatus_name,
+		)
 	case *workerproto.Material_Feedback:
 		if kind.Feedback == nil {
 			return domain.Material{}, malformed()
 		}
 		result.Type = "feedback"
-		result.Status, err = fromEnum(kind.Feedback.GetStatus(), "FEEDBACK_STATUS_", workerproto.FeedbackStatus_name)
+		result.Status, err = fromEnum(
+			kind.Feedback.GetStatus(),
+			"FEEDBACK_STATUS_",
+			workerproto.FeedbackStatus_name,
+		)
 	case *workerproto.Material_Unknown:
 		if kind.Unknown == nil {
 			return domain.Material{}, malformed()
@@ -239,6 +303,7 @@ func fromMaterial(value *workerproto.Material) (domain.Material, error) {
 	}
 	return result, nil
 }
+
 func fromMaterials(value *workerproto.CourseMaterials) (*domain.CourseMaterials, error) {
 	if value == nil {
 		return nil, nil
@@ -256,7 +321,12 @@ func fromMaterials(value *workerproto.CourseMaterials) (*domain.CourseMaterials,
 		if err != nil {
 			return nil, err
 		}
-		item := domain.Folder{Name: folder.GetName(), ClassDate: date, DescriptionHTML: folder.DescriptionHtml, Materials: []domain.Material{}}
+		item := domain.Folder{
+			Name:            folder.GetName(),
+			ClassDate:       date,
+			DescriptionHTML: folder.DescriptionHtml,
+			Materials:       []domain.Material{},
+		}
 		for _, m := range folder.GetMaterials() {
 			decoded, err := fromMaterial(m)
 			if err != nil {
@@ -268,6 +338,7 @@ func fromMaterials(value *workerproto.CourseMaterials) (*domain.CourseMaterials,
 	}
 	return result, nil
 }
+
 func fromDateValue(value *workerproto.CalendarDate) (*string, error) {
 	if value == nil {
 		return nil, nil
@@ -278,6 +349,7 @@ func fromDateValue(value *workerproto.CalendarDate) (*string, error) {
 	}
 	return &date, nil
 }
+
 func fromResource(value *workerproto.Resource) (domain.Resource, error) {
 	if value == nil {
 		return domain.Resource{}, malformed()
@@ -298,7 +370,15 @@ func fromResource(value *workerproto.Resource) (domain.Resource, error) {
 	if err != nil {
 		return domain.Resource{}, err
 	}
-	result := domain.Resource{ID: id, Name: value.GetName(), Status: status, RegisteredOn: registered, FirstViewedOn: viewed, Description: value.Description, Availability: "current"}
+	result := domain.Resource{
+		ID:            id,
+		Name:          value.GetName(),
+		Status:        status,
+		RegisteredOn:  registered,
+		FirstViewedOn: viewed,
+		Description:   value.Description,
+		Availability:  "current",
+	}
 	switch content := value.GetContent().(type) {
 	case *workerproto.Resource_File:
 		if content.File == nil {
@@ -321,7 +401,10 @@ func fromResource(value *workerproto.Resource) (domain.Resource, error) {
 	}
 	return result, nil
 }
-func fromSubmissionPeriod(value *workerproto.SubmissionPeriod) (string, *time.Time, *time.Time, error) {
+
+func fromSubmissionPeriod(
+	value *workerproto.SubmissionPeriod,
+) (string, *time.Time, *time.Time, error) {
 	if value == nil {
 		return "", nil, nil, malformed()
 	}
@@ -356,6 +439,7 @@ func fromSubmissionPeriod(value *workerproto.SubmissionPeriod) (string, *time.Ti
 	}
 	return "", nil, nil, malformed()
 }
+
 func fromCorrectionPolicy(value *workerproto.CorrectionPolicy) (string, *int64, error) {
 	if value == nil {
 		return "", nil, malformed()
@@ -381,6 +465,7 @@ func fromCorrectionPolicy(value *workerproto.CorrectionPolicy) (string, *int64, 
 	}
 	return "", nil, malformed()
 }
+
 func fromReport(value *workerproto.Report) (*domain.ReportDetail, error) {
 	if value == nil {
 		return nil, nil
@@ -400,8 +485,20 @@ func fromReport(value *workerproto.Report) (*domain.ReportDetail, error) {
 	if value.MaxTotalFileBytes != nil && *value.MaxTotalFileBytes < 0 {
 		return nil, malformed()
 	}
-	return &domain.ReportDetail{PromptHTML: value.PromptHtml, Status: status, SubmissionPeriodKind: kind, SubmissionStartsAt: start, SubmissionDueAt: due, CorrectionMode: mode, CorrectionLimit: limit, TextAnswerAllowed: value.TextAnswerAllowed, FileAnswerAllowed: value.FileAnswerAllowed, MaxTotalFileBytes: value.MaxTotalFileBytes}, nil
+	return &domain.ReportDetail{
+		PromptHTML:           value.PromptHtml,
+		Status:               status,
+		SubmissionPeriodKind: kind,
+		SubmissionStartsAt:   start,
+		SubmissionDueAt:      due,
+		CorrectionMode:       mode,
+		CorrectionLimit:      limit,
+		TextAnswerAllowed:    value.TextAnswerAllowed,
+		FileAnswerAllowed:    value.FileAnswerAllowed,
+		MaxTotalFileBytes:    value.MaxTotalFileBytes,
+	}, nil
 }
+
 func decodeSnapshot(value *workerproto.Snapshot) (domain.Snapshot, error) {
 	if value == nil || value.GetAcademicYear() < 0 || value.GetAcademicYear() > 9999 {
 		return domain.Snapshot{}, malformed()
@@ -414,7 +511,12 @@ func decodeSnapshot(value *workerproto.Snapshot) (domain.Snapshot, error) {
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	result := domain.Snapshot{AcademicYear: int(value.GetAcademicYear()), Courses: []domain.Course{}, Materials: materials, Report: report}
+	result := domain.Snapshot{
+		AcademicYear: int(value.GetAcademicYear()),
+		Courses:      []domain.Course{},
+		Materials:    materials,
+		Report:       report,
+	}
 	if value.GetMaterialId() != nil {
 		id, err := parsedMaterialID(value.GetMaterialId())
 		if err != nil {
@@ -441,6 +543,7 @@ func decodeSnapshot(value *workerproto.Snapshot) (domain.Snapshot, error) {
 	}
 	return result, nil
 }
+
 func decodeFailure(value *workerproto.Failure) error {
 	if value == nil {
 		return malformed()

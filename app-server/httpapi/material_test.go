@@ -15,8 +15,15 @@ func TestMaterialTypeConstrainsStatus(t *testing.T) {
 	registry.RegisterTypeAlias(reflect.TypeFor[domain.Material](), reflect.TypeFor[material]())
 	schema := registry.Schema(reflect.TypeFor[domain.Material](), true, "")
 	statuses := map[string][]string{
-		"material":      {"unviewed", "viewed", "partially-viewed", "unknown"},
-		"report":        {"unviewed", "unsubmitted", "submitted", "resubmission-required", "evaluated", "unknown"},
+		"material": {"unviewed", "viewed", "partially-viewed", "unknown"},
+		"report": {
+			"unviewed",
+			"unsubmitted",
+			"submitted",
+			"resubmission-required",
+			"evaluated",
+			"unknown",
+		},
 		"test":          {"not-started", "in-progress", "completed", "unknown"},
 		"questionnaire": {"unanswered", "answered", "unknown"},
 		"e-learning":    {"not-started", "in-progress", "completed", "unknown"},
@@ -27,13 +34,28 @@ func TestMaterialTypeConstrainsStatus(t *testing.T) {
 	validate := func(value map[string]any) bool {
 		t.Helper()
 		result := &huma.ValidateResult{}
-		huma.Validate(registry, schema, huma.NewPathBuffer(nil, 0), huma.ModeReadFromServer, value, result)
+		huma.Validate(
+			registry,
+			schema,
+			huma.NewPathBuffer(nil, 0),
+			huma.ModeReadFromServer,
+			value,
+			result,
+		)
 		return len(result.Errors) == 0
 	}
 	for kind, allowed := range statuses {
 		for _, status := range []string{"unviewed", "viewed", "partially-viewed", "unsubmitted", "submitted", "resubmission-required", "evaluated", "not-started", "in-progress", "completed", "unanswered", "answered", "unposted", "unevaluated", "unknown", "evaluating", "invalid", ""} {
 			t.Run(kind+"/"+status, func(t *testing.T) {
-				body, err := json.Marshal(domain.Material{ID: "MAT1", Name: "material", Type: kind, Status: status, PublicationDeadline: "no-deadline"})
+				body, err := json.Marshal(
+					domain.Material{
+						ID:                  "MAT1",
+						Name:                "material",
+						Type:                kind,
+						Status:              status,
+						PublicationDeadline: "no-deadline",
+					},
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -42,7 +64,12 @@ func TestMaterialTypeConstrainsStatus(t *testing.T) {
 					t.Fatal(err)
 				}
 				if valid := validate(value); valid != slices.Contains(allowed, status) {
-					t.Fatalf("unexpected validation for type=%s status=%s: valid=%v", kind, status, valid)
+					t.Fatalf(
+						"unexpected validation for type=%s status=%s: valid=%v",
+						kind,
+						status,
+						valid,
+					)
 				}
 				if status == "unknown" {
 					delete(value, "status")

@@ -50,7 +50,9 @@ func (s *Scheduler) work() {
 				for attempt := 0; attempt < 3; attempt++ {
 					t.result.value, t.result.err = t.run(t.ctx)
 					var failure *browser.Failure
-					if t.key == "" || t.ctx.Err() != nil || attempt == 2 || !errors.As(t.result.err, &failure) || failure.Reason != workerproto.FailureReason_FAILURE_REASON_SOURCE {
+					if t.key == "" || t.ctx.Err() != nil || attempt == 2 ||
+						!errors.As(t.result.err, &failure) ||
+						failure.Reason != workerproto.FailureReason_FAILURE_REASON_SOURCE {
 						break
 					}
 					select {
@@ -70,7 +72,11 @@ func (s *Scheduler) work() {
 	}
 }
 
-func (s *Scheduler) Run(ctx context.Context, key string, run func(context.Context) (any, error)) (any, error) {
+func (s *Scheduler) Run(
+	ctx context.Context,
+	key string,
+	run func(context.Context) (any, error),
+) (any, error) {
 	s.mu.Lock()
 	t := s.active[key]
 	if key == "" || t == nil {
@@ -90,7 +96,10 @@ func (s *Scheduler) Run(ctx context.Context, key string, run func(context.Contex
 		default:
 			cancel()
 			s.mu.Unlock()
-			return nil, browser.Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "ブラウザワーカーが混雑しています。")
+			return nil, browser.Fail(
+				workerproto.FailureReason_FAILURE_REASON_SOURCE,
+				"ブラウザワーカーが混雑しています。",
+			)
 		}
 	}
 	s.mu.Unlock()

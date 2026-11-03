@@ -6,7 +6,14 @@ func MaterialStatuses(kind string) []string {
 	case "material":
 		return []string{"unviewed", "viewed", "partially-viewed", "unknown"}
 	case "report":
-		return []string{"unviewed", "unsubmitted", "submitted", "resubmission-required", "evaluated", "unknown"}
+		return []string{
+			"unviewed",
+			"unsubmitted",
+			"submitted",
+			"resubmission-required",
+			"evaluated",
+			"unknown",
+		}
 	case "test", "e-learning":
 		return []string{"not-started", "in-progress", "completed", "unknown"}
 	case "questionnaire":

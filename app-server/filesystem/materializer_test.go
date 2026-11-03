@@ -21,7 +21,11 @@ func TestMaterializerReusesAndRefreshesCopies(t *testing.T) {
 	if filepath.Dir(materializer.root) != filepath.Join(temp, "ku-potato-opened-resources") {
 		t.Fatal("prepared files are not in temp", materializer.root)
 	}
-	saved := domain.SavedFile{ID: "first", OriginalFilename: `../資料.pdf`, Size: int64(len("saved bytes"))}
+	saved := domain.SavedFile{
+		ID:               "first",
+		OriginalFilename: `../資料.pdf`,
+		Size:             int64(len("saved bytes")),
+	}
 	prepare := func(content string) string {
 		t.Helper()
 		path, err := materializer.Prepare(context.Background(), strings.NewReader(content), saved)
@@ -29,13 +33,18 @@ func TestMaterializerReusesAndRefreshesCopies(t *testing.T) {
 			t.Fatal(err)
 		}
 		body, err := os.ReadFile(path)
-		if err != nil || string(body) != "saved bytes" || filepath.Base(path) != "資料.pdf" || !filepath.IsAbs(path) {
+		if err != nil || string(body) != "saved bytes" || filepath.Base(path) != "資料.pdf" ||
+			!filepath.IsAbs(path) {
 			t.Fatal("incorrect prepared file", path, string(body), err)
 		}
 		return path
 	}
 	first := prepare("saved bytes")
-	cached, err := materializer.Prepare(context.Background(), failingReader{errors.New("unexpected read")}, saved)
+	cached, err := materializer.Prepare(
+		context.Background(),
+		failingReader{errors.New("unexpected read")},
+		saved,
+	)
 	if err != nil || cached != first {
 		t.Fatal("cached file was read again", cached, err)
 	}
@@ -66,15 +75,30 @@ func TestMaterializerRejectsIncompleteAndCanceledCopies(t *testing.T) {
 	}
 	saved := domain.SavedFile{ID: "first", OriginalFilename: "file.txt", Size: 4}
 	failed := errors.New("copy failed")
-	if path, err := materializer.Prepare(context.Background(), failingReader{failed}, saved); !errors.Is(err, failed) || path != "" {
+	if path, err := materializer.Prepare(
+		context.Background(),
+		failingReader{failed},
+		saved,
+	); !errors.Is(err, failed) ||
+		path != "" {
 		t.Fatal(path, err)
 	}
-	if path, err := materializer.Prepare(context.Background(), strings.NewReader("bad"), saved); err == nil || path != "" {
+	if path, err := materializer.Prepare(
+		context.Background(),
+		strings.NewReader("bad"),
+		saved,
+	); err == nil ||
+		path != "" {
 		t.Fatal("incomplete file was accepted", path, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if path, err := materializer.Prepare(ctx, strings.NewReader("body"), saved); !errors.Is(err, context.Canceled) || path != "" {
+	if path, err := materializer.Prepare(
+		ctx,
+		strings.NewReader("body"),
+		saved,
+	); !errors.Is(err, context.Canceled) ||
+		path != "" {
 		t.Fatal(path, err)
 	}
 	entries, err := os.ReadDir(materializer.root)
@@ -92,7 +116,11 @@ func TestMaterializerConcurrentRequestsUseOneCopy(t *testing.T) {
 	paths := make(chan string, 8)
 	for range 8 {
 		group.Go(func() {
-			path, err := materializer.Prepare(context.Background(), strings.NewReader("body"), domain.SavedFile{ID: "first", OriginalFilename: "file.txt", Size: 4})
+			path, err := materializer.Prepare(
+				context.Background(),
+				strings.NewReader("body"),
+				domain.SavedFile{ID: "first", OriginalFilename: "file.txt", Size: 4},
+			)
 			if err != nil {
 				t.Error(err)
 			}

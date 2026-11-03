@@ -13,7 +13,12 @@ import (
 	"github.com/go-jet/jet/v2/sqlite"
 )
 
-func insertReport(ctx context.Context, tx *sql.Tx, material string, detail domain.ReportDetail) (int64, error) {
+func insertReport(
+	ctx context.Context,
+	tx *sql.Tx,
+	material string,
+	detail domain.ReportDetail,
+) (int64, error) {
 	r := table.ReportDetailRetrievals
 	result, err := r.INSERT(r.LmsMaterialID, r.FetchedAt).MODEL(model.ReportDetailRetrievals{
 		LmsMaterialID: material, FetchedAt: time.Now().UnixMilli(),
@@ -26,20 +31,40 @@ func insertReport(ctx context.Context, tx *sql.Tx, material string, detail domai
 		return 0, err
 	}
 	row := model.ReportDetails{
-		RetrievalID: &id, PromptHTML: detail.PromptHTML,
-		Status:               materialStatus(material, "report", detail.Status),
-		SubmissionPeriodKind: enumValue(material, "submission_period_kind", detail.SubmissionPeriodKind, "at", "unlisted"),
-		SubmissionStartsAt:   millis(detail.SubmissionStartsAt), SubmissionDueAt: millis(detail.SubmissionDueAt),
-		CorrectionMode:    enumValue(material, "correction_mode", detail.CorrectionMode, "not-allowed", "unlimited", "limited"),
+		RetrievalID: &id,
+		PromptHTML:  detail.PromptHTML,
+		Status:      materialStatus(material, "report", detail.Status),
+		SubmissionPeriodKind: enumValue(
+			material,
+			"submission_period_kind",
+			detail.SubmissionPeriodKind,
+			"at",
+			"unlisted",
+		),
+		SubmissionStartsAt: millis(detail.SubmissionStartsAt),
+		SubmissionDueAt:    millis(detail.SubmissionDueAt),
+		CorrectionMode: enumValue(
+			material,
+			"correction_mode",
+			detail.CorrectionMode,
+			"not-allowed",
+			"unlimited",
+			"limited",
+		),
 		CorrectionLimit:   nonnegative(material, "correction_limit", detail.CorrectionLimit),
-		TextAnswerAllowed: optionalBool(detail.TextAnswerAllowed), FileAnswerAllowed: optionalBool(detail.FileAnswerAllowed),
+		TextAnswerAllowed: optionalBool(detail.TextAnswerAllowed),
+		FileAnswerAllowed: optionalBool(detail.FileAnswerAllowed),
 		MaxTotalFileBytes: nonnegative(material, "max_total_file_bytes", detail.MaxTotalFileBytes),
 	}
 	if row.SubmissionPeriodKind != "at" {
 		row.SubmissionStartsAt, row.SubmissionDueAt = nil, nil
 	} else if (row.SubmissionStartsAt == nil && row.SubmissionDueAt == nil) ||
 		(row.SubmissionStartsAt != nil && row.SubmissionDueAt != nil && *row.SubmissionDueAt < *row.SubmissionStartsAt) {
-		unknown(material, "submission_period", []any{detail.SubmissionStartsAt, detail.SubmissionDueAt})
+		unknown(
+			material,
+			"submission_period",
+			[]any{detail.SubmissionStartsAt, detail.SubmissionDueAt},
+		)
 		row.SubmissionPeriodKind, row.SubmissionStartsAt, row.SubmissionDueAt = "unknown", nil, nil
 	}
 	if row.CorrectionMode != "limited" {
@@ -57,7 +82,11 @@ func insertReport(ctx context.Context, tx *sql.Tx, material string, detail domai
 
 // ReportDetail is independently readable, including after the material becomes private.
 func (s *Store) ReportDetail(ctx context.Context, material string) (domain.ReportDetail, error) {
-	return readStore(ctx, s, func(db qrm.DB) (domain.ReportDetail, error) { return reportDetail(ctx, db, material) })
+	return readStore(
+		ctx,
+		s,
+		func(db qrm.DB) (domain.ReportDetail, error) { return reportDetail(ctx, db, material) },
+	)
 }
 
 func reportDetail(ctx context.Context, db qrm.DB, material string) (domain.ReportDetail, error) {
@@ -67,7 +96,8 @@ func reportDetail(ctx context.Context, db qrm.DB, material string) (domain.Repor
 		model.ReportDetailRetrievals
 	}
 	err := t.SELECT(t.AllColumns, r.AllColumns).FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
-		WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).ORDER_BY(r.ID.DESC()).LIMIT(1).QueryContext(ctx, db, &row)
+		WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).
+		ORDER_BY(r.ID.DESC()).LIMIT(1).QueryContext(ctx, db, &row)
 	if errors.Is(err, qrm.ErrNoRows) {
 		return domain.ReportDetail{}, domain.ErrMissing
 	}
@@ -75,10 +105,16 @@ func reportDetail(ctx context.Context, db qrm.DB, material string) (domain.Repor
 		return domain.ReportDetail{}, err
 	}
 	return domain.ReportDetail{
-		PromptHTML: row.PromptHTML, Status: row.Status, SubmissionPeriodKind: row.SubmissionPeriodKind,
-		SubmissionStartsAt: millisTime(row.SubmissionStartsAt), SubmissionDueAt: millisTime(row.SubmissionDueAt),
-		CorrectionMode: row.CorrectionMode, CorrectionLimit: row.CorrectionLimit,
-		TextAnswerAllowed: storedBool(row.TextAnswerAllowed), FileAnswerAllowed: storedBool(row.FileAnswerAllowed),
-		MaxTotalFileBytes: row.MaxTotalFileBytes, FetchedAt: millisTime(&row.FetchedAt),
+		PromptHTML:           row.PromptHTML,
+		Status:               row.Status,
+		SubmissionPeriodKind: row.SubmissionPeriodKind,
+		SubmissionStartsAt:   millisTime(row.SubmissionStartsAt),
+		SubmissionDueAt:      millisTime(row.SubmissionDueAt),
+		CorrectionMode:       row.CorrectionMode,
+		CorrectionLimit:      row.CorrectionLimit,
+		TextAnswerAllowed:    storedBool(row.TextAnswerAllowed),
+		FileAnswerAllowed:    storedBool(row.FileAnswerAllowed),
+		MaxTotalFileBytes:    row.MaxTotalFileBytes,
+		FetchedAt:            millisTime(&row.FetchedAt),
 	}, nil
 }

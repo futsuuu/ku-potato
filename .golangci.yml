@@ -1,0 +1,12 @@
+version: "2"
+
+linters:
+  default: none
+
+formatters:
+  enable:
+    - gofumpt
+    - golines
+  settings:
+    golines:
+      reformat-tags: false

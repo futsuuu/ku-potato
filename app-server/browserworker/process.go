@@ -37,7 +37,12 @@ func (p *Process) Close() error {
 	return p.connection.Close()
 }
 
-func Start(ctx context.Context, executable, temp, chrome string, parallel int, siteURLs ...string) (*Process, error) {
+func Start(
+	ctx context.Context,
+	executable, temp, chrome string,
+	parallel int,
+	siteURLs ...string,
+) (*Process, error) {
 	if executable == "" {
 		binary, err := os.Executable()
 		if err != nil {
@@ -117,16 +122,39 @@ func Start(ctx context.Context, executable, temp, chrome string, parallel int, s
 		return nil, errors.New("invalid browser worker address")
 	}
 	unary := func(ctx context.Context, method string, request, response any, conn *grpc.ClientConn, next grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		return next(metadata.AppendToOutgoingContext(ctx, "x-ku-potato-worker-token", token), method, request, response, conn, opts...)
+		return next(
+			metadata.AppendToOutgoingContext(ctx, "x-ku-potato-worker-token", token),
+			method,
+			request,
+			response,
+			conn,
+			opts...)
 	}
 	stream := func(ctx context.Context, desc *grpc.StreamDesc, conn *grpc.ClientConn, method string, next grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-		return next(metadata.AppendToOutgoingContext(ctx, "x-ku-potato-worker-token", token), desc, conn, method, opts...)
+		return next(
+			metadata.AppendToOutgoingContext(ctx, "x-ku-potato-worker-token", token),
+			desc,
+			conn,
+			method,
+			opts...)
 	}
-	connection, err := grpc.NewClient("passthrough:///"+endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(unary), grpc.WithStreamInterceptor(stream))
+	connection, err := grpc.NewClient(
+		"passthrough:///"+endpoint,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(unary),
+		grpc.WithStreamInterceptor(stream),
+	)
 	if err != nil {
 		stop()
 		<-exited
 		return nil, err
 	}
-	return &Process{Client: workerproto.NewBrowserWorkerClient(connection), connection: connection, endpoint: endpoint, stop: stop, Done: done, exited: exited}, nil
+	return &Process{
+		Client:     workerproto.NewBrowserWorkerClient(connection),
+		connection: connection,
+		endpoint:   endpoint,
+		stop:       stop,
+		Done:       done,
+		exited:     exited,
+	}, nil
 }

@@ -23,7 +23,11 @@ func TestMaterialKindsUseProtocolVariants(t *testing.T) {
 		{"unknown", &workerproto.Material_Unknown{}},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
-			value, err := material(rawMaterial{ID: "SRY1", Name: "handout", Linked: true}, tc.kind, "unknown")
+			value, err := material(
+				rawMaterial{ID: "SRY1", Name: "handout", Linked: true},
+				tc.kind,
+				"unknown",
+			)
 			if err != nil || reflect.TypeOf(value.GetKind()) != reflect.TypeOf(tc.wire) {
 				t.Fatalf("unexpected protocol variant: %T (%v)", value.GetKind(), err)
 			}
@@ -51,7 +55,9 @@ func TestProtocolFieldsPreserveAbsenceAndRejectInvalidValues(t *testing.T) {
 		t.Fatal("invalid external URL accepted")
 	}
 	unfetched := &workerproto.Snapshot{}
-	fetchedEmpty := &workerproto.Snapshot{ResourceList: &workerproto.ResourceList{Resources: []*workerproto.Resource{}}}
+	fetchedEmpty := &workerproto.Snapshot{
+		ResourceList: &workerproto.ResourceList{Resources: []*workerproto.Resource{}},
+	}
 	if unfetched.GetResourceList() != nil || fetchedEmpty.GetResourceList() == nil {
 		t.Fatal("unfetched and fetched-empty resources are indistinguishable")
 	}

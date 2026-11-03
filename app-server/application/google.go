@@ -11,22 +11,44 @@ import (
 	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
-func (a *Application) CachedGoogleAuthentication(ctx context.Context) (authentication.AuthState, error) {
+func (a *Application) CachedGoogleAuthentication(
+	ctx context.Context,
+) (authentication.AuthState, error) {
 	if a.googleState == nil {
 		return authentication.AuthState{Status: "unknown"}, nil
 	}
 	return a.googleState.Auth(ctx)
 }
 
-func (a *Application) GoogleLogin(ctx context.Context, interactive bool, p inport.StatusObserver) (authentication.AuthState, error) {
-	return submitAndObserve[authentication.AuthState](ctx, a, operation.Request{Kind: "google-login", Interactive: interactive}, p)
+func (a *Application) GoogleLogin(
+	ctx context.Context,
+	interactive bool,
+	p inport.StatusObserver,
+) (authentication.AuthState, error) {
+	return submitAndObserve[authentication.AuthState](
+		ctx,
+		a,
+		operation.Request{Kind: "google-login", Interactive: interactive},
+		p,
+	)
 }
 
-func (a *Application) CheckGoogleAuthentication(ctx context.Context, p inport.StatusObserver) (authentication.AuthState, error) {
-	return submitAndObserve[authentication.AuthState](ctx, a, operation.Request{Kind: "google-auth-check"}, p)
+func (a *Application) CheckGoogleAuthentication(
+	ctx context.Context,
+	p inport.StatusObserver,
+) (authentication.AuthState, error) {
+	return submitAndObserve[authentication.AuthState](
+		ctx,
+		a,
+		operation.Request{Kind: "google-auth-check"},
+		p,
+	)
 }
 
-func (a *Application) executeGoogle(ctx context.Context, r operation.Request) (result any, err error) {
+func (a *Application) executeGoogle(
+	ctx context.Context,
+	r operation.Request,
+) (result any, err error) {
 	if a.google == nil || a.googleState == nil {
 		return nil, domain.Fail("source", "Google認証が設定されていません。")
 	}

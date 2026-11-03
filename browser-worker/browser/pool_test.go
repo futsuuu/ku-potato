@@ -35,7 +35,14 @@ func testChrome(t *testing.T) string {
 }
 
 func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
-	b, err := New(Options{StateDir: t.TempDir(), CacheDir: t.TempDir(), DownloadDir: t.TempDir(), Executable: testChrome(t)})
+	b, err := New(
+		Options{
+			StateDir:    t.TempDir(),
+			CacheDir:    t.TempDir(),
+			DownloadDir: t.TempDir(),
+			Executable:  testChrome(t),
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +54,8 @@ func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
 	}
 	op, stop := operationContext(b.root, ctx)
 	defer stop()
-	arguments, err := browser.GetBrowserCommandLine().Do(cdp.WithExecutor(op, cd.FromContext(b.root).Browser))
+	arguments, err := browser.GetBrowserCommandLine().
+		Do(cdp.WithExecutor(op, cd.FromContext(b.root).Browser))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +69,14 @@ func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
 
 func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
 	dir := t.TempDir()
-	b, err := New(Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "temp"), Executable: filepath.Join(dir, "missing-chrome")})
+	b, err := New(
+		Options{
+			StateDir:    filepath.Join(dir, "state"),
+			CacheDir:    filepath.Join(dir, "cache"),
+			DownloadDir: filepath.Join(dir, "temp"),
+			Executable:  filepath.Join(dir, "missing-chrome"),
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +87,8 @@ func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
 		for range 2 {
 			err := b.start(ctx)
 			var failure *Failure
-			if !errors.As(err, &failure) || failure.Reason != workerproto.FailureReason_FAILURE_REASON_BROWSER_START {
+			if !errors.As(err, &failure) ||
+				failure.Reason != workerproto.FailureReason_FAILURE_REASON_BROWSER_START {
 				done <- fmt.Errorf("missing browser startup error: %v", err)
 				return
 			}
@@ -94,7 +110,12 @@ func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
 }
 
 func TestOccupiedProfileReportsBrowserStartupFailure(t *testing.T) {
-	opts := Options{StateDir: t.TempDir(), CacheDir: t.TempDir(), DownloadDir: t.TempDir(), Executable: testChrome(t)}
+	opts := Options{
+		StateDir:    t.TempDir(),
+		CacheDir:    t.TempDir(),
+		DownloadDir: t.TempDir(),
+		Executable:  testChrome(t),
+	}
 	owner, err := New(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +133,8 @@ func TestOccupiedProfileReportsBrowserStartupFailure(t *testing.T) {
 	defer other.Close()
 	err = other.start(ctx)
 	var failure *Failure
-	if !errors.As(err, &failure) || failure.Reason != workerproto.FailureReason_FAILURE_REASON_BROWSER_START {
+	if !errors.As(err, &failure) ||
+		failure.Reason != workerproto.FailureReason_FAILURE_REASON_BROWSER_START {
 		t.Fatalf("occupied profile startup error: %v", err)
 	}
 }
@@ -125,11 +147,23 @@ func TestPoolRetainsPagesAndIsolatesParallelLeases(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"></div>`)
+		fmt.Fprint(
+			w,
+			`<span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"></div>`,
+		)
 	}))
 	defer lms.Close()
 	dir := t.TempDir()
-	b, err := New(Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "temp"), Executable: executable, LMSURL: lms.URL, Parallelism: 2})
+	b, err := New(
+		Options{
+			StateDir:    filepath.Join(dir, "state"),
+			CacheDir:    filepath.Join(dir, "cache"),
+			DownloadDir: filepath.Join(dir, "temp"),
+			Executable:  executable,
+			LMSURL:      lms.URL,
+			Parallelism: 2,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +231,8 @@ func TestPoolRetainsPagesAndIsolatesParallelLeases(t *testing.T) {
 			if err := cd.Run(tab, cd.Evaluate("window.name", &name)); err != nil {
 				return err
 			}
-			if !ids[string(info.Target.TargetID)] || name != string(info.Target.TargetID) || info.Browser != instance {
+			if !ids[string(info.Target.TargetID)] || name != string(info.Target.TargetID) ||
+				info.Browser != instance {
 				return fmt.Errorf("page or browser was replaced")
 			}
 			return nil

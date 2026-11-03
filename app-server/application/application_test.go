@@ -17,27 +17,37 @@ func (stalledSource) Materials(ctx context.Context, _ string) (domain.Snapshot, 
 	<-ctx.Done()
 	return domain.Snapshot{}, ctx.Err()
 }
+
 func TestBatchTimeoutIsNotReportedAsSuccessfulPartialResult(t *testing.T) {
 	app := New(stalledSource{}, nil, nil, nil, time.Millisecond, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
-	_, err := app.execute(ctx, operation.Request{Kind: "sync-materials", CourseIDs: []string{"KOG1", "KOG2"}})
+	_, err := app.execute(
+		ctx,
+		operation.Request{Kind: "sync-materials", CourseIDs: []string{"KOG1", "KOG2"}},
+	)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("swallowed deadline: %v", err)
 	}
 }
+
 func TestRequestValidationRejectsConflictingJobInputs(t *testing.T) {
 	for _, r := range []operation.Request{
-		{Kind: "unknown"}, {Kind: "sync-resources", MaterialID: "SRY1');alert(1)"},
+		{Kind: "unknown"},
+		{Kind: "sync-resources", MaterialID: "SRY1');alert(1)"},
 		{Kind: "download-resource", MaterialID: "SRY1", ResourceID: "../file"},
-		{Kind: "sync-courses", Interactive: true}, {Kind: "delete-webauthn", MaterialID: "SRY1"},
-		{Kind: "login", CourseIDs: []string{"KOG1"}}, {Kind: "sync-resources", MaterialID: "SRY1", ResourceID: "SRS1"},
+		{Kind: "sync-courses", Interactive: true},
+		{Kind: "delete-webauthn", MaterialID: "SRY1"},
+		{Kind: "login", CourseIDs: []string{"KOG1"}},
+		{Kind: "sync-resources", MaterialID: "SRY1", ResourceID: "SRS1"},
 	} {
 		if err := validateJobRequest(r); err == nil {
 			t.Fatalf("accepted invalid request: %#v", r)
 		}
 	}
-	if err := validateJobRequest(operation.Request{Kind: "download-resource", MaterialID: "SRY1", ResourceID: "SRS1"}); err != nil {
+	if err := validateJobRequest(
+		operation.Request{Kind: "download-resource", MaterialID: "SRY1", ResourceID: "SRS1"},
+	); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -71,8 +81,20 @@ func (i *loginIdentity) Login(context.Context, bool) error {
 
 func TestAuthenticationUsesDedicatedIdentityPort(t *testing.T) {
 	identity := &loginIdentity{}
-	app := New(stalledSource{}, nil, authState{}, nil, time.Second, 1, WithLMSAuthentication(identity))
-	if _, err := app.execute(context.Background(), operation.Request{Kind: "login"}); err != nil || !identity.called {
+	app := New(
+		stalledSource{},
+		nil,
+		authState{},
+		nil,
+		time.Second,
+		1,
+		WithLMSAuthentication(identity),
+	)
+	if _, err := app.execute(
+		context.Background(),
+		operation.Request{Kind: "login"},
+	); err != nil ||
+		!identity.called {
 		t.Fatal("login did not use the injected identity port", err)
 	}
 }
@@ -81,13 +103,27 @@ func TestAuthenticationWaitsForNormalJobsAndExcludesNewJobs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	source := &gatedSource{
-		parallelSource: &parallelSource{entered: make(chan string, 2), release: make(chan struct{})},
-		loginEntered:   make(chan struct{}), loginRelease: make(chan struct{}),
+		parallelSource: &parallelSource{
+			entered: make(chan string, 2),
+			release: make(chan struct{}),
+		},
+		loginEntered: make(chan struct{}),
+		loginRelease: make(chan struct{}),
 	}
-	app := New(source, &materialArchive{values: map[string]domain.CourseMaterials{}}, authState{}, nil, time.Second, 2)
+	app := New(
+		source,
+		&materialArchive{values: map[string]domain.CourseMaterials{}},
+		authState{},
+		nil,
+		time.Second,
+		2,
+	)
 	done := make(chan error, 3)
 	materials := func(id string) {
-		_, err := app.executeJob(ctx, operation.Request{Kind: "sync-materials", CourseIDs: []string{id}})
+		_, err := app.executeJob(
+			ctx,
+			operation.Request{Kind: "sync-materials", CourseIDs: []string{id}},
+		)
 		done <- err
 	}
 	go materials("KOG1")

@@ -24,16 +24,21 @@ func NewLMSAuthenticator(browser *Browser) *LMSAuthenticator {
 }
 
 func (i *LMSAuthenticator) Login(ctx context.Context, interactive bool) error {
-	return i.withAuth(ctx, interactive, true, func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
-		if interactive {
-			// An LMS session can remain valid after its SSO session expires.
-			// Force an explicit login through SSO without touching Google cookies.
-			if err := i.clearLMSCookies(tab); err != nil {
-				return err
+	return i.withAuth(
+		ctx,
+		interactive,
+		true,
+		func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
+			if interactive {
+				// An LMS session can remain valid after its SSO session expires.
+				// Force an explicit login through SSO without touching Google cookies.
+				if err := i.clearLMSCookies(tab); err != nil {
+					return err
+				}
 			}
-		}
-		return i.session(tab, interactive, stored)
-	})
+			return i.session(tab, interactive, stored)
+		},
+	)
 }
 
 func (i *LMSAuthenticator) Status(ctx context.Context) (bool, error) {
@@ -58,7 +63,9 @@ func (i *LMSAuthenticator) clearLMSCookies(tab context.Context) error {
 		if !ssoCookieDomain(origin.Hostname(), cookie.Domain) {
 			continue
 		}
-		deletion := network.DeleteCookies(cookie.Name).WithDomain(cookie.Domain).WithPath(cookie.Path)
+		deletion := network.DeleteCookies(cookie.Name).
+			WithDomain(cookie.Domain).
+			WithPath(cookie.Path)
 		if cookie.PartitionKey != nil && !cookie.PartitionKeyOpaque {
 			deletion = deletion.WithPartitionKey(cookie.PartitionKey)
 		}
@@ -82,46 +89,55 @@ func (i *LMSAuthenticator) RenewSSOCookies(ctx context.Context) ([]*network.Cook
 	return i.ssoCookies(ctx, true)
 }
 
-func (i *LMSAuthenticator) ssoCookies(ctx context.Context, renew bool) ([]*network.CookieParam, error) {
+func (i *LMSAuthenticator) ssoCookies(
+	ctx context.Context,
+	renew bool,
+) ([]*network.CookieParam, error) {
 	var result []*network.CookieParam
-	err := i.withAuth(ctx, false, true, func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
-		read := func() error {
-			cookies, err := storage.GetCookies().Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
-			if err == nil {
-				result = ssoCookieParams(i.opts.SSOURL, cookies)
+	err := i.withAuth(
+		ctx,
+		false,
+		true,
+		func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
+			read := func() error {
+				cookies, err := storage.GetCookies().
+					Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
+				if err == nil {
+					result = ssoCookieParams(i.opts.SSOURL, cookies)
+				}
+				return err
 			}
-			return err
-		}
-		if !renew {
+			if !renew {
+				if err := i.session(tab, false, stored); err != nil {
+					return err
+				}
+				if err := read(); err != nil {
+					return err
+				}
+				if len(result) > 0 {
+					return nil
+				}
+			}
+			// The LMS session may survive SSO logout. Without a saved credential,
+			// do not destroy that still-valid session just to attempt a refresh.
+			if stored == nil {
+				return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
+			}
+			if err := i.clearLMSCookies(tab); err != nil {
+				return err
+			}
 			if err := i.session(tab, false, stored); err != nil {
 				return err
 			}
 			if err := read(); err != nil {
 				return err
 			}
-			if len(result) > 0 {
-				return nil
+			if len(result) == 0 {
+				return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
 			}
-		}
-		// The LMS session may survive SSO logout. Without a saved credential,
-		// do not destroy that still-valid session just to attempt a refresh.
-		if stored == nil {
-			return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
-		}
-		if err := i.clearLMSCookies(tab); err != nil {
-			return err
-		}
-		if err := i.session(tab, false, stored); err != nil {
-			return err
-		}
-		if err := read(); err != nil {
-			return err
-		}
-		if len(result) == 0 {
-			return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
-		}
-		return nil
-	})
+			return nil
+		},
+	)
 	return result, err
 }
 
@@ -132,7 +148,8 @@ func ssoCookieParams(rawURL string, cookies []*network.Cookie) []*network.Cookie
 	}
 	var params []*network.CookieParam
 	for _, cookie := range cookies {
-		if cookie == nil || !ssoCookieDomain(ssoSystem.Hostname(), cookie.Domain) || (!cookie.Session && cookie.Expires <= float64(time.Now().Unix())) {
+		if cookie == nil || !ssoCookieDomain(ssoSystem.Hostname(), cookie.Domain) ||
+			(!cookie.Session && cookie.Expires <= float64(time.Now().Unix())) {
 			continue
 		}
 		if param := cookieParam(cookie); param != nil {

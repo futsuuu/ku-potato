@@ -17,7 +17,21 @@ import (
 func TestServerRejectsSecondProcessWithDifferentDataAndPort(t *testing.T) {
 	if data := os.Getenv("KU_POTATO_SERVER_TEST_DATA"); data != "" {
 		flag.CommandLine = flag.NewFlagSet("server-test", flag.ContinueOnError)
-		os.Args = []string{os.Args[0], "-data-dir", data, "-state-dir", filepath.Join(data, "state"), "-cache-dir", filepath.Join(data, "cache"), "-temp-dir", filepath.Join(data, "temp"), "-listen", "127.0.0.1:0", "-worker", os.Getenv("KU_POTATO_TEST_WORKER")}
+		os.Args = []string{
+			os.Args[0],
+			"-data-dir",
+			data,
+			"-state-dir",
+			filepath.Join(data, "state"),
+			"-cache-dir",
+			filepath.Join(data, "cache"),
+			"-temp-dir",
+			filepath.Join(data, "temp"),
+			"-listen",
+			"127.0.0.1:0",
+			"-worker",
+			os.Getenv("KU_POTATO_TEST_WORKER"),
+		}
 		if err := run(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
@@ -31,15 +45,34 @@ func TestServerRejectsSecondProcessWithDifferentDataAndPort(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		worker += ".exe"
 	}
-	build := exec.CommandContext(ctx, "go", "build", "-o", worker, "./browser-worker/cmd/ku-potato-browser-worker")
+	build := exec.CommandContext(
+		ctx,
+		"go",
+		"build",
+		"-o",
+		worker,
+		"./browser-worker/cmd/ku-potato-browser-worker",
+	)
 	build.Dir = "../../.."
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build worker: %v\n%s", err, output)
 	}
 	newCommand := func(data string) *exec.Cmd {
-		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestServerRejectsSecondProcessWithDifferentDataAndPort$")
-		cmd.Env = append(os.Environ(), "KU_POTATO_SERVER_TEST_DATA="+data, "KU_POTATO_TEST_WORKER="+worker,
-			"LOCALAPPDATA="+base, "XDG_DATA_HOME="+base, "XDG_STATE_HOME="+base, "XDG_CACHE_HOME="+base, "HOME="+base)
+		cmd := exec.CommandContext(
+			ctx,
+			os.Args[0],
+			"-test.run=^TestServerRejectsSecondProcessWithDifferentDataAndPort$",
+		)
+		cmd.Env = append(
+			os.Environ(),
+			"KU_POTATO_SERVER_TEST_DATA="+data,
+			"KU_POTATO_TEST_WORKER="+worker,
+			"LOCALAPPDATA="+base,
+			"XDG_DATA_HOME="+base,
+			"XDG_STATE_HOME="+base,
+			"XDG_CACHE_HOME="+base,
+			"HOME="+base,
+		)
 		return cmd
 	}
 	first := newCommand(filepath.Join(base, "first"))
@@ -104,7 +137,11 @@ func TestSingletonLockAcrossProcesses(t *testing.T) {
 	child := func(busy string) {
 		t.Helper()
 		cmd := exec.Command(os.Args[0], "-test.run=^TestSingletonLockAcrossProcesses$")
-		cmd.Env = append(os.Environ(), "KU_POTATO_LOCK_TEST_DIR="+dir, "KU_POTATO_LOCK_EXPECT_BUSY="+busy)
+		cmd.Env = append(
+			os.Environ(),
+			"KU_POTATO_LOCK_TEST_DIR="+dir,
+			"KU_POTATO_LOCK_EXPECT_BUSY="+busy,
+		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("child: %v\n%s", err, out)
 		}

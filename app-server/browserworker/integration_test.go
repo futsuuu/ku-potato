@@ -31,7 +31,13 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
-	build := exec.Command("go", "build", "-o", binary, "./browser-worker/cmd/ku-potato-browser-worker")
+	build := exec.Command(
+		"go",
+		"build",
+		"-o",
+		binary,
+		"./browser-worker/cmd/ku-potato-browser-worker",
+	)
 	build.Dir = "../.."
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build worker: %v\n%s", err, output)
@@ -57,7 +63,15 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 		session := cookie != nil && cookie.Value != ""
 		switch r.URL.Path {
 		case "/ticket":
-			http.SetCookie(w, &http.Cookie{Name: "lms-session", Value: fmt.Sprint(sessions.Add(1)), Path: "/", MaxAge: 3600})
+			http.SetCookie(
+				w,
+				&http.Cookie{
+					Name:   "lms-session",
+					Value:  fmt.Sprint(sessions.Add(1)),
+					Path:   "/",
+					MaxAge: 3600,
+				},
+			)
 			http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
 		case "/lms/homeRedirect/":
 			if session {
@@ -69,13 +83,20 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 			w.WriteHeader(401)
 			fmt.Fprint(w, "Not logged in")
 		case "/lms":
-			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, ssoURL)
+			fmt.Fprintf(
+				w,
+				`<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`,
+				ssoURL,
+			)
 		case "/lms/homeHoml/doIndex":
 			if !session {
 				http.Redirect(w, r, "/lms/error/notLogin", 302)
 				return
 			}
-			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')">Course</a></div></div>`)
+			fmt.Fprint(
+				w,
+				`<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')">Course</a></div></div>`,
+			)
 		default:
 			http.NotFound(w, r)
 		}
@@ -105,13 +126,16 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	defer worker.Close()
 	client := New(worker.Client, auth, root)
 	listing, err := client.Courses(ctx)
-	if err != nil || listing.AcademicYear != 2026 || len(listing.Courses) != 1 || listing.Courses[0].ID != "KOG1" {
+	if err != nil || listing.AcademicYear != 2026 || len(listing.Courses) != 1 ||
+		listing.Courses[0].ID != "KOG1" {
 		t.Fatalf("worker could not read courses: %+v %v", listing, err)
 	}
 	if sessions.Load() != 2 {
 		t.Fatalf("browser sessions were shared or not established: %d", sessions.Load())
 	}
-	if _, err := os.Stat(filepath.Join(root, "state", "auth", "kogakuin", "webauthn.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(
+		filepath.Join(root, "state", "auth", "kogakuin", "webauthn.json"),
+	); !os.IsNotExist(err) {
 		t.Fatal("fixture unexpectedly created a credential")
 	}
 }

@@ -68,7 +68,7 @@ func New(opts Options) (*Browser, error) {
 			return nil, err
 		}
 		*path = absolute
-		if err := os.MkdirAll(*path, 0700); err != nil {
+		if err := os.MkdirAll(*path, 0o700); err != nil {
 			return nil, err
 		}
 	}
@@ -77,7 +77,7 @@ func New(opts Options) (*Browser, error) {
 		return nil, err
 	}
 	opts.ProfileDir = profile
-	if err := os.MkdirAll(filepath.Dir(profile), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(profile), 0o700); err != nil {
 		return nil, err
 	}
 	if opts.LMSURL == "" {
@@ -112,7 +112,10 @@ func sourceError(ctx context.Context, err error) error {
 	if errors.As(err, &known) {
 		return err
 	}
-	return Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "ブラウザ操作に失敗しました。ページ構造、Chrome の起動設定、通信状態を確認してください。")
+	return Fail(
+		workerproto.FailureReason_FAILURE_REASON_SOURCE,
+		"ブラウザ操作に失敗しました。ページ構造、Chrome の起動設定、通信状態を確認してください。",
+	)
 }
 
 func executor(ctx context.Context) context.Context {

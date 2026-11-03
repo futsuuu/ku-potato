@@ -39,6 +39,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+
 func run() error {
 	defaults, err := appdirs.DefaultDirectories()
 	if err != nil {
@@ -48,10 +49,18 @@ func run() error {
 	data := flag.String("data-dir", defaults.Data, "archive and acquired files directory")
 	state := flag.String("state-dir", defaults.State, "authentication and process state directory")
 	cache := flag.String("cache-dir", defaults.Cache, "disposable browser cache directory")
-	temp := flag.String("temp-dir", defaults.Temp, "parent directory for per-process temporary files")
+	temp := flag.String(
+		"temp-dir",
+		defaults.Temp,
+		"parent directory for per-process temporary files",
+	)
 	parallel := flag.Int("concurrency", 4, "maximum parallel browser contexts and job workers")
 	executable := flag.String("chrome", "", "Chrome or Chromium executable path")
-	workerBinary := flag.String("worker", "", "browser worker executable (defaults to adjacent binary)")
+	workerBinary := flag.String(
+		"worker",
+		"",
+		"browser worker executable (defaults to adjacent binary)",
+	)
 	timeout := flag.Duration("job-timeout", 2*time.Minute, "non-interactive job timeout")
 	flag.Parse()
 	if *timeout <= 0 {
@@ -68,7 +77,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err = os.MkdirAll(root, 0700); err != nil {
+	if err = os.MkdirAll(root, 0o700); err != nil {
 		return err
 	}
 	lock, err := acquireServerLock(defaults.State)
@@ -77,7 +86,7 @@ func run() error {
 	}
 	defer lock.Close()
 	for _, dir := range []string{*state, *cache, *temp} {
-		if err := os.MkdirAll(dir, 0700); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
 	}
@@ -116,23 +125,46 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	workerProcess, err := browserworker.Start(ctx, *workerBinary, processTemp, *executable, *parallel)
+	workerProcess, err := browserworker.Start(
+		ctx,
+		*workerBinary,
+		processTemp,
+		*executable,
+		*parallel,
+	)
 	if err != nil {
 		return err
 	}
 	defer workerProcess.Close()
 	downloads := filepath.Join(processTemp, "downloads")
-	if err := os.MkdirAll(downloads, 0700); err != nil {
+	if err := os.MkdirAll(downloads, 0o700); err != nil {
 		return err
 	}
 	content := browserworker.New(workerProcess.Client, lmsAuth, downloads)
-	application := application.New(content, store, authstate.NewAuthenticationState(), files, *timeout, *parallel, application.WithLMSAuthentication(lmsAuth), application.WithGoogle(google, authstate.NewAuthenticationState()), application.WithExternalDownloader(googledrive.New(google, downloads)), application.WithResourceMaterializer(materializer))
+	application := application.New(
+		content,
+		store,
+		authstate.NewAuthenticationState(),
+		files,
+		*timeout,
+		*parallel,
+		application.WithLMSAuthentication(lmsAuth),
+		application.WithGoogle(google, authstate.NewAuthenticationState()),
+		application.WithExternalDownloader(googledrive.New(google, downloads)),
+		application.WithResourceMaterializer(materializer),
+	)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
-	server := &http.Server{Handler: httpapi.New(application, listener.Addr().String()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	server := &http.Server{
+		Handler:           httpapi.New(application, listener.Addr().String()),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 << 10,
+	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	server.BaseContext = func(net.Listener) context.Context { return workerCtx }
 	defer cancel()
@@ -140,7 +172,14 @@ func run() error {
 	go func() { workerDone <- application.Run(workerCtx) }()
 	serverDone := make(chan error, 1)
 	go func() { serverDone <- server.Serve(listener) }()
-	slog.Info("HTTP server listening", "url", "http://"+listener.Addr().String(), "dataDir", root, "stateDir", *state, "cacheDir", *cache, "tempDir", processTemp, "concurrency", *parallel)
+	slog.Info("HTTP server listening",
+		"url", "http://"+listener.Addr().String(),
+		"dataDir", root,
+		"stateDir", *state,
+		"cacheDir", *cache,
+		"tempDir", processTemp,
+		"concurrency", *parallel,
+	)
 	var result error
 	workerExited := false
 	select {

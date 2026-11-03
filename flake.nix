@@ -14,6 +14,7 @@
         default = pkgs.mkShell {
           packages = [
             pkgs.go_1_27
+            pkgs.golangci-lint
             pkgs.protobuf
             pkgs.llvmPackages_18.clang-tools
             nix-vite-plus.packages.${pkgs.stdenv.hostPlatform.system}.vp

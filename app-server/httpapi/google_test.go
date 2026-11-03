@@ -16,17 +16,34 @@ type googleService struct {
 	request operation.Request
 }
 
-func (s *googleService) CachedGoogleAuthentication(context.Context) (authentication.AuthState, error) {
+func (s *googleService) CachedGoogleAuthentication(
+	context.Context,
+) (authentication.AuthState, error) {
 	return authentication.AuthState{Status: "unknown"}, nil
 }
-func (s *googleService) GoogleLogin(_ context.Context, interactive bool, p inport.StatusObserver) (authentication.AuthState, error) {
+
+func (s *googleService) GoogleLogin(
+	_ context.Context,
+	interactive bool,
+	p inport.StatusObserver,
+) (authentication.AuthState, error) {
 	s.request = operation.Request{Kind: "google-login", Interactive: interactive}
-	if err := p(operation.OperationStatus{Status: "running", Attempt: 1, Progress: &operation.Progress{Stage: "authenticating"}}); err != nil {
+	if err := p(
+		operation.OperationStatus{
+			Status:   "running",
+			Attempt:  1,
+			Progress: &operation.Progress{Stage: "authenticating"},
+		},
+	); err != nil {
 		return authentication.AuthState{}, err
 	}
 	return authentication.AuthState{Status: "authenticated"}, nil
 }
-func (s *googleService) CheckGoogleAuthentication(context.Context, inport.StatusObserver) (authentication.AuthState, error) {
+
+func (s *googleService) CheckGoogleAuthentication(
+	context.Context,
+	inport.StatusObserver,
+) (authentication.AuthState, error) {
 	s.request = operation.Request{Kind: "google-auth-check"}
 	return authentication.AuthState{Status: "unauthenticated"}, nil
 }
@@ -43,10 +60,14 @@ func TestGoogleAuthenticationEndpoints(t *testing.T) {
 		{http.MethodPost, "/auth/google/check", "", "google-auth-check", "unauthenticated"},
 	} {
 		response := apiRequest(handler, test.method, test.path, test.body)
-		if response.Code != 200 || !strings.Contains(response.Header().Get("Content-Type"), "text/event-stream") || !strings.Contains(response.Body.String(), `"status":"`+test.status+`"`) || !strings.Contains(response.Body.String(), "event: result") {
+		if response.Code != 200 ||
+			!strings.Contains(response.Header().Get("Content-Type"), "text/event-stream") ||
+			!strings.Contains(response.Body.String(), `"status":"`+test.status+`"`) ||
+			!strings.Contains(response.Body.String(), "event: result") {
 			t.Fatal(test.path, response.Code, response.Body)
 		}
-		if service.request.Kind != test.kind || service.request.Interactive != (test.kind == "google-login") {
+		if service.request.Kind != test.kind ||
+			service.request.Interactive != (test.kind == "google-login") {
 			t.Fatal(test.path, service.request)
 		}
 	}

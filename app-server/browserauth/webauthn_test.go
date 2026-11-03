@@ -31,8 +31,17 @@ func TestRegistrationFormRejectsUninspectableRequests(t *testing.T) {
 			}
 		})
 	}
-	values, err := registrationForm(&network.Request{HasPostData: true, PostDataEntries: []*network.PostDataEntry{entry("operation=reg"), entry("ister&response=encoded%2Bvalue")}})
-	if err != nil || values.Get("operation") != "register" || values.Get("response") != "encoded+value" {
+	values, err := registrationForm(
+		&network.Request{
+			HasPostData: true,
+			PostDataEntries: []*network.PostDataEntry{
+				entry("operation=reg"),
+				entry("ister&response=encoded%2Bvalue"),
+			},
+		},
+	)
+	if err != nil || values.Get("operation") != "register" ||
+		values.Get("response") != "encoded+value" {
 		t.Fatal("multipart body entries were not joined before parsing", err)
 	}
 }

@@ -27,43 +27,92 @@ type operationService struct {
 	submitted []operation.Request
 }
 
-func (s *operationService) Courses(ctx context.Context, policy string, p inport.StatusObserver) ([]domain.Course, error) {
+func (s *operationService) Courses(
+	ctx context.Context,
+	policy string,
+	p inport.StatusObserver,
+) ([]domain.Course, error) {
 	s.called = "courses"
 	s.sync = policy
 	if policy == "true" {
-		if err := p(operation.OperationStatus{Status: "running", Attempt: 1, Progress: &operation.Progress{Stage: "fetching-courses"}}); err != nil {
+		if err := p(
+			operation.OperationStatus{
+				Status:   "running",
+				Attempt:  1,
+				Progress: &operation.Progress{Stage: "fetching-courses"},
+			},
+		); err != nil {
 			return nil, err
 		}
 	}
 	return []domain.Course{}, nil
 }
-func (s *operationService) Materials(ctx context.Context, id, policy string, p inport.StatusObserver) (domain.CourseMaterials, error) {
+
+func (s *operationService) Materials(
+	ctx context.Context,
+	id, policy string,
+	p inport.StatusObserver,
+) (domain.CourseMaterials, error) {
 	s.called, s.id = "materials", id
 	s.sync = policy
 	return domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}}, nil
 }
-func (s *operationService) Assignments(ctx context.Context, ids []string, policy string, p inport.StatusObserver) (domain.AssignmentsResult, error) {
+
+func (s *operationService) Assignments(
+	ctx context.Context,
+	ids []string,
+	policy string,
+	p inport.StatusObserver,
+) (domain.AssignmentsResult, error) {
 	s.called = "assignments"
 	s.sync, s.courseIDs = policy, ids
-	return domain.AssignmentsResult{Assignments: []domain.Assignment{}, Failures: []domain.CourseFailure{}}, nil
+	return domain.AssignmentsResult{
+		Assignments: []domain.Assignment{},
+		Failures:    []domain.CourseFailure{},
+	}, nil
 }
-func (s *operationService) Detail(ctx context.Context, id, policy string, p inport.StatusObserver) (domain.Detail, error) {
+
+func (s *operationService) Detail(
+	ctx context.Context,
+	id, policy string,
+	p inport.StatusObserver,
+) (domain.Detail, error) {
 	s.called, s.id = "detail", id
 	s.sync = policy
 	return domain.Detail{Material: domain.Material{ID: id}, Resources: []domain.Resource{}}, nil
 }
-func (s *operationService) Login(ctx context.Context, interactive bool, p inport.StatusObserver) (authentication.AuthState, error) {
+
+func (s *operationService) Login(
+	ctx context.Context,
+	interactive bool,
+	p inport.StatusObserver,
+) (authentication.AuthState, error) {
 	s.submitted = append(s.submitted, operation.Request{Kind: "login", Interactive: interactive})
 	return authentication.AuthState{Status: "authenticated"}, nil
 }
-func (s *operationService) RegisterWebAuthn(ctx context.Context, interactive bool, p inport.StatusObserver) (domain.RegistrationResult, error) {
-	s.submitted = append(s.submitted, operation.Request{Kind: "register-webauthn", Interactive: interactive})
+
+func (s *operationService) RegisterWebAuthn(
+	ctx context.Context,
+	interactive bool,
+	p inport.StatusObserver,
+) (domain.RegistrationResult, error) {
+	s.submitted = append(
+		s.submitted,
+		operation.Request{Kind: "register-webauthn", Interactive: interactive},
+	)
 	return domain.RegistrationResult{Registered: true}, nil
 }
-func (s *operationService) WebAuthnRegistrationStatus(context.Context) (domain.RegistrationResult, error) {
+
+func (s *operationService) WebAuthnRegistrationStatus(
+	context.Context,
+) (domain.RegistrationResult, error) {
 	return domain.RegistrationResult{Registered: true}, nil
 }
-func (s *operationService) DeleteWebAuthn(context.Context, inport.StatusObserver) (domain.RegistrationResult, error) {
+
+func (s *operationService) DeleteWebAuthn(
+	context.Context,
+	inport.StatusObserver,
+) (domain.RegistrationResult, error) {
 	s.submitted = append(s.submitted, operation.Request{Kind: "delete-webauthn"})
 	return domain.RegistrationResult{Registered: false}, nil
 }
@@ -89,25 +138,45 @@ func TestHumaInputsAndQueryResponses(t *testing.T) {
 	} {
 		service.called, service.id = "", ""
 		res := apiRequest(handler, http.MethodGet, check.path, "")
-		if res.Code != 200 || service.called != check.called || service.id != check.id || service.sync != "auto" || !strings.Contains(res.Body.String(), check.result) {
-			t.Fatalf("%s: status=%d call=%s id=%s sync=%s body=%s", check.path, res.Code, service.called, service.id, service.sync, res.Body)
+		if res.Code != 200 || service.called != check.called || service.id != check.id ||
+			service.sync != "auto" ||
+			!strings.Contains(res.Body.String(), check.result) {
+			t.Fatalf(
+				"%s: status=%d call=%s id=%s sync=%s body=%s",
+				check.path,
+				res.Code,
+				service.called,
+				service.id,
+				service.sync,
+				res.Body,
+			)
 		}
 		if strings.Contains(res.Body.String(), `"$schema"`) || res.Header().Get("Location") != "" {
 			t.Fatal("unexpected response envelope or Location", res.Body, res.Header())
 		}
 	}
-	res := apiRequest(handler, http.MethodGet, "/assignments?courseId=KOG1&courseId=KOG2&sync=false", "")
-	if res.Code != 200 || service.sync != "false" || !reflect.DeepEqual(service.courseIDs, []string{"KOG1", "KOG2"}) {
+	res := apiRequest(
+		handler,
+		http.MethodGet,
+		"/assignments?courseId=KOG1&courseId=KOG2&sync=false",
+		"",
+	)
+	if res.Code != 200 || service.sync != "false" ||
+		!reflect.DeepEqual(service.courseIDs, []string{"KOG1", "KOG2"}) {
 		t.Fatal("repeated course IDs were not parsed", res.Code, service.courseIDs, service.sync)
 	}
 	res = apiRequest(handler, http.MethodGet, "/courses?sync=true", "")
-	if res.Code != 200 || res.Header().Get("Content-Type") != "text/event-stream" || res.Header().Get("Location") != "" || !strings.Contains(res.Body.String(), "event: status") || !strings.Contains(res.Body.String(), "event: result") {
+	if res.Code != 200 || res.Header().Get("Content-Type") != "text/event-stream" ||
+		res.Header().Get("Location") != "" ||
+		!strings.Contains(res.Body.String(), "event: status") ||
+		!strings.Contains(res.Body.String(), "event: result") {
 		t.Fatal(res.Code, res.Header(), res.Body)
 	}
 	for _, check := range []struct{ path, kind string }{{"/auth/login", "login"}, {"/auth/webauthn", "register-webauthn"}} {
 		res = apiRequest(handler, http.MethodPost, check.path, `{"interactive":true}`)
 		request := service.submitted[len(service.submitted)-1]
-		if res.Code != 200 || res.Header().Get("Location") != "" || request.Kind != check.kind || !request.Interactive {
+		if res.Code != 200 || res.Header().Get("Location") != "" || request.Kind != check.kind ||
+			!request.Interactive {
 			t.Fatal(res.Code, request, res.Body)
 		}
 	}
@@ -116,7 +185,8 @@ func TestHumaInputsAndQueryResponses(t *testing.T) {
 		t.Fatal("WebAuthn state missing", res.Code, res.Body)
 	}
 	res = apiRequest(handler, http.MethodDelete, "/auth/webauthn", "")
-	if res.Code != 200 || !strings.Contains(res.Body.String(), `"registered":false`) || service.submitted[len(service.submitted)-1].Kind != "delete-webauthn" {
+	if res.Code != 200 || !strings.Contains(res.Body.String(), `"registered":false`) ||
+		service.submitted[len(service.submitted)-1].Kind != "delete-webauthn" {
 		t.Fatal("WebAuthn deletion missing", res.Code, res.Body)
 	}
 	for _, path := range []string{"/auth", "/auth/google"} {
@@ -147,16 +217,20 @@ func TestHumaValidationRejectsInvalidRequestsBeforeSubmission(t *testing.T) {
 		{"GET", "/courses?sync=invalid", "", 422},
 		{"GET", "/assignments?courseId=&courseId=KOG2", "", 422},
 	} {
-		t.Run(check.path+"/"+strconv.Itoa(check.status)+"/"+check.body[:min(len(check.body), 25)], func(t *testing.T) {
-			res := apiRequest(handler, check.method, check.path, check.body)
-			var problem huma.ErrorModel
-			if err := json.Unmarshal(res.Body.Bytes(), &problem); err != nil {
-				t.Fatal(err)
-			}
-			if res.Code != check.status || problem.Status != check.status || res.Header().Get("Content-Type") != "application/problem+json" {
-				t.Fatal(res.Code, res.Header(), res.Body)
-			}
-		})
+		t.Run(
+			check.path+"/"+strconv.Itoa(check.status)+"/"+check.body[:min(len(check.body), 25)],
+			func(t *testing.T) {
+				res := apiRequest(handler, check.method, check.path, check.body)
+				var problem huma.ErrorModel
+				if err := json.Unmarshal(res.Body.Bytes(), &problem); err != nil {
+					t.Fatal(err)
+				}
+				if res.Code != check.status || problem.Status != check.status ||
+					res.Header().Get("Content-Type") != "application/problem+json" {
+					t.Fatal(res.Code, res.Header(), res.Body)
+				}
+			},
+		)
 	}
 	if len(service.submitted) != 0 {
 		t.Fatal("invalid requests reached the application", service.submitted)
@@ -247,7 +321,8 @@ func TestGeneratedOpenAPIAndDocs(t *testing.T) {
 	}
 	courses := spec.Paths["/courses"].Get
 	stream := courses.Responses["200"].Content["text/event-stream"].Schema
-	if courses.Responses["202"] != nil || spec.Paths["/jobs/{jobId}"] != nil || len(stream.Items.OneOf) != 3 {
+	if courses.Responses["202"] != nil || spec.Paths["/jobs/{jobId}"] != nil ||
+		len(stream.Items.OneOf) != 3 {
 		t.Fatal("incorrect stream schema", courses.Responses, stream)
 	}
 	var data *schemaDoc
@@ -264,7 +339,10 @@ func TestGeneratedOpenAPIAndDocs(t *testing.T) {
 			t.Fatal("missing enum", name, field)
 		}
 	}
-	if !reflect.DeepEqual(spec.Components.Schemas["Course"].Properties["type"].Enum, []any{"scheduled", "other", "unknown"}) {
+	if !reflect.DeepEqual(
+		spec.Components.Schemas["Course"].Properties["type"].Enum,
+		[]any{"scheduled", "other", "unknown"},
+	) {
 		t.Fatal("missing course type enum")
 	}
 	materials := spec.Components.Schemas["Material"]
@@ -272,7 +350,9 @@ func TestGeneratedOpenAPIAndDocs(t *testing.T) {
 		t.Fatal("material is not a union", materials)
 	}
 	for _, variant := range materials.OneOf {
-		if len(variant.Properties["type"].Enum) != 1 || !slices.Contains(variant.Required, "type") || !slices.Contains(variant.Required, "status") {
+		if len(variant.Properties["type"].Enum) != 1 ||
+			!slices.Contains(variant.Required, "type") ||
+			!slices.Contains(variant.Required, "status") {
 			t.Fatal("material variant lacks a required type or status", variant)
 		}
 	}
@@ -300,28 +380,38 @@ func TestGeneratedOpenAPIAndDocs(t *testing.T) {
 		}
 	}
 	sync := courses.Parameters[0]
-	if sync.Name != "sync" || sync.Schema.Default != "auto" || !reflect.DeepEqual(sync.Schema.Enum, []any{"auto", "true", "false"}) {
+	if sync.Name != "sync" || sync.Schema.Default != "auto" ||
+		!reflect.DeepEqual(sync.Schema.Enum, []any{"auto", "true", "false"}) {
 		t.Fatal("missing sync validation schema", sync)
 	}
 	var repeated bool
 	for _, parameter := range spec.Paths["/assignments"].Get.Parameters {
 		if parameter.Name == "courseId" {
-			repeated = parameter.Explode != nil && *parameter.Explode && parameter.Schema.hasType("array")
+			repeated = parameter.Explode != nil && *parameter.Explode &&
+				parameter.Schema.hasType("array")
 		}
 	}
 	if !repeated {
 		t.Fatal("missing repeated course ID schema")
 	}
 	auth := spec.Paths["/auth/login"].Post.RequestBody
-	if !auth.Required || resolve(auth.Content["application/json"].Schema).AdditionalProperties != false {
+	if !auth.Required ||
+		resolve(auth.Content["application/json"].Schema).AdditionalProperties != false {
 		t.Fatal("auth body is not a strict required object", auth)
 	}
 	file := spec.Paths["/materials/{materialId}/resources/{resourceId}/file"]
-	if file.Head == nil || file.Get.Responses["206"] == nil || file.Get.Responses["304"] == nil || file.Get.Responses["200"].Content["application/octet-stream"] == nil {
+	if file.Head == nil || file.Get.Responses["206"] == nil || file.Get.Responses["304"] == nil ||
+		file.Get.Responses["200"].Content["application/octet-stream"] == nil {
 		t.Fatal("missing file transfer schema", file)
 	}
 	for _, path := range []string{"/openapi.yaml", "/docs"} {
-		if res := apiRequest(handler, http.MethodGet, path, ""); res.Code != 200 || res.Body.Len() == 0 {
+		if res := apiRequest(
+			handler,
+			http.MethodGet,
+			path,
+			"",
+		); res.Code != 200 ||
+			res.Body.Len() == 0 {
 			t.Fatal(path, res.Code, res.Body)
 		}
 	}

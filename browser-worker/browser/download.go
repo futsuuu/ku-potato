@@ -12,7 +12,10 @@ import (
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
 )
 
-func (b *Browser) Download(ctx context.Context, material, resource, preferred string) (download DownloadResult, err error) {
+func (b *Browser) Download(
+	ctx context.Context,
+	material, resource, preferred string,
+) (download DownloadResult, err error) {
 	err = b.withPage(ctx, func(tab context.Context) error {
 		snapshot, err := b.materialSnapshot(tab, material, preferred)
 		if err != nil {
@@ -29,20 +32,30 @@ func (b *Browser) Download(ctx context.Context, material, resource, preferred st
 			}
 		}
 		if position < 0 {
-			return Fail(workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND, "資料が現在の一覧にありません。保存済み内容を参照してください。")
+			return Fail(
+				workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND,
+				"資料が現在の一覧にありません。保存済み内容を参照してください。",
+			)
 		}
 		if selected.GetExternalUrl() != "" {
 			download.URL = selected.GetExternalUrl()
 			return nil
 		}
 		if selected.GetFile() == nil {
-			return Fail(workerproto.FailureReason_FAILURE_REASON_UNSUPPORTED_RESOURCE, "この資料種別はダウンロードに対応していません。")
+			return Fail(
+				workerproto.FailureReason_FAILURE_REASON_UNSUPPORTED_RESOURCE,
+				"この資料種別はダウンロードに対応していません。",
+			)
 		}
 		directory := b.opts.DownloadDir
-		if err = os.MkdirAll(directory, 0700); err != nil {
+		if err = os.MkdirAll(directory, 0o700); err != nil {
 			return err
 		}
-		if err = browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorAllowAndName).WithBrowserContextID(cd.FromContext(tab).BrowserContextID).WithDownloadPath(directory).WithEventsEnabled(true).Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
+		if err = browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorAllowAndName).
+			WithBrowserContextID(cd.FromContext(tab).BrowserContextID).
+			WithDownloadPath(directory).
+			WithEventsEnabled(true).
+			Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
 			return err
 		}
 		frame, err := page.GetFrameTree().Do(executor(tab))
@@ -72,7 +85,15 @@ func (b *Browser) Download(ctx context.Context, material, resource, preferred st
 			case <-listen.Done():
 			}
 		})
-		if err = cd.Run(tab, cd.Evaluate(`document.querySelectorAll('td[data-label="資料名"]')[`+js(position)+`].querySelector('a').click()`, nil)); err != nil {
+		if err = cd.Run(
+			tab,
+			cd.Evaluate(
+				`document.querySelectorAll(
+					'td[data-label="資料名"]'
+				)[`+js(position)+`].querySelector('a').click()`,
+				nil,
+			),
+		); err != nil {
 			return err
 		}
 		guid := ""
@@ -99,7 +120,10 @@ func (b *Browser) Download(ctx context.Context, material, resource, preferred st
 						continue
 					}
 					if e.State == browser.DownloadProgressStateCanceled {
-						return Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "資料のダウンロードが中断されました。")
+						return Fail(
+							workerproto.FailureReason_FAILURE_REASON_SOURCE,
+							"資料のダウンロードが中断されました。",
+						)
 					}
 					if e.State == browser.DownloadProgressStateCompleted {
 						download.Path = filepath.Join(directory, guid)

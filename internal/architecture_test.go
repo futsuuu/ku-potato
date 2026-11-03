@@ -8,7 +8,17 @@ import (
 
 func TestPackageBoundaries(t *testing.T) {
 	const module = "github.com/futsuuu/ku-potato/"
-	command := exec.Command("go", "list", "-e", "-f", `{{.ImportPath}} {{join .Imports " "}}`, "./internal/...", "./desktop/...", "./app-server/...", "./browser-worker/...")
+	command := exec.Command(
+		"go",
+		"list",
+		"-e",
+		"-f",
+		`{{.ImportPath}} {{join .Imports " "}}`,
+		"./internal/...",
+		"./desktop/...",
+		"./app-server/...",
+		"./browser-worker/...",
+	)
 	command.Dir = ".."
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -52,7 +62,8 @@ func TestWorkerDependencyClosure(t *testing.T) {
 		t.Fatalf("list worker dependencies: %v\n%s", err, output)
 	}
 	for _, dependency := range strings.Fields(string(output)) {
-		if strings.HasPrefix(dependency, module+"app-server/") || dependency == module+"app-server" {
+		if strings.HasPrefix(dependency, module+"app-server/") ||
+			dependency == module+"app-server" {
 			t.Errorf("worker depends on app-server package %s", dependency)
 		}
 	}

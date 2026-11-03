@@ -24,8 +24,18 @@ type providerDownloadSource struct {
 	err error
 }
 
-func (s providerDownloadSource) Download(context.Context, string, string, string) (outport.Download, error) {
-	return outport.Download{Snapshot: domain.Snapshot{MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Type: "external"}}}}, s.err
+func (s providerDownloadSource) Download(
+	context.Context,
+	string,
+	string,
+	string,
+) (outport.Download, error) {
+	return outport.Download{
+		Snapshot: domain.Snapshot{
+			MaterialID: "SRY1",
+			Resources:  []domain.Resource{{ID: "SRS1", Type: "external"}},
+		},
+	}, s.err
 }
 
 type providerDownloadArchive struct{ outport.Archive }
@@ -33,13 +43,26 @@ type providerDownloadArchive struct{ outport.Archive }
 func (providerDownloadArchive) FindCourse(context.Context, string) (string, error) {
 	return "KOG1", nil
 }
+
 func (providerDownloadArchive) Detail(context.Context, string) (domain.Detail, error) {
 	return domain.Detail{}, domain.ErrMissing
 }
-func (providerDownloadArchive) Append(context.Context, domain.Snapshot) (outport.ObservationIDs, error) {
+
+func (providerDownloadArchive) Append(
+	context.Context,
+	domain.Snapshot,
+) (outport.ObservationIDs, error) {
 	return outport.ObservationIDs{Resources: 1}, nil
 }
-func (providerDownloadArchive) Acquired(context.Context, string, string, int64, *domain.SavedFile, error) error {
+
+func (providerDownloadArchive) Acquired(
+	context.Context,
+	string,
+	string,
+	int64,
+	*domain.SavedFile,
+	error,
+) error {
 	return nil
 }
 
@@ -56,8 +79,23 @@ func TestExternalDownloadAuthenticationFailureKeepsLMSSession(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			lms := &savedAuthentication{status: "authenticated"}
 			google := &savedAuthentication{status: "authenticated"}
-			app := New(providerDownloadSource{err: test.err}, providerDownloadArchive{}, lms, nil, time.Second, 1, WithGoogle(&googleAuthentication{}, google))
-			_, err := app.executeJob(context.Background(), operation.Request{Kind: "download-resource", MaterialID: "SRY1", ResourceID: "SRS1"})
+			app := New(
+				providerDownloadSource{err: test.err},
+				providerDownloadArchive{},
+				lms,
+				nil,
+				time.Second,
+				1,
+				WithGoogle(&googleAuthentication{}, google),
+			)
+			_, err := app.executeJob(
+				context.Background(),
+				operation.Request{
+					Kind:       "download-resource",
+					MaterialID: "SRY1",
+					ResourceID: "SRS1",
+				},
+			)
 			if !errors.Is(err, test.err) || lms.status != test.lms || google.status != test.google {
 				t.Fatal("wrong provider invalidated", err, lms, google)
 			}
@@ -77,6 +115,7 @@ type savedAuthentication struct{ status string }
 func (s *savedAuthentication) Auth(context.Context) (authentication.AuthState, error) {
 	return authentication.AuthState{Status: s.status}, nil
 }
+
 func (s *savedAuthentication) SetAuth(_ context.Context, status string) error {
 	s.status = status
 	return nil
@@ -97,7 +136,8 @@ func TestGoogleOperationsUseTheirOwnAuthenticationState(t *testing.T) {
 			t.Fatal(err)
 		}
 		result, err := app.executeJob(ctx, request)
-		if err != nil || result.(authentication.AuthState).Status != test.status || state.status != test.status {
+		if err != nil || result.(authentication.AuthState).Status != test.status ||
+			state.status != test.status {
 			t.Fatal(test, result, err)
 		}
 		if lms.status != "authenticated" {

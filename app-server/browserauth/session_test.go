@@ -20,12 +20,21 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	firstLogin.Store(true)
 	ssoSystem := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sso")
-		if !firstLogin.Swap(false) && (err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) {
+		if !firstLogin.Swap(false) &&
+			(err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) {
 			http.Error(w, "Authentication required", http.StatusUnauthorized)
 			return
 		}
 		// No MaxAge or Expires: both SSO and LMS use session cookies.
-		http.SetCookie(w, &http.Cookie{Name: "sso", Value: fmt.Sprint(ssoVersion.Add(1)), Path: "/", HttpOnly: true})
+		http.SetCookie(
+			w,
+			&http.Cookie{
+				Name:     "sso",
+				Value:    fmt.Sprint(ssoVersion.Add(1)),
+				Path:     "/",
+				HttpOnly: true,
+			},
+		)
 		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", http.StatusFound)
 	}))
 	defer ssoSystem.Close()
@@ -35,7 +44,15 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 		cookie, err := r.Cookie("lms-session")
 		switch r.URL.Path {
 		case "/ticket":
-			http.SetCookie(w, &http.Cookie{Name: "lms-session", Value: fmt.Sprint(sessions.Add(1)), Path: "/", HttpOnly: true})
+			http.SetCookie(
+				w,
+				&http.Cookie{
+					Name:     "lms-session",
+					Value:    fmt.Sprint(sessions.Add(1)),
+					Path:     "/",
+					HttpOnly: true,
+				},
+			)
 			http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 		case "/lms/homeRedirect/":
 			if err != nil {
@@ -46,13 +63,21 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 		case "/lms/error/notLogin":
 			http.Error(w, "Not logged in", http.StatusUnauthorized)
 		case "/lms":
-			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, ssoURL)
+			fmt.Fprintf(
+				w,
+				`<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`,
+				ssoURL,
+			)
 		case "/lms/homeHoml/doIndex":
 			if err != nil {
 				http.Redirect(w, r, "/lms/error/notLogin", http.StatusFound)
 				return
 			}
-			fmt.Fprintf(w, `<body data-session="%s"><span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"></div></body>`, cookie.Value)
+			fmt.Fprintf(
+				w,
+				`<body data-session="%s"><span class="lms-search-condition-title">講義一覧</span><div class="lms-weekly-area"></div></body>`,
+				cookie.Value,
+			)
 		default:
 			http.NotFound(w, r)
 		}
@@ -60,7 +85,13 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	defer lms.Close()
 	lmsAddress.Store(lms.URL)
 	dir := t.TempDir()
-	opts := Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), Executable: executable, LMSURL: lms.URL, SSOURL: ssoURL}
+	opts := Options{
+		StateDir:   filepath.Join(dir, "state"),
+		CacheDir:   filepath.Join(dir, "cache"),
+		Executable: executable,
+		LMSURL:     lms.URL,
+		SSOURL:     ssoURL,
+	}
 	b, err := New(opts)
 	if err != nil {
 		t.Fatal(err)

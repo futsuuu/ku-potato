@@ -19,8 +19,10 @@ import (
 	"golang.org/x/net/html"
 )
 
-var driveID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,256}$`)
-var driveRange = regexp.MustCompile(`^bytes 0-([0-9]+)/([0-9]+|\*)$`)
+var (
+	driveID    = regexp.MustCompile(`^[A-Za-z0-9_-]{1,256}$`)
+	driveRange = regexp.MustCompile(`^bytes 0-([0-9]+)/([0-9]+|\*)$`)
+)
 
 // FileMetadata describes the downloadable representation, not a Workspace
 // document's storage usage. Size is -1 when the server omits the total size.
@@ -101,7 +103,8 @@ func driveDownloadURL(raw string) (*url.URL, bool) {
 			id = u.Query().Get("id")
 		}
 	case "docs.google.com":
-		if len(parts) >= 3 && (parts[0] == "document" || parts[0] == "presentation" || parts[0] == "spreadsheets") {
+		if len(parts) >= 3 &&
+			(parts[0] == "document" || parts[0] == "presentation" || parts[0] == "spreadsheets") {
 			if parts[1] == "d" && parts[2] != "e" {
 				id = parts[2]
 			} else if len(parts) >= 5 && parts[1] == "u" && parts[3] == "d" {
@@ -120,7 +123,12 @@ func driveDownloadURL(raw string) (*url.URL, bool) {
 	if key := u.Query().Get("resourcekey"); key != "" {
 		q.Set("resourcekey", key)
 	}
-	return &url.URL{Scheme: "https", Host: "drive.google.com", Path: "/uc", RawQuery: q.Encode()}, true
+	return &url.URL{
+		Scheme:   "https",
+		Host:     "drive.google.com",
+		Path:     "/uc",
+		RawQuery: q.Encode(),
+	}, true
 }
 
 type driveHTTP struct{ client *http.Client }
@@ -160,7 +168,11 @@ func driveRedirect(request *http.Request, via []*http.Request) error {
 
 // open handles the bounded virus-scan confirmation page for both downloads and
 // probes. It never treats an HTTP 200 login/error page as a downloaded file.
-func (d *driveHTTP) open(ctx context.Context, destination *url.URL, probe bool) (*http.Response, FileMetadata, error) {
+func (d *driveHTTP) open(
+	ctx context.Context,
+	destination *url.URL,
+	probe bool,
+) (*http.Response, FileMetadata, error) {
 	id := destination.Query().Get("id")
 	resourceKey := destination.Query().Get("resourcekey")
 	for attempt := 0; attempt < 3; attempt++ {
@@ -181,13 +193,20 @@ func (d *driveHTTP) open(ctx context.Context, destination *url.URL, probe bool) 
 		}
 		if response.StatusCode == http.StatusUnauthorized {
 			response.Body.Close()
-			return nil, FileMetadata{}, domain.Fail("authentication-required", "Googleにログインし直してください。")
+			return nil, FileMetadata{}, domain.Fail(
+				"authentication-required",
+				"Googleにログインし直してください。",
+			)
 		}
 		if response.StatusCode == http.StatusForbidden {
 			response.Body.Close()
-			return nil, FileMetadata{}, domain.Fail("forbidden", "このGoogle Drive資料をダウンロードする権限がありません。")
+			return nil, FileMetadata{}, domain.Fail(
+				"forbidden",
+				"このGoogle Drive資料をダウンロードする権限がありません。",
+			)
 		}
-		if response.StatusCode != http.StatusOK && !(probe && response.StatusCode == http.StatusPartialContent) {
+		if response.StatusCode != http.StatusOK &&
+			!(probe && response.StatusCode == http.StatusPartialContent) {
 			response.Body.Close()
 			return nil, FileMetadata{}, domain.Fail("source", "Google Driveからファイルを取得できません。")
 		}
@@ -230,7 +249,8 @@ func driveMetadata(response *http.Response, filename string, probe bool) (FileMe
 			return FileMetadata{}, domain.Fail("source", "Google Driveの部分応答が不正です。")
 		}
 		end, err := strconv.ParseInt(match[1], 10, 64)
-		if err != nil || end > 511 || (response.ContentLength >= 0 && response.ContentLength != end+1) {
+		if err != nil || end > 511 ||
+			(response.ContentLength >= 0 && response.ContentLength != end+1) {
 			return FileMetadata{}, domain.Fail("source", "Google Driveの部分応答サイズが不正です。")
 		}
 		metadata.Size = -1
@@ -243,7 +263,9 @@ func driveMetadata(response *http.Response, filename string, probe bool) (FileMe
 	}
 	metadata.MIMEType, _, _ = mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if metadata.MIMEType == "" || metadata.MIMEType == "application/octet-stream" {
-		metadata.MIMEType, _, _ = mime.ParseMediaType(mime.TypeByExtension(strings.ToLower(path.Ext(filename))))
+		metadata.MIMEType, _, _ = mime.ParseMediaType(
+			mime.TypeByExtension(strings.ToLower(path.Ext(filename))),
+		)
 		switch strings.ToLower(path.Ext(filename)) {
 		case ".pptx":
 			metadata.MIMEType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -279,7 +301,8 @@ func driveConfirmation(body []byte, base *url.URL, id, resourceKey string) (*url
 	var form *html.Node
 	var find func(*html.Node)
 	find = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "form" && htmlAttribute(n, "id") == "download-form" {
+		if n.Type == html.ElementNode && n.Data == "form" &&
+			htmlAttribute(n, "id") == "download-form" {
 			form = n
 		}
 		for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -288,7 +311,10 @@ func driveConfirmation(body []byte, base *url.URL, id, resourceKey string) (*url
 	}
 	find(doc)
 	if form == nil {
-		return nil, domain.Fail("unsupported-resource", "Google Driveがファイルを返しませんでした。アクセス権とファイル形式を確認してください。")
+		return nil, domain.Fail(
+			"unsupported-resource",
+			"Google Driveがファイルを返しませんでした。アクセス権とファイル形式を確認してください。",
+		)
 	}
 	action, err := url.Parse(htmlAttribute(form, "action"))
 	if err != nil {
@@ -296,13 +322,16 @@ func driveConfirmation(body []byte, base *url.URL, id, resourceKey string) (*url
 	}
 	destination := base.ResolveReference(action)
 	method := strings.ToLower(htmlAttribute(form, "method"))
-	if !driveEndpoint(destination) || destination.Hostname() != "drive.usercontent.google.com" || destination.Path != "/download" || (method != "" && method != "get") {
+	if !driveEndpoint(destination) || destination.Hostname() != "drive.usercontent.google.com" ||
+		destination.Path != "/download" ||
+		(method != "" && method != "get") {
 		return nil, domain.Fail("source", "Google Driveの確認フォームの送信先が不正です。")
 	}
 	q := destination.Query()
 	var inputs func(*html.Node)
 	inputs = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "input" && strings.EqualFold(htmlAttribute(n, "type"), "hidden") {
+		if n.Type == html.ElementNode && n.Data == "input" &&
+			strings.EqualFold(htmlAttribute(n, "type"), "hidden") {
 			if name := htmlAttribute(n, "name"); name != "" {
 				q.Set(name, htmlAttribute(n, "value"))
 			}
@@ -350,7 +379,11 @@ func googleDownloadError(ctx context.Context, err error) error {
 	return domain.Fail("source", "Google Driveからの取得に失敗しました。通信状態を確認してください。")
 }
 
-func (d *driveHTTP) download(ctx context.Context, destination *url.URL, directory string) (string, string, error) {
+func (d *driveHTTP) download(
+	ctx context.Context,
+	destination *url.URL,
+	directory string,
+) (string, string, error) {
 	response, metadata, err := d.open(ctx, destination, false)
 	if err != nil {
 		return "", "", err

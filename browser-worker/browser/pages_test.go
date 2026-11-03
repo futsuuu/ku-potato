@@ -28,7 +28,8 @@ func TestCourseSchedule(t *testing.T) {
 				t.Fatalf("kind = %s, error = %v", kind, err)
 			}
 			if tc.kind == "scheduled" {
-				if weekday == nil || period == nil || *weekday != tc.weekday || *period != tc.period {
+				if weekday == nil || period == nil || *weekday != tc.weekday ||
+					*period != tc.period {
 					t.Fatalf("incorrect schedule: weekday=%v period=%v", weekday, period)
 				}
 			} else if weekday != nil || period != nil {

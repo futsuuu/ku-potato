@@ -14,7 +14,11 @@ import (
 )
 
 // Keep latest-retrieval lookups and their rows in the same database snapshot.
-func readStore[T any](ctx context.Context, s *Store, load func(qrm.DB) (T, error)) (zero T, err error) {
+func readStore[T any](
+	ctx context.Context,
+	s *Store,
+	load func(qrm.DB) (T, error),
+) (zero T, err error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return zero, err
@@ -44,23 +48,37 @@ func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 	}
 	t, history := table.Courses, table.Courses.AS("history")
 	hr := r.AS("history_retrieval")
-	latestPerYear := sqlite.SELECT(hr.AcademicYear, sqlite.MAX(hr.ID)).FROM(hr).GROUP_BY(hr.AcademicYear)
+	latestPerYear := sqlite.SELECT(hr.AcademicYear, sqlite.MAX(hr.ID)).
+		FROM(hr).
+		GROUP_BY(hr.AcademicYear)
+	latestPerCourse := sqlite.SELECT(
+		hr.AcademicYear, history.LmsCourseID, sqlite.MAX(history.RetrievalID),
+	).
+		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
+		GROUP_BY(hr.AcademicYear, history.LmsCourseID)
 	var rows []struct {
 		model.Courses
 		model.CourseRetrievals
 	}
-	err = t.SELECT(t.AllColumns, r.AllColumns).FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).WHERE(sqlite.ROW(r.AcademicYear, r.ID).IN(latestPerYear).OR(
-		t.LmsCourseID.IS_NOT_NULL().AND(sqlite.ROW(r.AcademicYear, t.LmsCourseID, t.RetrievalID).IN(
-			sqlite.SELECT(hr.AcademicYear, history.LmsCourseID, sqlite.MAX(history.RetrievalID)).
-				FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).GROUP_BY(hr.AcademicYear, history.LmsCourseID),
-		)),
-	)).ORDER_BY(t.RetrievalID.DESC(), t.Position.ASC()).QueryContext(ctx, db, &rows)
+	err = t.SELECT(t.AllColumns, r.AllColumns).
+		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
+		WHERE(sqlite.OR(
+			sqlite.ROW(r.AcademicYear, r.ID).IN(latestPerYear),
+			sqlite.AND(
+				t.LmsCourseID.IS_NOT_NULL(),
+				sqlite.ROW(r.AcademicYear, t.LmsCourseID, t.RetrievalID).IN(latestPerCourse),
+			),
+		)).
+		ORDER_BY(t.RetrievalID.DESC(), t.Position.ASC()).
+		QueryContext(ctx, db, &rows)
 	if err != nil {
 		return nil, err
 	}
 	result := []domain.Course{}
 	var retrievals []model.CourseRetrievals
-	if err := r.SELECT(r.AllColumns).WHERE(sqlite.ROW(r.AcademicYear, r.ID).IN(latestPerYear)).QueryContext(ctx, db, &retrievals); err != nil {
+	if err := r.SELECT(r.AllColumns).
+		WHERE(sqlite.ROW(r.AcademicYear, r.ID).IN(latestPerYear)).
+		QueryContext(ctx, db, &retrievals); err != nil {
 		return nil, err
 	}
 	latestYear := map[int64]int64{}
@@ -70,8 +88,15 @@ func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 		}
 	}
 	for _, row := range rows {
-		course := domain.Course{Name: row.Name, Availability: row.Availability, Archived: row.RetrievalID != latestYear[row.AcademicYear],
-			AcademicYear: int(row.AcademicYear), Type: row.Type, Weekday: row.Weekday, Period: row.Period}
+		course := domain.Course{
+			Name:         row.Name,
+			Availability: row.Availability,
+			Archived:     row.RetrievalID != latestYear[row.AcademicYear],
+			AcademicYear: int(row.AcademicYear),
+			Type:         row.Type,
+			Weekday:      row.Weekday,
+			Period:       row.Period,
+		}
 		if row.LmsCourseID != nil {
 			course.ID = *row.LmsCourseID
 		}
@@ -81,7 +106,11 @@ func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 }
 
 func (s *Store) Materials(ctx context.Context, id string) (domain.CourseMaterials, error) {
-	return readStore(ctx, s, func(db qrm.DB) (domain.CourseMaterials, error) { return materials(ctx, db, id) })
+	return readStore(
+		ctx,
+		s,
+		func(db qrm.DB) (domain.CourseMaterials, error) { return materials(ctx, db, id) },
+	)
 }
 
 type materialRow struct {
@@ -90,7 +119,12 @@ type materialRow struct {
 	model.CourseMaterialRetrievals
 }
 
-func materialHistory(ctx context.Context, db qrm.DB, course string, accessible bool) ([]materialRow, error) {
+func materialHistory(
+	ctx context.Context,
+	db qrm.DB,
+	course string,
+	accessible bool,
+) ([]materialRow, error) {
 	t, r, f := table.CourseMaterials, table.CourseMaterialRetrievals, table.CourseMaterialFolders
 	history, hr := t.AS("history"), r.AS("history_retrieval")
 	condition := hr.LmsCourseID.EQ(sqlite.String(course))
@@ -99,7 +133,8 @@ func materialHistory(ctx context.Context, db qrm.DB, course string, accessible b
 			AND(history.PublicationDeadlineKind.NOT_EQ(sqlite.String("closed")))
 	}
 	latest := sqlite.SELECT(history.LmsMaterialID, sqlite.MAX(history.RetrievalID)).
-		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).WHERE(condition).GROUP_BY(history.LmsMaterialID)
+		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
+		WHERE(condition).GROUP_BY(history.LmsMaterialID)
 	var rows []materialRow
 	err := t.SELECT(t.AllColumns, f.AllColumns, r.AllColumns).
 		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID)).INNER_JOIN(f, t.RetrievalID.EQ(f.RetrievalID).AND(t.FolderPosition.EQ(f.Position)))).
@@ -109,7 +144,11 @@ func materialHistory(ctx context.Context, db qrm.DB, course string, accessible b
 }
 
 // Listing observations do not mean a material's contents have been fetched.
-func materialContentTimes(ctx context.Context, db qrm.DB, course string) (map[string]*time.Time, error) {
+func materialContentTimes(
+	ctx context.Context,
+	db qrm.DB,
+	course string,
+) (map[string]*time.Time, error) {
 	t, cr := table.CourseMaterials, table.CourseMaterialRetrievals
 	ids := t.SELECT(t.LmsMaterialID).FROM(t.INNER_JOIN(cr, t.RetrievalID.EQ(cr.ID))).
 		WHERE(cr.LmsCourseID.EQ(sqlite.String(course)))
@@ -134,7 +173,14 @@ func materialContentTimes(ctx context.Context, db qrm.DB, course string) (map[st
 func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterials, error) {
 	result := domain.CourseMaterials{CourseID: id, Folders: []domain.Folder{}}
 	r := table.CourseMaterialRetrievals
-	latest, err := latestID(ctx, db, r.SELECT(r.ID.AS("id")).WHERE(r.LmsCourseID.EQ(sqlite.String(id))).ORDER_BY(r.ID.DESC()).LIMIT(1))
+	latest, err := latestID(
+		ctx,
+		db,
+		r.SELECT(r.ID.AS("id")).
+			WHERE(r.LmsCourseID.EQ(sqlite.String(id))).
+			ORDER_BY(r.ID.DESC()).
+			LIMIT(1),
+	)
 	if err != nil {
 		return result, err
 	}
@@ -150,13 +196,24 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 	}
 	f := table.CourseMaterialFolders
 	var folders []model.CourseMaterialFolders
-	if err := f.SELECT(f.AllColumns).WHERE(f.RetrievalID.EQ(sqlite.Int(latest))).ORDER_BY(f.Position.ASC()).QueryContext(ctx, db, &folders); err != nil {
+	if err := f.SELECT(f.AllColumns).
+		WHERE(f.RetrievalID.EQ(sqlite.Int(latest))).
+		ORDER_BY(f.Position.ASC()).
+		QueryContext(ctx, db, &folders); err != nil {
 		return result, err
 	}
 	currentFolders := map[int64]int{}
 	for _, folder := range folders {
 		currentFolders[folder.Position] = len(result.Folders)
-		result.Folders = append(result.Folders, domain.Folder{Name: folder.Name, ClassDate: text(folder.ClassDate), DescriptionHTML: folder.DescriptionHTML, Materials: []domain.Material{}})
+		result.Folders = append(
+			result.Folders,
+			domain.Folder{
+				Name:            folder.Name,
+				ClassDate:       text(folder.ClassDate),
+				DescriptionHTML: folder.DescriptionHTML,
+				Materials:       []domain.Material{},
+			},
+		)
 	}
 	rows, err := materialHistory(ctx, db, id, false)
 	if err != nil {
@@ -178,7 +235,8 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 	for _, row := range rows {
 		observation := row.CourseMaterials
 		content := observation
-		private := observation.ResourceAvailability == "unavailable" || observation.PublicationDeadlineKind == "closed"
+		private := observation.ResourceAvailability == "unavailable" ||
+			observation.PublicationDeadlineKind == "closed"
 		if private {
 			// Preserve the last accessible metadata, while exposing the latest public state.
 			if prior, ok := byID[observation.LmsMaterialID]; ok {
@@ -190,25 +248,42 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 			fetchedAt = contentTimes[content.LmsMaterialID]
 		}
 		material := domain.Material{
-			ID: content.LmsMaterialID, Name: content.Name, Type: content.Type,
-			PublicationDeadline: displayedDeadline(content.PublicationDeadlineKind, content.PublicationDeadlineAt), ResourceAvailability: observation.ResourceAvailability,
-			PublicationDeadlineKind: content.PublicationDeadlineKind, PublicationDeadlineAt: millisTime(content.PublicationDeadlineAt),
-			Status: observation.Status, MaterialLinkAvailable: observation.MaterialLinkAvailable != 0,
-			FetchedAt: fetchedAt,
-			Archived:  courseArchived || observation.RetrievalID != latest || private,
+			ID:   content.LmsMaterialID,
+			Name: content.Name,
+			Type: content.Type,
+			PublicationDeadline: displayedDeadline(
+				content.PublicationDeadlineKind,
+				content.PublicationDeadlineAt,
+			),
+			ResourceAvailability:    observation.ResourceAvailability,
+			PublicationDeadlineKind: content.PublicationDeadlineKind,
+			PublicationDeadlineAt:   millisTime(content.PublicationDeadlineAt),
+			Status:                  observation.Status,
+			MaterialLinkAvailable:   observation.MaterialLinkAvailable != 0,
+			FetchedAt:               fetchedAt,
+			Archived:                courseArchived || observation.RetrievalID != latest || private,
 		}
 		index, current := currentFolders[observation.FolderPosition]
 		if observation.RetrievalID != latest || !current {
 			index = -1
 			for i, folder := range result.Folders {
-				if folder.Name == row.CourseMaterialFolders.Name && folder.ClassDate == text(row.ClassDate) {
+				if folder.Name == row.CourseMaterialFolders.Name &&
+					folder.ClassDate == text(row.ClassDate) {
 					index = i
 					break
 				}
 			}
 			if index < 0 {
 				index = len(result.Folders)
-				result.Folders = append(result.Folders, domain.Folder{Name: row.CourseMaterialFolders.Name, ClassDate: text(row.ClassDate), DescriptionHTML: row.DescriptionHTML, Materials: []domain.Material{}})
+				result.Folders = append(
+					result.Folders,
+					domain.Folder{
+						Name:            row.CourseMaterialFolders.Name,
+						ClassDate:       text(row.ClassDate),
+						DescriptionHTML: row.DescriptionHTML,
+						Materials:       []domain.Material{},
+					},
+				)
 			}
 		}
 		result.Folders[index].Materials = append(result.Folders[index].Materials, material)
@@ -217,14 +292,19 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 }
 
 func (s *Store) FindCourse(ctx context.Context, material string) (string, error) {
-	return readStore(ctx, s, func(db qrm.DB) (string, error) { return findCourse(ctx, db, material) })
+	return readStore(
+		ctx,
+		s,
+		func(db qrm.DB) (string, error) { return findCourse(ctx, db, material) },
+	)
 }
 
 func findCourse(ctx context.Context, db qrm.DB, material string) (string, error) {
 	t, r := table.CourseMaterials, table.CourseMaterialRetrievals
 	var row model.CourseMaterialRetrievals
 	err := r.SELECT(r.AllColumns).FROM(r.INNER_JOIN(t, r.ID.EQ(t.RetrievalID))).
-		WHERE(t.LmsMaterialID.EQ(sqlite.String(material))).ORDER_BY(r.ID.DESC()).LIMIT(1).QueryContext(ctx, db, &row)
+		WHERE(t.LmsMaterialID.EQ(sqlite.String(material))).
+		ORDER_BY(r.ID.DESC()).LIMIT(1).QueryContext(ctx, db, &row)
 	if errors.Is(err, qrm.ErrNoRows) {
 		return "", nil
 	}
@@ -267,7 +347,12 @@ func (s *Store) Detail(ctx context.Context, id string) (domain.Detail, error) {
 		if !found {
 			return result, domain.ErrMissing
 		}
-		result.Resources, err = resources(ctx, db, id, result.Material.Archived || result.Material.ResourceAvailability == "unavailable")
+		result.Resources, err = resources(
+			ctx,
+			db,
+			id,
+			result.Material.Archived || result.Material.ResourceAvailability == "unavailable",
+		)
 		if errors.Is(err, domain.ErrMissing) && result.Material.Type != "material" {
 			result.Resources, err = []domain.Resource{}, nil
 		}
@@ -287,9 +372,21 @@ func (s *Store) Detail(ctx context.Context, id string) (domain.Detail, error) {
 	})
 }
 
-func resources(ctx context.Context, db qrm.DB, material string, archived bool) ([]domain.Resource, error) {
+func resources(
+	ctx context.Context,
+	db qrm.DB,
+	material string,
+	archived bool,
+) ([]domain.Resource, error) {
 	r := table.MaterialResourceRetrievals
-	latest, err := latestID(ctx, db, r.SELECT(r.ID.AS("id")).WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).ORDER_BY(r.ID.DESC()).LIMIT(1))
+	latest, err := latestID(
+		ctx,
+		db,
+		r.SELECT(r.ID.AS("id")).
+			WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).
+			ORDER_BY(r.ID.DESC()).
+			LIMIT(1),
+	)
 	if errors.Is(err, domain.ErrMissing) && archived {
 		return []domain.Resource{}, nil
 	}
@@ -309,7 +406,9 @@ func resources(ctx context.Context, db qrm.DB, material string, archived bool) (
 		return nil, err
 	}
 	var states []model.ResourceStates
-	if err := state.SELECT(state.AllColumns).WHERE(state.LmsMaterialID.EQ(sqlite.String(material))).QueryContext(ctx, db, &states); err != nil {
+	if err := state.SELECT(state.AllColumns).
+		WHERE(state.LmsMaterialID.EQ(sqlite.String(material))).
+		QueryContext(ctx, db, &states); err != nil {
 		return nil, err
 	}
 	byID := map[string]model.ResourceStates{}
@@ -318,18 +417,39 @@ func resources(ctx context.Context, db qrm.DB, material string, archived bool) (
 	}
 	result := []domain.Resource{}
 	for _, row := range rows {
-		resource := domain.Resource{ID: row.LmsResourceID, Name: row.Name, Type: row.Type, URL: row.URL, Availability: "current",
-			Status: row.Status, RegisteredOn: row.RegisteredOn, FirstViewedOn: row.FirstViewedOn, Description: row.Description, RetrievalID: row.RetrievalID}
+		resource := domain.Resource{
+			ID:            row.LmsResourceID,
+			Name:          row.Name,
+			Type:          row.Type,
+			URL:           row.URL,
+			Availability:  "current",
+			Status:        row.Status,
+			RegisteredOn:  row.RegisteredOn,
+			FirstViewedOn: row.FirstViewedOn,
+			Description:   row.Description,
+			RetrievalID:   row.RetrievalID,
+		}
 		if archived || row.RetrievalID != latest {
 			resource.Availability = "archived"
 		}
 		saved := byID[row.LmsResourceID]
 		resource.SavedResourceRetrievalID = saved.SavedResourceRetrievalID
 		if saved.FileID != nil {
-			resource.SavedFile = &domain.SavedFile{ID: *saved.FileID, OriginalFilename: *saved.OriginalFilename, SHA256: *saved.Sha256, Size: *saved.FileSize}
+			resource.SavedFile = &domain.SavedFile{
+				ID:               *saved.FileID,
+				OriginalFilename: *saved.OriginalFilename,
+				SHA256:           *saved.Sha256,
+				Size:             *saved.FileSize,
+			}
 		}
 		if saved.LastAttemptAt != nil {
-			resource.Acquisition = &domain.Acquisition{LastSucceededAt: millisTime(saved.LastSucceededAt), LastAttempt: domain.Attempt{At: *millisTime(saved.LastAttemptAt), Status: *saved.LastAttemptStatus}}
+			resource.Acquisition = &domain.Acquisition{
+				LastSucceededAt: millisTime(saved.LastSucceededAt),
+				LastAttempt: domain.Attempt{
+					At:     *millisTime(saved.LastAttemptAt),
+					Status: *saved.LastAttemptStatus,
+				},
+			}
 			if saved.LastAttemptError != nil {
 				resource.Acquisition.LastAttempt.Error = *saved.LastAttemptError
 			}

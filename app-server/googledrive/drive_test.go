@@ -30,17 +30,28 @@ func driveFixture(t *testing.T, handler http.HandlerFunc) *driveHTTP {
 	origin, _ := url.Parse(server.URL)
 	jar, _ := cookiejar.New(nil)
 	google, _ := url.Parse("https://drive.google.com")
-	jar.SetCookies(google, []*http.Cookie{{Name: "session", Value: "fixture", Domain: ".google.com", Path: "/", Secure: true}})
+	jar.SetCookies(
+		google,
+		[]*http.Cookie{
+			{Name: "session", Value: "fixture", Domain: ".google.com", Path: "/", Secure: true},
+		},
+	)
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	t.Cleanup(transport.CloseIdleConnections)
-	return &driveHTTP{client: &http.Client{Jar: jar, CheckRedirect: driveRedirect, Transport: driveTransport(func(r *http.Request) (*http.Response, error) {
-		if !driveEndpoint(r.URL) {
-			t.Errorf("unexpected request: %s", r.URL.Host)
-		}
-		copy := r.Clone(r.Context())
-		copy.URL.Scheme, copy.URL.Host = origin.Scheme, origin.Host
-		return transport.RoundTrip(copy)
-	})}}
+	return &driveHTTP{
+		client: &http.Client{
+			Jar:           jar,
+			CheckRedirect: driveRedirect,
+			Transport: driveTransport(func(r *http.Request) (*http.Response, error) {
+				if !driveEndpoint(r.URL) {
+					t.Errorf("unexpected request: %s", r.URL.Host)
+				}
+				copy := r.Clone(r.Context())
+				copy.URL.Scheme, copy.URL.Host = origin.Scheme, origin.Host
+				return transport.RoundTrip(copy)
+			}),
+		},
+	}
 }
 
 type driveCookieStub struct{ called bool }
@@ -74,7 +85,9 @@ func TestDriveURLs(t *testing.T) {
 	} {
 		t.Run(raw, func(t *testing.T) {
 			got, ok := driveDownloadURL(raw)
-			if !ok || got.Host != "drive.google.com" || got.Query().Get("id") != "file_1-2" || got.Query().Get("resourcekey") != "key" || got.Query().Get("authuser") != "0" {
+			if !ok || got.Host != "drive.google.com" || got.Query().Get("id") != "file_1-2" ||
+				got.Query().Get("resourcekey") != "key" ||
+				got.Query().Get("authuser") != "0" {
 				t.Fatal(got, ok)
 			}
 		})
@@ -101,12 +114,20 @@ func TestDriveDownloadAndMetadataFollowConfirmationWithCookies(t *testing.T) {
 			t.Error("Google cookies missing after redirect", err)
 		}
 		if r.URL.Path == "/uc" {
-			http.Redirect(w, r, "https://drive.usercontent.google.com/download?"+r.URL.RawQuery, http.StatusFound)
+			http.Redirect(
+				w,
+				r,
+				"https://drive.usercontent.google.com/download?"+r.URL.RawQuery,
+				http.StatusFound,
+			)
 			return
 		}
 		if r.URL.Query().Get("confirm") == "" {
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprint(w, `<form id="download-form" action="https://drive.usercontent.google.com/download" method="get"><input type="hidden" name="id" value="file"><input type="hidden" name="export" value="download"><input type="hidden" name="confirm" value="t"><input type="hidden" name="uuid" value="token&amp;value"></form>`)
+			fmt.Fprint(
+				w,
+				`<form id="download-form" action="https://drive.usercontent.google.com/download" method="get"><input type="hidden" name="id" value="file"><input type="hidden" name="export" value="download"><input type="hidden" name="confirm" value="t"><input type="hidden" name="uuid" value="token&amp;value"></form>`,
+			)
 			return
 		}
 		confirmed.Add(1)
@@ -135,7 +156,8 @@ func TestDriveDownloadAndMetadataFollowConfirmationWithCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	response.Body.Close()
-	if metadata.Filename != "資料.pdf" || metadata.MIMEType != "application/pdf" || metadata.Size != 5000000000 {
+	if metadata.Filename != "資料.pdf" || metadata.MIMEType != "application/pdf" ||
+		metadata.Size != 5000000000 {
 		t.Fatal(metadata)
 	}
 	dir := t.TempDir()
@@ -144,7 +166,8 @@ func TestDriveDownloadAndMetadataFollowConfirmationWithCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(file)
-	if err != nil || string(got) != content || filename != "資料.pdf" || filepath.Dir(file) != dir || confirmed.Load() != 2 {
+	if err != nil || string(got) != content || filename != "資料.pdf" || filepath.Dir(file) != dir ||
+		confirmed.Load() != 2 {
 		t.Fatal("download did not preserve content/name", filename, err)
 	}
 }
@@ -206,19 +229,25 @@ func (b *sampledBody) Close() error { b.closed = true; return nil }
 
 func TestDriveMetadataClosesRangeIgnoringServerWithoutReadingFile(t *testing.T) {
 	body := &sampledBody{}
-	d := &driveHTTP{client: &http.Client{Transport: driveTransport(func(r *http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 200, ContentLength: 2048, Header: http.Header{
-			"Content-Disposition": {`attachment; filename="notebook.ipynb"`},
-			"Content-Type":        {"application/octet-stream"},
-		}, Body: body, Request: r}, nil
-	})}}
+	d := &driveHTTP{
+		client: &http.Client{
+			Transport: driveTransport(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: 200, ContentLength: 2048, Header: http.Header{
+					"Content-Disposition": {`attachment; filename="notebook.ipynb"`},
+					"Content-Type":        {"application/octet-stream"},
+				}, Body: body, Request: r}, nil
+			}),
+		},
+	}
 	u, _ := driveDownloadURL("https://colab.research.google.com/drive/file")
 	response, metadata, err := d.open(context.Background(), u, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	response.Body.Close()
-	if metadata.Size != 2048 || metadata.MIMEType != "application/x-ipynb+json" || body.read > 512 || !body.closed {
+	if metadata.Size != 2048 || metadata.MIMEType != "application/x-ipynb+json" ||
+		body.read > 512 ||
+		!body.closed {
 		t.Fatal(metadata, body)
 	}
 }
@@ -330,7 +359,10 @@ func TestDrivePublicErrorOmitsConfirmationToken(t *testing.T) {
 	})
 	var provider *domain.AuthenticationError
 	var failure *domain.Error
-	if strings.Contains(err.Error(), "secret") || !errors.As(err, &provider) || provider.Provider != "google" || !errors.As(err, &failure) || failure.Reason != "authentication-required" {
+	if strings.Contains(err.Error(), "secret") || !errors.As(err, &provider) ||
+		provider.Provider != "google" ||
+		!errors.As(err, &failure) ||
+		failure.Reason != "authentication-required" {
 		t.Fatal("unsafe or unscoped authentication error", err)
 	}
 }

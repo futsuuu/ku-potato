@@ -26,7 +26,13 @@ func buildWorker(t *testing.T, root string) string {
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
-	build := exec.Command("go", "build", "-o", binary, "./browser-worker/cmd/ku-potato-browser-worker")
+	build := exec.Command(
+		"go",
+		"build",
+		"-o",
+		binary,
+		"./browser-worker/cmd/ku-potato-browser-worker",
+	)
 	build.Dir = "../.."
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build worker: %v\n%s", err, output)
@@ -47,7 +53,10 @@ func TestProcessRequiresAuthorization(t *testing.T) {
 	if _, err := process.Client.SetSSOCookies(ctx, &workerproto.SSOCookies{}); err != nil {
 		t.Fatal(err)
 	}
-	conn, err := grpc.NewClient("passthrough:///"+process.endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		"passthrough:///"+process.endpoint,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +69,13 @@ func TestProcessRequiresAuthorization(t *testing.T) {
 
 func TestWorkerStopsWhenParentIsKilled(t *testing.T) {
 	if os.Getenv("KU_POTATO_TEST_PARENT") == "1" {
-		process, err := Start(context.Background(), os.Getenv("KU_POTATO_TEST_WORKER"), os.Getenv("KU_POTATO_TEST_ROOT"), "", 1)
+		process, err := Start(
+			context.Background(),
+			os.Getenv("KU_POTATO_TEST_WORKER"),
+			os.Getenv("KU_POTATO_TEST_ROOT"),
+			"",
+			1,
+		)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -76,7 +91,12 @@ func TestWorkerStopsWhenParentIsKilled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkerStopsWhenParentIsKilled$")
-	command.Env = append(os.Environ(), "KU_POTATO_TEST_PARENT=1", "KU_POTATO_TEST_WORKER="+binary, "KU_POTATO_TEST_ROOT="+root)
+	command.Env = append(
+		os.Environ(),
+		"KU_POTATO_TEST_PARENT=1",
+		"KU_POTATO_TEST_WORKER="+binary,
+		"KU_POTATO_TEST_ROOT="+root,
+	)
 	command.Stderr = os.Stderr
 	stdout, err := command.StdoutPipe()
 	if err != nil {

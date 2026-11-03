@@ -19,22 +19,25 @@ func TestDeletingWebAuthnKeepsSharedProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Close()
-	if err := os.MkdirAll(b.opts.ProfileDir, 0700); err != nil {
+	if err := os.MkdirAll(b.opts.ProfileDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	profileFile := filepath.Join(b.opts.ProfileDir, "retained")
-	if err := os.WriteFile(profileFile, []byte("profile"), 0600); err != nil {
+	if err := os.WriteFile(profileFile, []byte("profile"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if b.credentialPath() != filepath.Join(root, "auth", "kogakuin", "webauthn.json") {
 		t.Fatalf("unexpected credential path: %s", b.credentialPath())
 	}
-	if err := os.MkdirAll(filepath.Dir(b.credentialPath()), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(b.credentialPath()), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	stored := credentials{
-		Version: 1, Username: "student",
-		Credentials: []*webauthn.Credential{{CredentialID: "AQ==", PrivateKey: "Ag==", RpID: "example.com"}},
+		Version:  1,
+		Username: "student",
+		Credentials: []*webauthn.Credential{
+			{CredentialID: "AQ==", PrivateKey: "Ag==", RpID: "example.com"},
+		},
 	}
 	if err := atomicJSON(b.credentialPath(), stored); err != nil {
 		t.Fatal(err)

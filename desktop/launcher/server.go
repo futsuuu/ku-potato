@@ -33,7 +33,7 @@ func (m Manager) Ensure(ctx context.Context) (string, error) {
 	if ready || err != nil {
 		return m.Endpoint, err
 	}
-	if err := os.MkdirAll(m.StateDir, 0700); err != nil {
+	if err := os.MkdirAll(m.StateDir, 0o700); err != nil {
 		return "", err
 	}
 	lock := flock.New(filepath.Join(m.StateDir, "desktop-server-start.lock"))
@@ -76,7 +76,11 @@ func probe(ctx context.Context, endpoint string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	client := &http.Client{Timeout: time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{
+		Timeout:       time.Second,
+		Transport:     &http.Transport{Proxy: nil},
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	defer client.CloseIdleConnections()
 	response, err := client.Do(req)
 	if err != nil {
@@ -91,7 +95,9 @@ func probe(ctx context.Context, endpoint string) (bool, error) {
 	}
 	defer response.Body.Close()
 	var health struct{ Status, Service string }
-	if response.StatusCode != 200 || json.NewDecoder(response.Body).Decode(&health) != nil || health.Status != "ok" || health.Service != "ku-potato-server" {
+	if response.StatusCode != 200 || json.NewDecoder(response.Body).Decode(&health) != nil ||
+		health.Status != "ok" ||
+		health.Service != "ku-potato-server" {
 		return false, fmt.Errorf("%s は KU-POTATO サーバではありません", endpoint)
 	}
 	return true, nil
@@ -106,7 +112,10 @@ func findBinary() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	directories := []string{filepath.Dir(executable), filepath.Join(filepath.Dir(executable), "..", "Resources")}
+	directories := []string{
+		filepath.Dir(executable),
+		filepath.Join(filepath.Dir(executable), "..", "Resources"),
+	}
 	for _, dir := range append(directories, developmentBinaryDirectories()...) {
 		candidate := filepath.Join(dir, name)
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
@@ -120,7 +129,7 @@ func findBinary() (string, error) {
 }
 
 func detach(binary, logPath string) error {
-	log, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	log, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}

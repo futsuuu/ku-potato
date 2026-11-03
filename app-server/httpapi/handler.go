@@ -35,26 +35,55 @@ func New(service inport.Service, authority string) *Handler {
 	config.SchemasPath = ""
 	config.Info.Description = "Single-account loopback API. Feature endpoints stream typed results, operation status, and progress using SSE. Replay the feature request to retry."
 	api := humago.New(h.mux, config)
-	api.OpenAPI().Components.Schemas.RegisterTypeAlias(reflect.TypeFor[domain.Material](), reflect.TypeFor[material]())
+	api.OpenAPI().Components.Schemas.RegisterTypeAlias(
+		reflect.TypeFor[domain.Material](),
+		reflect.TypeFor[material](),
+	)
 	h.register(api)
 	h.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		write(w, 404, map[string]any{"error": domain.Error{Reason: "not-found", Message: "API endpoint not found"}})
+		write(
+			w,
+			404,
+			map[string]any{
+				"error": domain.Error{Reason: "not-found", Message: "API endpoint not found"},
+			},
+		)
 	})
 	return h
 }
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	origin := r.Header.Get("Origin")
 	trusted := desktopOrigin(origin)
-	if !sameAuthority(r.Host, h.authority) || (r.Header.Get("Sec-Fetch-Site") == "cross-site" && !trusted) {
-		write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Only local clients are accepted"}})
+	if !sameAuthority(r.Host, h.authority) ||
+		(r.Header.Get("Sec-Fetch-Site") == "cross-site" && !trusted) {
+		write(
+			w,
+			403,
+			map[string]any{
+				"error": domain.Error{
+					Reason:  "forbidden",
+					Message: "Only local clients are accepted",
+				},
+			},
+		)
 		return
 	}
 	if origin != "" && !trusted {
 		parsed, err := url.Parse(origin)
 		if err != nil || parsed.Scheme != "http" || parsed.Host != r.Host || parsed.Path != "" {
-			write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Cross-origin requests are not accepted"}})
+			write(
+				w,
+				403,
+				map[string]any{
+					"error": domain.Error{
+						Reason:  "forbidden",
+						Message: "Cross-origin requests are not accepted",
+					},
+				},
+			)
 			return
 		}
 	}
@@ -65,14 +94,32 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			method := r.Header.Get("Access-Control-Request-Method")
 			if method != "GET" && method != "POST" && method != "DELETE" && method != "HEAD" {
-				write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Request method is not accepted"}})
+				write(
+					w,
+					403,
+					map[string]any{
+						"error": domain.Error{
+							Reason:  "forbidden",
+							Message: "Request method is not accepted",
+						},
+					},
+				)
 				return
 			}
 			for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
 				switch strings.ToLower(strings.TrimSpace(header)) {
 				case "", "content-type", "range", "if-none-match":
 				default:
-					write(w, 403, map[string]any{"error": domain.Error{Reason: "forbidden", Message: "Request headers are not accepted"}})
+					write(
+						w,
+						403,
+						map[string]any{
+							"error": domain.Error{
+								Reason:  "forbidden",
+								Message: "Request headers are not accepted",
+							},
+						},
+					)
 					return
 				}
 			}
@@ -95,6 +142,7 @@ func desktopOrigin(origin string) bool {
 		return false
 	}
 }
+
 func sameAuthority(actual, expected string) bool {
 	host, port, err := net.SplitHostPort(actual)
 	if err != nil {
@@ -152,11 +200,13 @@ func failure(err error) error {
 	}
 	return &responseError{errorBody: errorBody{Failure: failure}, status: status}
 }
+
 func write(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
 }
+
 func (h *Handler) file(ctx context.Context, input *ResourceInput) (*huma.StreamResponse, error) {
 	file, err := h.service.File(ctx, input.MaterialID, input.ResourceID)
 	if err != nil {
@@ -175,7 +225,8 @@ func (h *Handler) file(ctx context.Context, input *ResourceInput) (*huma.StreamR
 	return &huma.StreamResponse{Body: func(ctx huma.Context) {
 		defer file.Content.Close()
 		r, w := humago.Unwrap(ctx)
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+		w.Header().
+			Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("ETag", `"`+file.Metadata.SHA256+`"`)
 		http.ServeContent(w, r, filename, time.Time{}, file.Content)

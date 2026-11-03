@@ -102,7 +102,7 @@ export default defineConfig({
       check: {
         command: [
           "vp check",
-          "node tools/gofmt.mjs --check",
+          "golangci-lint fmt --diff",
           "go vet ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...",
         ],
         dependsOn: ["frontend:build", "db:check", "proto:check"],
@@ -111,7 +111,7 @@ export default defineConfig({
       format: {
         command: [
           "vp fmt",
-          "node tools/gofmt.mjs",
+          "golangci-lint fmt",
           "clang-format -i browser-worker/protocol/worker.proto",
         ],
         cache: false,

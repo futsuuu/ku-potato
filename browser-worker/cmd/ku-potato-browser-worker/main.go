@@ -28,6 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+
 func run() error {
 	listen := flag.String("listen", "127.0.0.1:0", "local worker listener")
 	directory := flag.String("temp-dir", "", "worker private temporary directory")
@@ -55,7 +56,18 @@ func run() error {
 		io.Copy(io.Discard, os.Stdin)
 		stop()
 	}()
-	browser, err := chromedp.New(chromedp.Options{StateDir: root, ProfileDir: filepath.Join(root, "profile"), CacheDir: filepath.Join(root, "cache"), DownloadDir: filepath.Join(root, "downloads"), Executable: *chrome, Parallelism: *parallel, LMSURL: *lmsURL, SSOURL: *ssoURL})
+	browser, err := chromedp.New(
+		chromedp.Options{
+			StateDir:    root,
+			ProfileDir:  filepath.Join(root, "profile"),
+			CacheDir:    filepath.Join(root, "cache"),
+			DownloadDir: filepath.Join(root, "downloads"),
+			Executable:  *chrome,
+			Parallelism: *parallel,
+			LMSURL:      *lmsURL,
+			SSOURL:      *ssoURL,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -63,7 +75,11 @@ func run() error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	worker, err := browserworker.NewServer(browser, browserworker.NewScheduler(ctx, *parallel), *ssoURL)
+	worker, err := browserworker.NewServer(
+		browser,
+		browserworker.NewScheduler(ctx, *parallel),
+		*ssoURL,
+	)
 	if err != nil {
 		return err
 	}
@@ -74,22 +90,33 @@ func run() error {
 	defer listener.Close()
 	authorize := func(ctx context.Context) error {
 		values, ok := metadata.FromIncomingContext(ctx)
-		if !ok || len(values.Get("x-ku-potato-worker-token")) != 1 || subtle.ConstantTimeCompare([]byte(values.Get("x-ku-potato-worker-token")[0]), []byte(token)) != 1 {
+		if !ok || len(values.Get("x-ku-potato-worker-token")) != 1 ||
+			subtle.ConstantTimeCompare(
+				[]byte(values.Get("x-ku-potato-worker-token")[0]),
+				[]byte(token),
+			) != 1 {
 			return status.Error(codes.Unauthenticated, "unauthorized worker client")
 		}
 		return nil
 	}
-	server := grpc.NewServer(grpc.UnaryInterceptor(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
-		if err := authorize(ctx); err != nil {
-			return nil, err
-		}
-		return next(ctx, req)
-	}), grpc.StreamInterceptor(func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, next grpc.StreamHandler) error {
-		if err := authorize(stream.Context()); err != nil {
-			return err
-		}
-		return next(srv, stream)
-	}))
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(
+			func(ctx context.Context, req any, info *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
+				if err := authorize(ctx); err != nil {
+					return nil, err
+				}
+				return next(ctx, req)
+			},
+		),
+		grpc.StreamInterceptor(
+			func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, next grpc.StreamHandler) error {
+				if err := authorize(stream.Context()); err != nil {
+					return err
+				}
+				return next(srv, stream)
+			},
+		),
+	)
 	workerproto.RegisterBrowserWorkerServer(server, worker)
 	fmt.Fprintln(os.Stdout, listener.Addr().String())
 	go func() { <-ctx.Done(); server.Stop() }()

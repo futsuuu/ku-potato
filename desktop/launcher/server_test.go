@@ -21,7 +21,11 @@ func TestMain(m *testing.M) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		binary, _ := os.Executable()
-		_, err := (Manager{Endpoint: os.Getenv("KU_POTATO_LAUNCHER_TEST_ENDPOINT"), StateDir: os.Getenv("KU_POTATO_LAUNCHER_TEST_STATE"), Binary: binary}).Ensure(ctx)
+		_, err := (Manager{
+			Endpoint: os.Getenv("KU_POTATO_LAUNCHER_TEST_ENDPOINT"),
+			StateDir: os.Getenv("KU_POTATO_LAUNCHER_TEST_STATE"),
+			Binary:   binary,
+		}).Ensure(ctx)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -34,7 +38,10 @@ func TestMain(m *testing.M) {
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 			_, _ = fmt.Fprint(w, `{"status":"ok","service":"ku-potato-server"}`)
 		})
-		mux.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) { go server.Shutdown(context.Background()) })
+		mux.HandleFunc(
+			"/quit",
+			func(w http.ResponseWriter, r *http.Request) { go server.Shutdown(context.Background()) },
+		)
 		_ = server.ListenAndServe()
 		os.Exit(0)
 	}
@@ -50,10 +57,10 @@ func prepareDevelopmentBinary(t *testing.T) string {
 		name += ".exe"
 	}
 	binary := filepath.Join("desktop", "build", "bin", name)
-	if err := os.MkdirAll(filepath.Dir(binary), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(binary), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(binary, nil, 0700); err != nil {
+	if err := os.WriteFile(binary, nil, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	return binary
@@ -73,7 +80,11 @@ func TestRunningServerIsReusedWithoutLaunchingBinary(t *testing.T) {
 }
 
 func TestUnrelatedServerIsRejected(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, `{"status":"ok"}`) }))
+	server := httptest.NewServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, `{"status":"ok"}`) },
+		),
+	)
 	defer server.Close()
 	if _, err := (Manager{Endpoint: server.URL}).Ensure(context.Background()); err == nil {
 		t.Fatal("unrelated server accepted")

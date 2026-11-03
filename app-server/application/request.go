@@ -7,8 +7,10 @@ import (
 	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
-var materialID = regexp.MustCompile(`^[A-Z]+\d+$`)
-var resourceID = regexp.MustCompile(`^SRS\d+$`)
+var (
+	materialID = regexp.MustCompile(`^[A-Z]+\d+$`)
+	resourceID = regexp.MustCompile(`^SRS\d+$`)
+)
 
 func validateJobRequest(r operation.Request) error {
 	for _, id := range r.CourseIDs {
@@ -20,7 +22,14 @@ func validateJobRequest(r operation.Request) error {
 		return domain.Fail("invalid-input", "too many courses")
 	}
 	switch r.Kind {
-	case "login", "auth-check", "register-webauthn", "delete-webauthn", "google-login", "google-auth-check", "sync-courses", "sync-materials":
+	case "login",
+		"auth-check",
+		"register-webauthn",
+		"delete-webauthn",
+		"google-login",
+		"google-auth-check",
+		"sync-courses",
+		"sync-materials":
 	case "sync-resources", "download-resource":
 		if !materialID.MatchString(r.MaterialID) {
 			return domain.Fail("invalid-input", "invalid material ID")
@@ -31,7 +40,8 @@ func validateJobRequest(r operation.Request) error {
 	if r.Kind == "download-resource" && !resourceID.MatchString(r.ResourceID) {
 		return domain.Fail("invalid-input", "invalid resource ID")
 	}
-	if r.Interactive && r.Kind != "login" && r.Kind != "google-login" && r.Kind != "register-webauthn" {
+	if r.Interactive && r.Kind != "login" && r.Kind != "google-login" &&
+		r.Kind != "register-webauthn" {
 		return domain.Fail("invalid-input", "interaction is only available for authentication jobs")
 	}
 	if len(r.CourseIDs) > 0 && r.Kind != "sync-materials" {

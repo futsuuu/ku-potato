@@ -72,7 +72,15 @@ func (b *Browser) start(ctx context.Context) error {
 		return nil
 	}
 	opts := append([]cd.ExecAllocatorOption{}, cd.DefaultExecAllocatorOptions[:]...)
-	opts = append(opts, cd.UserDataDir(b.opts.ProfileDir), cd.Flag("disk-cache-dir", b.opts.CacheDir), cd.Flag("headless", "new"), cd.Flag("disable-dev-shm-usage", true), cd.Flag("allow-browser-signin", "false"), cd.Flag("restore-last-session", true))
+	opts = append(
+		opts,
+		cd.UserDataDir(b.opts.ProfileDir),
+		cd.Flag("disk-cache-dir", b.opts.CacheDir),
+		cd.Flag("headless", "new"),
+		cd.Flag("disable-dev-shm-usage", true),
+		cd.Flag("allow-browser-signin", "false"),
+		cd.Flag("restore-last-session", true),
+	)
 
 	if b.opts.Executable != "" {
 		opts = append(opts, cd.ExecPath(b.opts.Executable))
@@ -87,18 +95,30 @@ func (b *Browser) start(ctx context.Context) error {
 	stop := context.AfterFunc(ctx, b.cancelRoot)
 	defer stop()
 	if err := cd.Run(b.root); err != nil {
-		b.opts.Logger.ErrorContext(ctx, "Chrome startup failed", "executable", b.opts.Executable, "error", err)
+		b.opts.Logger.ErrorContext(ctx, "Chrome startup failed",
+			"executable", b.opts.Executable,
+			"error", err,
+		)
 		b.stopRuntime()
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return Fail(workerproto.FailureReason_FAILURE_REASON_BROWSER_START, "Chrome を起動できません。KU-POTATO 用の Chrome が残っていないか、Chrome のパスと認証プロファイルの使用状況を確認してください。")
+		return Fail(
+			workerproto.FailureReason_FAILURE_REASON_BROWSER_START,
+			"Chrome を起動できません。KU-POTATO 用の Chrome が残っていないか、Chrome のパスと認証プロファイルの使用状況を確認してください。",
+		)
 	}
 	closeProcess, err := processlifetime.BindToParent(cd.FromContext(b.root).Browser.Process())
 	if err != nil {
-		b.opts.Logger.ErrorContext(ctx, "Chrome process management failed", "executable", b.opts.Executable, "error", err)
+		b.opts.Logger.ErrorContext(ctx, "Chrome process management failed",
+			"executable", b.opts.Executable,
+			"error", err,
+		)
 		b.stopRuntime()
-		return Fail(workerproto.FailureReason_FAILURE_REASON_BROWSER_START, "Chrome のプロセス管理を設定できません。")
+		return Fail(
+			workerproto.FailureReason_FAILURE_REASON_BROWSER_START,
+			"Chrome のプロセス管理を設定できません。",
+		)
 	}
 	b.closeProcess = closeProcess
 	return nil
@@ -161,7 +181,9 @@ func (b *Browser) usePage(ctx context.Context, use func(context.Context) error) 
 	if prepared {
 		err = b.home(op)
 		var failure *Failure
-		if errors.As(err, &failure) && failure.Reason == workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED && ctx.Err() == nil {
+		if errors.As(err, &failure) &&
+			failure.Reason == workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED &&
+			ctx.Err() == nil {
 			cancel()
 			b.sessionMu.Lock()
 			err = b.authenticatePage(ctx, slot)
@@ -200,7 +222,8 @@ func (b *Browser) authenticatePage(ctx context.Context, slot *pageSlot) error {
 	op, cancel := operationContext(slot.ctx, ctx)
 	defer cancel()
 	return cd.Run(op, cd.ActionFunc(func(tab context.Context) error {
-		if err := target.ActivateTarget(cd.FromContext(tab).Target.TargetID).Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
+		if err := target.ActivateTarget(cd.FromContext(tab).Target.TargetID).
+			Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
 			return err
 		}
 		id := cd.FromContext(tab).BrowserContextID
@@ -209,26 +232,38 @@ func (b *Browser) authenticatePage(ctx context.Context, slot *pageSlot) error {
 		}
 		err := b.session(tab)
 		var failure *Failure
-		if errors.As(err, &failure) && failure.Reason == workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED && b.sso != nil && ctx.Err() == nil {
+		if errors.As(err, &failure) &&
+			failure.Reason == workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED &&
+			b.sso != nil &&
+			ctx.Err() == nil {
 			for _, refresh := range []func(context.Context) ([]*network.CookieParam, error){b.sso.SSOCookies, b.sso.RenewSSOCookies} {
 				params, refreshErr := refresh(ctx)
 				if refreshErr != nil {
 					return refreshErr
 				}
 				if len(params) == 0 {
-					return Fail(workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED, "統合認証システムに再ログインしてください。")
+					return Fail(
+						workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED,
+						"統合認証システムに再ログインしてください。",
+					)
 				}
 				exec := cdp.WithExecutor(tab, cd.FromContext(tab).Browser)
 				for _, contextID := range []cdp.BrowserContextID{"", id} {
-					if err := storage.ClearCookies().WithBrowserContextID(contextID).Do(exec); err != nil {
+					if err := storage.ClearCookies().
+						WithBrowserContextID(contextID).
+						Do(exec); err != nil {
 						return err
 					}
-					if err := storage.SetCookies(params).WithBrowserContextID(contextID).Do(exec); err != nil {
+					if err := storage.SetCookies(params).
+						WithBrowserContextID(contextID).
+						Do(exec); err != nil {
 						return err
 					}
 				}
 				err = b.session(tab)
-				if !errors.As(err, &failure) || failure.Reason != workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED || ctx.Err() != nil {
+				if !errors.As(err, &failure) ||
+					failure.Reason != workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED ||
+					ctx.Err() != nil {
 					break
 				}
 			}
@@ -251,11 +286,15 @@ func (b *Browser) createPage(ctx context.Context, slot *pageSlot) error {
 	dispose := func() {
 		cleanup, cancel := context.WithTimeout(b.root, 5*time.Second)
 		defer cancel()
-		_ = target.DisposeBrowserContext(id).Do(cdp.WithExecutor(cleanup, cd.FromContext(b.root).Browser))
+		_ = target.DisposeBrowserContext(id).
+			Do(cdp.WithExecutor(cleanup, cd.FromContext(b.root).Browser))
 	}
 	// A fresh context has no browser window. Explicitly create one for Chromium
 	// variants (including Edge) that cannot create a tab without a window.
-	tabID, err := target.CreateTarget("about:blank").WithBrowserContextID(id).WithNewWindow(true).Do(exec)
+	tabID, err := target.CreateTarget("about:blank").
+		WithBrowserContextID(id).
+		WithNewWindow(true).
+		Do(exec)
 	if err != nil {
 		dispose()
 		return err

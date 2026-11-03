@@ -23,7 +23,7 @@ func TestSaveKeepsCommonCompressedFormatsUnchanged(t *testing.T) {
 	// The contents are deliberately compressible: the decision uses the filename.
 	body := []byte(strings.Repeat("archive payload", 100))
 	source := filepath.Join(dir, "download")
-	if err := os.WriteFile(source, body, 0600); err != nil {
+	if err := os.WriteFile(source, body, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, filename := range []string{"bundle.ZIP", "slides.PPTX", "sheet.xlsx", "photo.jpg", "clip.mp4", "archive.zst"} {
@@ -32,7 +32,8 @@ func TestSaveKeepsCommonCompressedFormatsUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.HasSuffix(saved.ID, zstdSuffix) || saved.Size != int64(len(body)) || saved.OriginalFilename != filename {
+			if strings.HasSuffix(saved.ID, zstdSuffix) || saved.Size != int64(len(body)) ||
+				saved.OriginalFilename != filename {
 				t.Fatal(saved)
 			}
 			stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ID))
@@ -62,14 +63,15 @@ func TestSaveUsesOpaqueIdentityAndVerifiesBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := filepath.Join(dir, "download")
-	if err = os.WriteFile(source, []byte("hello"), 0600); err != nil {
+	if err = os.WriteFile(source, []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := files.Save(source, "../../CON.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(saved.ID, ".zst") || saved.Size != 5 || saved.SHA256 != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
+	if !strings.HasSuffix(saved.ID, ".zst") || saved.Size != 5 ||
+		saved.SHA256 != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
 		t.Fatal(saved)
 	}
 	stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ID))
@@ -101,7 +103,7 @@ func TestCompressedFileSupportsSeeking(t *testing.T) {
 	}
 	body := []byte(strings.Repeat("lecture notes and examples\n", 1000))
 	source := filepath.Join(dir, "download")
-	if err := os.WriteFile(source, body, 0600); err != nil {
+	if err := os.WriteFile(source, body, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := files.Save(source, "paper.PDF")
@@ -162,7 +164,7 @@ func TestLegacyUncompressedFileRemainsReadable(t *testing.T) {
 		t.Fatal(err)
 	}
 	legacy := domain.SavedFile{ID: strings.Repeat("a", 32), Size: 6}
-	if err := os.WriteFile(filepath.Join(dir, legacy.ID), []byte("legacy"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, legacy.ID), []byte("legacy"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	file, err := files.Open(legacy)

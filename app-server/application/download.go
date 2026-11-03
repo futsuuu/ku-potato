@@ -43,13 +43,30 @@ func (a *Application) download(ctx context.Context, r operation.Request) (any, e
 		}
 	}
 	if err != nil {
-		if e := a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, observations.Resources, nil, err); e != nil {
+		if e := a.archive.Acquired(
+			ctx,
+			r.MaterialID,
+			r.ResourceID,
+			observations.Resources,
+			nil,
+			err,
+		); e != nil {
 			slog.Error("record acquisition failure", "error", e)
 		}
 		return nil, err
 	}
 	if download.URL != "" {
-		return domain.DownloadResult{Type: "external", URL: download.URL}, a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, observations.Resources, nil, nil)
+		return domain.DownloadResult{
+			Type: "external",
+			URL:  download.URL,
+		}, a.archive.Acquired(
+			ctx,
+			r.MaterialID,
+			r.ResourceID,
+			observations.Resources,
+			nil,
+			nil,
+		)
 	}
 	report(ctx, operation.Progress{Stage: "saving"})
 	file, err := a.files.Save(download.Path, download.Filename)
@@ -67,7 +84,14 @@ func (a *Application) download(ctx context.Context, r operation.Request) (any, e
 			previous = res.SavedFile
 		}
 	}
-	if err = a.archive.Acquired(ctx, r.MaterialID, r.ResourceID, observations.Resources, &file, nil); err != nil {
+	if err = a.archive.Acquired(
+		ctx,
+		r.MaterialID,
+		r.ResourceID,
+		observations.Resources,
+		&file,
+		nil,
+	); err != nil {
 		_ = a.files.Remove(file)
 		return nil, err
 	}
@@ -120,7 +144,10 @@ func (a *Application) discardTransfer(pending *pendingTransfer) {
 	}
 }
 
-func (a *Application) fetchDownload(ctx context.Context, material, resource, preferred, cachedURL string) (outport.Download, error) {
+func (a *Application) fetchDownload(
+	ctx context.Context,
+	material, resource, preferred, cachedURL string,
+) (outport.Download, error) {
 	pending := a.startTransfer(ctx, cachedURL)
 	defer func() { a.discardTransfer(pending) }()
 	current, err := a.content.Download(ctx, material, resource, preferred)

@@ -49,7 +49,14 @@ func (a *Application) start(ctx context.Context, request operation.Request) (*ex
 		a.activeMu.Unlock()
 		return current, nil
 	}
-	e := &execution{status: operation.OperationStatus{Status: "running", Attempt: 1, Progress: &operation.Progress{Stage: "waiting"}}, changed: make(chan struct{})}
+	e := &execution{
+		status: operation.OperationStatus{
+			Status:   "running",
+			Attempt:  1,
+			Progress: &operation.Progress{Stage: "waiting"},
+		},
+		changed: make(chan struct{}),
+	}
 	a.active[string(key)] = e
 	a.activeMu.Unlock()
 	go func() {
@@ -89,7 +96,12 @@ func (a *Application) start(ctx context.Context, request operation.Request) (*ex
 
 func (a *Application) executeJob(ctx context.Context, r operation.Request) (any, error) {
 	switch r.Kind {
-	case "login", "auth-check", "register-webauthn", "delete-webauthn", "google-login", "google-auth-check":
+	case "login",
+		"auth-check",
+		"register-webauthn",
+		"delete-webauthn",
+		"google-login",
+		"google-auth-check":
 		a.auth.Lock()
 		defer a.auth.Unlock()
 	default:

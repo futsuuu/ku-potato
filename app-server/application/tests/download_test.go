@@ -40,15 +40,29 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	}
 	defer store.Close()
 	snapshot := domain.Snapshot{
-		AcademicYear: 2026, Courses: []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}},
-		Materials:  &domain.CourseMaterials{CourseID: "KOG1", Folders: []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1", Type: "material"}}}}},
-		MaterialID: "SRY1", Resources: []domain.Resource{{ID: "SRS1", Name: "external", Type: "external", URL: "https://drive.google.com/file/d/file/view"}},
+		AcademicYear: 2026,
+		Courses:      []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}},
+		Materials: &domain.CourseMaterials{
+			CourseID: "KOG1",
+			Folders: []domain.Folder{
+				{Name: "week", Materials: []domain.Material{{ID: "SRY1", Type: "material"}}},
+			},
+		},
+		MaterialID: "SRY1",
+		Resources: []domain.Resource{
+			{
+				ID:   "SRS1",
+				Name: "external",
+				Type: "external",
+				URL:  "https://drive.google.com/file/d/file/view",
+			},
+		},
 	}
 	if _, err := store.Append(context.Background(), snapshot); err != nil {
 		t.Fatal(err)
 	}
 	staging := filepath.Join(root, "staging")
-	if err := os.WriteFile(staging, []byte("%PDF fixture"), 0600); err != nil {
+	if err := os.WriteFile(staging, []byte("%PDF fixture"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	files, err := filesystem.New(filepath.Join(root, "files"))
@@ -59,9 +73,16 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := application.New(externalFileSource{snapshot: snapshot}, store, authstate.NewAuthenticationState(), files, time.Second, 1,
+	app := application.New(
+		externalFileSource{snapshot: snapshot},
+		store,
+		authstate.NewAuthenticationState(),
+		files,
+		time.Second,
+		1,
 		application.WithExternalDownloader(externalFileDownloader{path: staging}),
-		application.WithResourceMaterializer(materializer))
+		application.WithResourceMaterializer(materializer),
+	)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- app.Run(ctx) }()
@@ -82,11 +103,14 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	preparedBody, err := os.ReadFile(prepared)
-	if err != nil || string(preparedBody) != "%PDF fixture" || filepath.Base(prepared) != "handout.pdf" {
+	if err != nil || string(preparedBody) != "%PDF fixture" ||
+		filepath.Base(prepared) != "handout.pdf" {
 		t.Fatal("downloaded external file was not prepared", prepared, string(preparedBody), err)
 	}
 	detail, err := store.Detail(request, "SRY1")
-	if err != nil || len(detail.Resources) != 1 || detail.Resources[0].Type != "external" || detail.Resources[0].SavedFile == nil || detail.Resources[0].URL != snapshot.Resources[0].URL {
+	if err != nil || len(detail.Resources) != 1 || detail.Resources[0].Type != "external" ||
+		detail.Resources[0].SavedFile == nil ||
+		detail.Resources[0].URL != snapshot.Resources[0].URL {
 		t.Fatal("external URL or saved file was lost", detail, err)
 	}
 	file, err := app.File(request, "SRY1", "SRS1")

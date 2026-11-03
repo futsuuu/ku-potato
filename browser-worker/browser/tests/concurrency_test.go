@@ -51,12 +51,21 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	var lmsAddress atomic.Value
 	ssoSystem := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sso")
-		if !initialLogin.Swap(false) && (err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) {
+		if !initialLogin.Swap(false) &&
+			(err != nil || cookie.Value != fmt.Sprint(ssoVersion.Load())) {
 			http.Error(w, "SSO state missing", http.StatusUnauthorized)
 			return
 		}
 		// A successful SSO handoff rotates the token and invalidates its old value.
-		http.SetCookie(w, &http.Cookie{Name: "sso", Value: fmt.Sprint(ssoVersion.Add(1)), Path: "/", MaxAge: 3600})
+		http.SetCookie(
+			w,
+			&http.Cookie{
+				Name:   "sso",
+				Value:  fmt.Sprint(ssoVersion.Add(1)),
+				Path:   "/",
+				MaxAge: 3600,
+			},
+		)
 		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", 302)
 	}))
 	defer ssoSystem.Close()
@@ -72,7 +81,10 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 		switch r.URL.Path {
 		case "/ticket":
 			session = fmt.Sprint(sessions.Add(1))
-			http.SetCookie(w, &http.Cookie{Name: "lms-session", Value: session, Path: "/", MaxAge: 3600})
+			http.SetCookie(
+				w,
+				&http.Cookie{Name: "lms-session", Value: session, Path: "/", MaxAge: 3600},
+			)
 			http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
 		case "/lms/homeRedirect/":
 			if session == "" {
@@ -81,9 +93,16 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 				http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
 			}
 		case "/lms":
-			fmt.Fprintf(w, `<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`, ssoURL)
+			fmt.Fprintf(
+				w,
+				`<p>統合認証アカウントでログインします</p><form action="%s"><button name="loginButton">Login</button></form>`,
+				ssoURL,
+			)
 		case "/lms/homeHoml/doIndex":
-			fmt.Fprint(w, `<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')">Course 1</a></div><div class="lms-cardname"><a onclick="formSubmit('KOG2')">Course 2</a></div></div><script>function formSubmit(id){location.href='/lms/homeHoml/doLinkKougi?id='+id}</script>`)
+			fmt.Fprint(
+				w,
+				`<span class="lms-search-condition-title">講義一覧</span><select name="nendo"><option value="2026" selected>2026</option></select><div class="lms-weekly-area"><div class="lms-cardname"><a onclick="formSubmit('KOG1')">Course 1</a></div><div class="lms-cardname"><a onclick="formSubmit('KOG2')">Course 2</a></div></div><script>function formSubmit(id){location.href='/lms/homeHoml/doLinkKougi?id='+id}</script>`,
+			)
 		case "/lms/homeHoml/doLinkKougi":
 			mu.Lock()
 			selected[session] = r.URL.Query().Get("id")
@@ -95,13 +114,24 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 			course := selected[session]
 			mu.Unlock()
 			n := strings.TrimPrefix(course, "KOG")
-			fmt.Fprintf(w, `<table><tr><th>授業実施日</th></tr><tr class="accordionHeader"><td class="courseFolderName">%s</td><td class="checkStBoldJyugyoDy">2026/10/05</td></tr><tr><td><table><tr><td class="kyozaititleCell" id="SRY%s"><i title="資料"></i><a href="/lms/corsColl/doLinkKyozaiTitle">Handout</a></td><td>－</td></tr></table></td></tr></table>`, course, n)
+			fmt.Fprintf(
+				w,
+				`<table><tr><th>授業実施日</th></tr><tr class="accordionHeader"><td class="courseFolderName">%s</td><td class="checkStBoldJyugyoDy">2026/10/05</td></tr><tr><td><table><tr><td class="kyozaititleCell" id="SRY%s"><i title="資料"></i><a href="/lms/corsColl/doLinkKyozaiTitle">Handout</a></td><td>－</td></tr></table></td></tr></table>`,
+				course,
+				n,
+			)
 		case "/lms/corsColl/doLinkKyozaiTitle":
 			mu.Lock()
 			course := selected[session]
 			mu.Unlock()
 			n := strings.TrimPrefix(course, "KOG")
-			fmt.Fprintf(w, `<table><tr><th>資料名</th></tr><tr><td data-label="資料名"><i title="ファイル資料"></i><a href="javascript:downloadFile('FIL%s','SRS%s')">%s.txt</a></td></tr></table><script>function downloadFile(){location.href='/file'}</script>`, n, n, course)
+			fmt.Fprintf(
+				w,
+				`<table><tr><th>資料名</th></tr><tr><td data-label="資料名"><i title="ファイル資料"></i><a href="javascript:downloadFile('FIL%s','SRS%s')">%s.txt</a></td></tr></table><script>function downloadFile(){location.href='/file'}</script>`,
+				n,
+				n,
+				course,
+			)
 		case "/file":
 			if !wait(r, session) {
 				return
@@ -110,7 +140,8 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 			course := selected[session]
 			mu.Unlock()
 			w.Header().Set("Content-Type", "application/octet-stream")
-			w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.txt"`, course))
+			w.Header().
+				Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.txt"`, course))
 			fmt.Fprint(w, course)
 		default:
 			http.NotFound(w, r)
@@ -119,7 +150,17 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	defer lms.Close()
 	lmsAddress.Store(lms.URL)
 	dir := t.TempDir()
-	b, err := adapter.New(adapter.Options{StateDir: filepath.Join(dir, "state"), CacheDir: filepath.Join(dir, "cache"), DownloadDir: filepath.Join(dir, "downloads"), Executable: executable, LMSURL: lms.URL, SSOURL: ssoURL, Parallelism: 2})
+	b, err := adapter.New(
+		adapter.Options{
+			StateDir:    filepath.Join(dir, "state"),
+			CacheDir:    filepath.Join(dir, "cache"),
+			DownloadDir: filepath.Join(dir, "downloads"),
+			Executable:  executable,
+			LMSURL:      lms.URL,
+			SSOURL:      ssoURL,
+			Parallelism: 2,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +233,11 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 			return err
 		}
 		if string(body) != course || download.Filename != course+".txt" {
-			return fmt.Errorf("download received another page's file: %s / %s", body, download.Filename)
+			return fmt.Errorf(
+				"download received another page's file: %s / %s",
+				body,
+				download.Filename,
+			)
 		}
 		paths <- download.Path
 		return nil

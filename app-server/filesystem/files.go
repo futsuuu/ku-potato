@@ -24,7 +24,7 @@ func New(root string) (*Files, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = os.MkdirAll(root, 0700); err != nil {
+	if err = os.MkdirAll(root, 0o700); err != nil {
 		return nil, err
 	}
 	return &Files{root}, nil
@@ -52,6 +52,7 @@ func (f *Files) path(file domain.SavedFile) (string, error) {
 	}
 	return filepath.Join(f.root, file.ID), nil
 }
+
 func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 	in, err := os.Open(source)
 	if err != nil {
@@ -67,7 +68,7 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 		metadata.ID += zstdSuffix
 	}
 	destination := filepath.Join(f.root, metadata.ID)
-	out, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	out, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return metadata, err
 	}
@@ -110,6 +111,7 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 	success = true
 	return metadata, nil
 }
+
 func (f *Files) Open(file domain.SavedFile) (io.ReadSeekCloser, error) {
 	path, err := f.path(file)
 	if err != nil {
@@ -132,8 +134,14 @@ func (f *Files) Open(file domain.SavedFile) (io.ReadSeekCloser, error) {
 		in.Close()
 		return nil, err
 	}
-	return &zstdFile{source: in, decoder: decoder, compressedSize: stat.Size(), size: file.Size}, nil
+	return &zstdFile{
+		source:         in,
+		decoder:        decoder,
+		compressedSize: stat.Size(),
+		size:           file.Size,
+	}, nil
 }
+
 func (f *Files) Remove(file domain.SavedFile) error {
 	path, err := f.path(file)
 	if err != nil {

@@ -73,7 +73,12 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	defer cancel()
 	firstCtx, detach := context.WithCancel(ctx)
 	defer detach()
-	request, _ := http.NewRequestWithContext(firstCtx, http.MethodGet, server.URL+"/courses?sync=true", nil)
+	request, _ := http.NewRequestWithContext(
+		firstCtx,
+		http.MethodGet,
+		server.URL+"/courses?sync=true",
+		nil,
+	)
 	first, err := server.Client().Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +97,12 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	}
 	// The worker is still waiting, but status events have already arrived.
 	detach()
-	request, _ = http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/courses?sync=true", nil)
+	request, _ = http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL+"/courses?sync=true",
+		nil,
+	)
 	second, err := server.Client().Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +142,12 @@ func TestApplicationDoesNotRetryBrowserFailures(t *testing.T) {
 	server := streamingServer(t, fake)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/courses?sync=true", nil)
+	request, _ := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		server.URL+"/courses?sync=true",
+		nil,
+	)
 	response, err := server.Client().Do(request)
 	if err != nil {
 		t.Fatal(err)
