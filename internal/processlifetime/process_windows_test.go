@@ -19,12 +19,12 @@ func TestBindToParentStopsChildOnRelease(t *testing.T) {
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer child.Process.Kill()
+	defer func() { _ = child.Process.Kill() }()
 
 	release, err := BindToParent(child.Process)
 	if err != nil {
-		child.Process.Kill()
-		child.Wait()
+		_ = child.Process.Kill()
+		_ = child.Wait()
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)

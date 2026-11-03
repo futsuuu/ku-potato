@@ -33,7 +33,7 @@ func BindToParent(process *os.Process) (func(), error) {
 		closeJob()
 		return nil, err
 	}
-	defer windows.CloseHandle(handle)
+	defer func() { _ = windows.CloseHandle(handle) }()
 	if err := windows.AssignProcessToJobObject(job, handle); err != nil {
 		closeJob()
 		return nil, err

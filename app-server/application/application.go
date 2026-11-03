@@ -101,7 +101,7 @@ func (a *Application) PrepareResource(
 	if err != nil {
 		return "", err
 	}
-	defer file.Content.Close()
+	defer func() { _ = file.Content.Close() }()
 	path, err := a.materializer.Prepare(ctx, file.Content, file.Metadata)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -247,8 +247,7 @@ func (a *Application) append(
 }
 
 func publicError(err error) *domain.Error {
-	var e *domain.Error
-	if errors.As(err, &e) {
+	if e, ok := errors.AsType[*domain.Error](err); ok {
 		return e
 	}
 	if errors.Is(err, domain.ErrMissing) {

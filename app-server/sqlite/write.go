@@ -22,7 +22,7 @@ func (s *Store) Append(
 	if err != nil {
 		return ids, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if snapshot.Courses != nil {
 		if ids.Courses, err = insertCourses(
 			ctx,
@@ -232,7 +232,7 @@ func (s *Store) Acquired(
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	t := table.ResourceStates
 	key := t.LmsMaterialID.EQ(sqlite.String(material)).
 		AND(t.LmsResourceID.EQ(sqlite.String(resource)))

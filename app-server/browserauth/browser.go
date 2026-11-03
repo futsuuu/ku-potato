@@ -74,8 +74,7 @@ func sourceError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
-	var known *domain.Error
-	if errors.As(err, &known) {
+	if _, ok := errors.AsType[*domain.Error](err); ok {
 		return err
 	}
 	if ctx.Err() != nil {

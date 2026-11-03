@@ -22,7 +22,7 @@ func runOpenAPI(args []string) error {
 
 	w := httptest.NewRecorder()
 	httpapi.New(nil, "127.0.0.1:8787").
-		ServeHTTP(w, httptest.NewRequest("GET", "http://127.0.0.1:8787/openapi.json", nil))
+		ServeHTTP(w, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8787/openapi.json", nil))
 	if w.Code != http.StatusOK {
 		return fmt.Errorf("OpenAPI generation failed: HTTP %d", w.Code)
 	}

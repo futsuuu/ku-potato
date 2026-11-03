@@ -45,7 +45,7 @@ func TestSaveKeepsCommonCompressedFormatsUnchanged(t *testing.T) {
 				t.Fatal(err)
 			}
 			opened, err := io.ReadAll(file)
-			file.Close()
+			_ = file.Close()
 			if err != nil || !bytes.Equal(opened, body) {
 				t.Fatal("opened bytes changed", err)
 			}
@@ -83,7 +83,7 @@ func TestSaveUsesOpaqueIdentityAndVerifiesBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, err := io.ReadAll(file)
-	file.Close()
+	_ = file.Close()
 	if err != nil || string(body) != "hello" {
 		t.Fatal(string(body), err)
 	}
@@ -118,7 +118,7 @@ func TestCompressedFileSupportsSeeking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	if end, err := file.Seek(0, io.SeekEnd); err != nil || end != int64(len(body)) {
 		t.Fatal("wrong original size", end, err)
 	}
@@ -147,7 +147,7 @@ func TestCompressedFileSupportsSeeking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer served.Close()
+	defer func() { _ = served.Close() }()
 	request := httptest.NewRequest(http.MethodGet, "/file", nil)
 	request.Header.Set("Range", "bytes=10-19")
 	response := httptest.NewRecorder()
@@ -172,7 +172,7 @@ func TestLegacyUncompressedFileRemainsReadable(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, err := io.ReadAll(file)
-	file.Close()
+	_ = file.Close()
 	if err != nil || string(body) != "legacy" {
 		t.Fatal(string(body), err)
 	}

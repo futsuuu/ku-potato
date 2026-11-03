@@ -41,8 +41,7 @@ func TestDownloadIsNotRetried(t *testing.T) {
 }
 
 func TestInFlightReadSharesExecutionButNotCompletedResults(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	s := NewScheduler(ctx, 2)
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -55,15 +54,13 @@ func TestInFlightReadSharesExecutionButNotCompletedResults(t *testing.T) {
 		return "result", nil
 	}
 	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 2 {
+		wg.Go(func() {
 			value, err := s.Run(ctx, "courses", run)
 			if err != nil || value != "result" {
 				t.Errorf("run: %v %v", value, err)
 			}
-		}()
+		})
 	}
 	<-started
 	time.Sleep(10 * time.Millisecond)

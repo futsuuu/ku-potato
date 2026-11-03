@@ -3,6 +3,7 @@ package browserauth
 import (
 	"context"
 	"encoding/base64"
+	"net/http"
 	"net/url"
 	"regexp"
 	"sync"
@@ -134,7 +135,7 @@ func (b *Browser) registerWebAuthn(
 			requests.Lock()
 			defer requests.Unlock()
 			exec := executor(tab)
-			if paused.Request.Method == "POST" {
+			if paused.Request.Method == http.MethodPost {
 				values, e := registrationForm(paused.Request)
 				if e != nil {
 					_ = fetch.FailRequest(paused.RequestID, network.ErrorReasonAborted).

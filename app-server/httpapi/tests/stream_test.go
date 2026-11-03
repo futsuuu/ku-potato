@@ -53,11 +53,11 @@ func readFrame(t *testing.T, scanner *bufio.Scanner) (string, json.RawMessage) {
 		if line == "" && event != "" {
 			return event, json.RawMessage(data)
 		}
-		if strings.HasPrefix(line, "event: ") {
-			event = strings.TrimPrefix(line, "event: ")
+		if after, ok := strings.CutPrefix(line, "event: "); ok {
+			event = after
 		}
-		if strings.HasPrefix(line, "data: ") {
-			data = strings.TrimPrefix(line, "data: ")
+		if after, ok := strings.CutPrefix(line, "data: "); ok {
+			data = after
 		}
 	}
 	t.Fatal("stream ended before event", scanner.Err())
@@ -83,7 +83,7 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.Body.Close()
+	defer func() { _ = first.Body.Close() }()
 	scanner := bufio.NewScanner(first.Body)
 	for {
 		event, body := readFrame(t, scanner)
@@ -107,7 +107,7 @@ func TestStatusFlushesBeforeCompletionAndDisconnectDoesNotCancelSharedWork(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer second.Body.Close()
+	defer func() { _ = second.Body.Close() }()
 	scanner = bufio.NewScanner(second.Body)
 	for {
 		event, body := readFrame(t, scanner)
@@ -152,7 +152,7 @@ func TestApplicationDoesNotRetryBrowserFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	scanner := bufio.NewScanner(response.Body)
 	for {
 		event, body := readFrame(t, scanner)

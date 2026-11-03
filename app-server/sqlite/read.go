@@ -23,7 +23,7 @@ func readStore[T any](
 	if err != nil {
 		return zero, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	return load(tx)
 }
 

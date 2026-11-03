@@ -27,6 +27,7 @@ func TestVirtualWebAuthnKeyIsSavedBeforeRegistration(t *testing.T) {
 }
 
 func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
+	t.Helper()
 	executable := chrome(t)
 	data := t.TempDir()
 	credentialPath := filepath.Join(data, "auth", "kogakuin", "webauthn.json")
@@ -41,10 +42,10 @@ func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 		switch r.URL.Path {
 		case "/lms/homeRedirect/":
 			if needAssertion.Load() {
-				http.Redirect(w, r, "/pub/u2flogin.cgi", 302)
+				http.Redirect(w, r, "/pub/u2flogin.cgi", http.StatusFound)
 				return
 			}
-			http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+			http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 		case "/pub/u2flogin.cgi":
 			fmt.Fprint(
 				w,
@@ -65,8 +66,11 @@ func testVirtualWebAuthnRegistration(t *testing.T, navigation bool) {
 		case "/user/":
 			registered := false
 			label := "Device"
-			if r.Method == "POST" {
-				r.ParseForm()
+			if r.Method == http.MethodPost {
+				if err := r.ParseForm(); err != nil {
+					t.Error(err)
+					return
+				}
 				if r.Form.Get("operation") == "register" {
 					accepted.Add(1)
 					body, err := os.ReadFile(credentialPath)
@@ -130,7 +134,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { browser.Close() })
+	t.Cleanup(func() { _ = browser.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	if err = browser.RegisterWebAuthn(ctx, false); err != nil {

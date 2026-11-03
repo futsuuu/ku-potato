@@ -84,7 +84,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	for _, dir := range []string{*state, *cache, *temp} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
@@ -98,12 +98,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(processTemp)
+	defer func() { _ = os.RemoveAll(processTemp) }()
 	store, err := sqlite.Open(filepath.Join(root, "archive.sqlite"))
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	files, err := filesystem.New(filepath.Join(root, "resources"))
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer authBrowser.Close()
+	defer func() { _ = authBrowser.Close() }()
 	lmsAuth := chromedp.NewLMSAuthenticator(authBrowser)
 	google := chromedp.NewGoogle(authBrowser)
 	materializer, err := filesystem.NewMaterializer(tempRoot)
@@ -135,7 +135,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer workerProcess.Close()
+	defer func() { _ = workerProcess.Close() }()
 	downloads := filepath.Join(processTemp, "downloads")
 	if err := os.MkdirAll(downloads, 0o700); err != nil {
 		return err
@@ -157,7 +157,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	server := &http.Server{
 		Handler:           httpapi.New(application, listener.Addr().String()),
 		ReadHeaderTimeout: 5 * time.Second,

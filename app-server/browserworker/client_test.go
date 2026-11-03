@@ -69,7 +69,7 @@ func TestDownloadStreamsIntoLocalTemporaryFileAndRejectsTruncation(t *testing.T)
 			listener := bufconn.Listen(1 << 20)
 			server := grpc.NewServer()
 			workerproto.RegisterBrowserWorkerServer(server, fileWorker{declared: size})
-			go server.Serve(listener)
+			go func() { _ = server.Serve(listener) }()
 			defer server.Stop()
 			conn, err := grpc.NewClient(
 				"passthrough:///worker",
@@ -81,7 +81,7 @@ func TestDownloadStreamsIntoLocalTemporaryFileAndRejectsTruncation(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			root := t.TempDir()
 			client := New(workerproto.NewBrowserWorkerClient(conn), nil, root)
 			result, err := client.Download(context.Background(), "SRY1", "SRS1", "")
@@ -102,7 +102,7 @@ func TestDownloadStreamsIntoLocalTemporaryFileAndRejectsTruncation(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 			body, err := io.ReadAll(file)
 			if err != nil || string(body) != "content" {
 				t.Fatalf("file contents: %q %v", body, err)

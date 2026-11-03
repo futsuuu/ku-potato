@@ -181,6 +181,16 @@ func TestMalformedWireValuesAreRejected(t *testing.T) {
 		{
 			Id:                  &workerproto.MaterialId{Value: "SRY1"},
 			PublicationDeadline: deadline,
+			Kind: &workerproto.Material_Document{
+				Document: &workerproto.DocumentMaterial{
+					Status:               workerproto.DocumentStatus_DOCUMENT_STATUS_UNKNOWN,
+					ResourceAvailability: workerproto.LinkAvailability(999),
+				},
+			},
+		},
+		{
+			Id:                  &workerproto.MaterialId{Value: "SRY1"},
+			PublicationDeadline: deadline,
 			Kind: &workerproto.Material_Report{
 				Report: &workerproto.ReportMaterial{Status: workerproto.ReportMaterialStatus(999)},
 			},

@@ -223,6 +223,8 @@ func fromMaterial(value *workerproto.Material) (domain.Material, error) {
 			workerproto.DocumentStatus_name,
 		)
 		switch kind.Document.GetResourceAvailability() {
+		case workerproto.LinkAvailability_LINK_AVAILABILITY_UNSPECIFIED:
+			return domain.Material{}, malformed()
 		case workerproto.LinkAvailability_LINK_AVAILABILITY_AVAILABLE:
 			result.ResourceAvailability = "available"
 		case workerproto.LinkAvailability_LINK_AVAILABILITY_UNAVAILABLE:

@@ -2,6 +2,7 @@ package browserworker
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -104,8 +105,7 @@ func TestBrowserFailureUsesTypedDetails(t *testing.T) {
 }
 
 func TestGRPCContractsAndTransfer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	root := t.TempDir()
 	path := filepath.Join(root, "download")
 	if err := os.WriteFile(path, []byte("file contents"), 0o600); err != nil {
@@ -119,7 +119,7 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 	listener := bufconn.Listen(1 << 20)
 	server := grpc.NewServer()
 	workerproto.RegisterBrowserWorkerServer(server, worker)
-	go server.Serve(listener)
+	go func() { _ = server.Serve(listener) }()
 	defer server.Stop()
 	conn, err := grpc.NewClient(
 		"passthrough:///bufconn",
@@ -131,7 +131,7 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	client := workerproto.NewBrowserWorkerClient(conn)
 	listing, err := client.Courses(ctx, &emptypb.Empty{})
 	if err != nil || listing.AcademicYear != 2026 || len(listing.Courses) != 1 {
@@ -162,7 +162,7 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 	if err != nil || string(chunk.GetChunk()) != "file contents" {
 		t.Fatalf("download data: %v %v", chunk, err)
 	}
-	if _, err := stream.Recv(); err != io.EOF {
+	if _, err := stream.Recv(); !errors.Is(err, io.EOF) {
 		t.Fatalf("expected end of download, got %v", err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {

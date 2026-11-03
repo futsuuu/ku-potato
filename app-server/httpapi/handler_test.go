@@ -14,7 +14,11 @@ func TestDesktopCORSIsRestrictedToExactOrigins(t *testing.T) {
 		"wails://wails", "wails://wails:34115", "wails://wails.localhost:34115",
 	} {
 		t.Run(origin, func(t *testing.T) {
-			request := httptest.NewRequest("OPTIONS", "http://127.0.0.1:8787/auth/login", nil)
+			request := httptest.NewRequest(
+				http.MethodOptions,
+				"http://127.0.0.1:8787/auth/login",
+				nil,
+			)
 			request.Header.Set("Origin", origin)
 			request.Header.Set("Sec-Fetch-Site", "cross-site")
 			request.Header.Set("Access-Control-Request-Method", "POST")
@@ -25,7 +29,7 @@ func TestDesktopCORSIsRestrictedToExactOrigins(t *testing.T) {
 				response.Header().Get("Access-Control-Allow-Origin") != origin {
 				t.Fatalf("preflight: %d %s", response.Code, response.Body.String())
 			}
-			request = httptest.NewRequest("GET", "http://127.0.0.1:8787/healthz", nil)
+			request = httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8787/healthz", nil)
 			request.Header.Set("Origin", origin)
 			request.Header.Set("Sec-Fetch-Site", "cross-site")
 			response = httptest.NewRecorder()
@@ -42,7 +46,7 @@ func TestDesktopCORSIsRestrictedToExactOrigins(t *testing.T) {
 		"wails://localhost.evil.test", "wails://localhost/", "wails://localhost:9246",
 		"http://localhost", "http://localhost:9245", "http://wails.localhost:9246",
 	} {
-		request := httptest.NewRequest("GET", "http://127.0.0.1:8787/healthz", nil)
+		request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8787/healthz", nil)
 		request.Header.Set("Origin", origin)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
@@ -55,7 +59,7 @@ func TestDesktopCORSIsRestrictedToExactOrigins(t *testing.T) {
 
 func TestDesktopPreflightRejectsUnsupportedMethodsAndHeaders(t *testing.T) {
 	for _, input := range []struct{ method, headers string }{{"PUT", "content-type"}, {"POST", "x-untrusted"}} {
-		request := httptest.NewRequest("OPTIONS", "http://127.0.0.1:8787/auth", nil)
+		request := httptest.NewRequest(http.MethodOptions, "http://127.0.0.1:8787/auth", nil)
 		request.Header.Set("Origin", "http://wails.localhost")
 		request.Header.Set("Access-Control-Request-Method", input.method)
 		request.Header.Set("Access-Control-Request-Headers", input.headers)

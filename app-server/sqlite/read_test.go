@@ -9,8 +9,6 @@ import (
 	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
-func ptr[T any](value T) *T { return &value }
-
 func TestCourseHistoryIsScopedByYearAndRetainsPlacements(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
@@ -19,15 +17,15 @@ func TestCourseHistoryIsScopedByYearAndRetainsPlacements(t *testing.T) {
 			ID:      "KOG1",
 			Name:    "first",
 			Type:    "scheduled",
-			Weekday: ptr(int64(1)),
-			Period:  ptr(int64(2)),
+			Weekday: new(int64(1)),
+			Period:  new(int64(2)),
 		},
 		{
 			ID:      "KOG1",
 			Name:    "second",
 			Type:    "scheduled",
-			Weekday: ptr(int64(2)),
-			Period:  ptr(int64(3)),
+			Weekday: new(int64(2)),
+			Period:  new(int64(3)),
 		},
 		{Name: "same", Type: "other"},
 		{Name: "same", Type: "other"},
@@ -78,7 +76,7 @@ func TestMetadataAndReportDetailsRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	snapshot := archiveSnapshot()
 	snapshot.Materials.Folders[0].ClassDate = "2026-10-05"
-	snapshot.Materials.Folders[0].DescriptionHTML = ptr("")
+	snapshot.Materials.Folders[0].DescriptionHTML = new("")
 	snapshot.Materials.Folders[0].Materials = append(
 		snapshot.Materials.Folders[0].Materials,
 		domain.Material{
@@ -89,9 +87,9 @@ func TestMetadataAndReportDetailsRoundTrip(t *testing.T) {
 		},
 	)
 	snapshot.Resources[0].Status = "viewed"
-	snapshot.Resources[0].RegisteredOn = ptr("2026-10-01")
-	snapshot.Resources[0].FirstViewedOn = ptr("2026-10-05")
-	snapshot.Resources[0].Description = ptr("line 1\nline 2")
+	snapshot.Resources[0].RegisteredOn = new("2026-10-01")
+	snapshot.Resources[0].FirstViewedOn = new("2026-10-05")
+	snapshot.Resources[0].Description = new("line 1\nline 2")
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
@@ -118,16 +116,16 @@ func TestMetadataAndReportDetailsRoundTrip(t *testing.T) {
 	}
 	start, end := time.UnixMilli(10).UTC(), time.UnixMilli(20).UTC()
 	snapshot = domain.Snapshot{MaterialID: "REP1", Report: &domain.ReportDetail{
-		PromptHTML:           ptr(""),
+		PromptHTML:           new(""),
 		Status:               "submitted",
 		SubmissionPeriodKind: "at",
 		SubmissionStartsAt:   &start,
 		SubmissionDueAt:      &end,
 		CorrectionMode:       "limited",
-		CorrectionLimit:      ptr(int64(0)),
-		TextAnswerAllowed:    ptr(false),
-		FileAnswerAllowed:    ptr(true),
-		MaxTotalFileBytes:    ptr(int64(5 * 1024 * 1024)),
+		CorrectionLimit:      new(int64(0)),
+		TextAnswerAllowed:    new(false),
+		FileAnswerAllowed:    new(true),
+		MaxTotalFileBytes:    new(int64(5 * 1024 * 1024)),
 	}}
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)

@@ -40,7 +40,9 @@ func TestMain(m *testing.M) {
 		})
 		mux.HandleFunc(
 			"/quit",
-			func(w http.ResponseWriter, r *http.Request) { go server.Shutdown(context.Background()) },
+			func(w http.ResponseWriter, r *http.Request) {
+				go func() { _ = server.Shutdown(context.Background()) }()
+			},
 		)
 		_ = server.ListenAndServe()
 		os.Exit(0)
@@ -109,10 +111,10 @@ func TestDetachedServerSurvivesDesktopProcessExit(t *testing.T) {
 		t.Fatalf("parent exited: %v %s", err, output)
 	}
 	defer func() {
-		request, _ := http.NewRequest("POST", endpoint+"/quit", nil)
+		request, _ := http.NewRequest(http.MethodPost, endpoint+"/quit", nil)
 		client := &http.Client{Timeout: time.Second}
 		if response, err := client.Do(request); err == nil {
-			response.Body.Close()
+			_ = response.Body.Close()
 		}
 	}()
 	ready, err := probe(ctx, endpoint)

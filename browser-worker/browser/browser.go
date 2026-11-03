@@ -108,8 +108,7 @@ func sourceError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
-	var known *Failure
-	if errors.As(err, &known) {
+	if _, ok := errors.AsType[*Failure](err); ok {
 		return err
 	}
 	return Fail(

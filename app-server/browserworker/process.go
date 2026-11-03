@@ -77,31 +77,31 @@ func Start(
 	command.Stdin = parentRead
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		parentRead.Close()
-		parentWrite.Close()
+		_ = parentRead.Close()
+		_ = parentWrite.Close()
 		stop()
 		return nil, err
 	}
 	command.Stderr = os.Stderr
 	if err = command.Start(); err != nil {
-		parentRead.Close()
-		parentWrite.Close()
+		_ = parentRead.Close()
+		_ = parentWrite.Close()
 		stop()
 		return nil, err
 	}
-	parentRead.Close()
+	_ = parentRead.Close()
 	done := make(chan error, 1)
 	exited := make(chan struct{})
 	go func() {
 		done <- command.Wait()
-		parentWrite.Close()
+		_ = parentWrite.Close()
 		close(exited)
 	}()
 	address := make(chan string, 1)
 	go func() {
 		line, _ := bufio.NewReader(stdout).ReadString('\n')
 		address <- strings.TrimSpace(line)
-		io.Copy(io.Discard, stdout)
+		_, _ = io.Copy(io.Discard, stdout)
 	}()
 	var endpoint string
 	select {

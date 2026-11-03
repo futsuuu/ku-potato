@@ -147,7 +147,7 @@ func withSession[T any](
 	c *Client,
 	run func(context.Context) (T, error),
 ) (T, error) {
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := range 3 {
 		value, err := run(ctx)
 		var failure *domain.Error
 		if !errors.As(err, &failure) || failure.Reason != "authentication-required" ||
@@ -258,15 +258,15 @@ func (c *Client) Download(
 		}
 		ok := false
 		defer func() {
-			file.Close()
+			_ = file.Close()
 			if !ok {
-				os.Remove(file.Name())
+				_ = os.Remove(file.Name())
 			}
 		}()
 		var received int64
 		for {
 			part, receiveErr := stream.Recv()
-			if receiveErr == io.EOF {
+			if errors.Is(receiveErr, io.EOF) {
 				break
 			}
 			if receiveErr != nil {

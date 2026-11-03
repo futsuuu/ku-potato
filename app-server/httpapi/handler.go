@@ -106,7 +106,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				)
 				return
 			}
-			for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
+			for header := range strings.SplitSeq(r.Header.Get("Access-Control-Request-Headers"), ",") {
 				switch strings.ToLower(strings.TrimSpace(header)) {
 				case "", "content-type", "range", "if-none-match":
 				default:
@@ -181,8 +181,7 @@ func failure(err error) error {
 		status = 404
 		failure = domain.Error{Reason: "archive-data-missing", Message: "保存済みデータがありません。"}
 	}
-	var e *domain.Error
-	if errors.As(err, &e) {
+	if e, ok := errors.AsType[*domain.Error](err); ok {
 		failure = *e
 		switch e.Reason {
 		case "invalid-input":
@@ -198,7 +197,7 @@ func failure(err error) error {
 	if status == 500 {
 		slog.Error("HTTP operation failed", "error", err)
 	}
-	return &responseError{errorBody: errorBody{Failure: failure}, status: status}
+	return &responseError{Failure: failure, status: status}
 }
 
 func write(w http.ResponseWriter, status int, value any) {
@@ -223,7 +222,7 @@ func (h *Handler) file(ctx context.Context, input *ResourceInput) (*huma.StreamR
 		filename = "resource"
 	}
 	return &huma.StreamResponse{Body: func(ctx huma.Context) {
-		defer file.Content.Close()
+		defer func() { _ = file.Content.Close() }()
 		r, w := humago.Unwrap(ctx)
 		w.Header().
 			Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))

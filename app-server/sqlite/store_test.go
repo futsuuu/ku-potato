@@ -33,7 +33,7 @@ func TestStoreReopensAndKeepsArchive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	courses, err := s.Courses(ctx)
 	if err != nil || len(courses) != 1 || courses[0].ID != "KOG1" {
 		t.Fatal(courses, err)
@@ -54,7 +54,7 @@ func newStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
 
@@ -163,7 +163,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { _ = s.Close() })
 	snapshot := archiveSnapshot()
 	observations, err := s.Append(ctx, snapshot)
 	if err != nil {

@@ -41,7 +41,7 @@ func (m Manager) Ensure(ctx context.Context) (string, error) {
 	if err != nil || !locked {
 		return "", fmt.Errorf("サーバの起動待ちに失敗しました: %w", err)
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	ready, err = probe(ctx, m.Endpoint)
 	if ready || err != nil {
 		return m.Endpoint, err
@@ -93,9 +93,10 @@ func probe(ctx context.Context, endpoint string) (bool, error) {
 		}
 		return false, fmt.Errorf("サーバの確認に失敗しました: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	var health struct{ Status, Service string }
-	if response.StatusCode != 200 || json.NewDecoder(response.Body).Decode(&health) != nil ||
+	if response.StatusCode != http.StatusOK ||
+		json.NewDecoder(response.Body).Decode(&health) != nil ||
 		health.Status != "ok" ||
 		health.Service != "ku-potato-server" {
 		return false, fmt.Errorf("%s は KU-POTATO サーバではありません", endpoint)
@@ -133,12 +134,12 @@ func detach(binary, logPath string) error {
 	if err != nil {
 		return err
 	}
-	defer log.Close()
+	defer func() { _ = log.Close() }()
 	input, err := os.Open(os.DevNull)
 	if err != nil {
 		return err
 	}
-	defer input.Close()
+	defer func() { _ = input.Close() }()
 	command := exec.Command(binary)
 	command.Stdin, command.Stdout, command.Stderr = input, log, log
 	configureDetached(command)

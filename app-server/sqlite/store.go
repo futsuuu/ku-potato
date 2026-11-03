@@ -37,11 +37,11 @@ func Open(path string) (*Store, error) {
 	}
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	if err := initialize(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return &Store{db: db}, nil
@@ -52,7 +52,7 @@ func initialize(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(schema.SQL); err != nil {
 		return err
 	}
@@ -62,8 +62,7 @@ func initialize(db *sql.DB) error {
 func (s *Store) Close() error { return s.db.Close() }
 
 func publicError(err error) *domain.Error {
-	var e *domain.Error
-	if errors.As(err, &e) {
+	if e, ok := errors.AsType[*domain.Error](err); ok {
 		return e
 	}
 	if errors.Is(err, domain.ErrMissing) {

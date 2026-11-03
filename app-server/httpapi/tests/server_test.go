@@ -147,7 +147,7 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	files, err := filesystem.New(filepath.Join(dir, "files"))
 	if err != nil {
 		t.Fatal(err)
@@ -219,14 +219,14 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		}
 		job := observation{}
 		terminal := 0
-		for _, frame := range strings.Split(res.Body.String(), "\n\n") {
+		for frame := range strings.SplitSeq(res.Body.String(), "\n\n") {
 			var event, data string
-			for _, line := range strings.Split(frame, "\n") {
-				if strings.HasPrefix(line, "event: ") {
-					event = strings.TrimPrefix(line, "event: ")
+			for line := range strings.SplitSeq(frame, "\n") {
+				if after, ok := strings.CutPrefix(line, "event: "); ok {
+					event = after
 				}
-				if strings.HasPrefix(line, "data: ") {
-					data = strings.TrimPrefix(line, "data: ")
+				if after, ok := strings.CutPrefix(line, "data: "); ok {
+					data = after
 				}
 			}
 			switch event {

@@ -48,11 +48,11 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sso")
 		if (err != nil || cookie.Value != "valid") && !grant.Swap(false) {
-			http.Error(w, "SSO session missing", 401)
+			http.Error(w, "SSO session missing", http.StatusUnauthorized)
 			return
 		}
 		http.SetCookie(w, &http.Cookie{Name: "sso", Value: "valid", Path: "/", MaxAge: 3600})
-		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", 302)
+		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", http.StatusFound)
 	}))
 	defer sso.Close()
 	ssoURL := strings.Replace(sso.URL, "127.0.0.1", "localhost", 1)
@@ -72,15 +72,15 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 					MaxAge: 3600,
 				},
 			)
-			http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+			http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 		case "/lms/homeRedirect/":
 			if session {
-				http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+				http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 			} else {
-				http.Redirect(w, r, "/lms/error/notLogin", 302)
+				http.Redirect(w, r, "/lms/error/notLogin", http.StatusFound)
 			}
 		case "/lms/error/notLogin":
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprint(w, "Not logged in")
 		case "/lms":
 			fmt.Fprintf(
@@ -90,7 +90,7 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 			)
 		case "/lms/homeHoml/doIndex":
 			if !session {
-				http.Redirect(w, r, "/lms/error/notLogin", 302)
+				http.Redirect(w, r, "/lms/error/notLogin", http.StatusFound)
 				return
 			}
 			fmt.Fprint(
@@ -114,7 +114,7 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer authBrowser.Close()
+	defer func() { _ = authBrowser.Close() }()
 	auth := chromedp.NewLMSAuthenticator(authBrowser)
 	if err = auth.Login(ctx, false); err != nil {
 		t.Fatal("authenticate original profile", err)
@@ -123,7 +123,7 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer worker.Close()
+	defer func() { _ = worker.Close() }()
 	client := New(worker.Client, auth, root)
 	listing, err := client.Courses(ctx)
 	if err != nil || listing.AcademicYear != 2026 || len(listing.Courses) != 1 ||

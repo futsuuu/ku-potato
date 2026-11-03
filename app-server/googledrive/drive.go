@@ -83,7 +83,7 @@ func (g *Drive) FileMetadata(ctx context.Context, rawURL string) (FileMetadata, 
 	defer d.client.CloseIdleConnections()
 	response, metadata, err := d.open(ctx, destination, true)
 	if response != nil {
-		response.Body.Close()
+		_ = response.Body.Close()
 	}
 	return metadata, googleDownloadError(ctx, err)
 }
@@ -175,7 +175,7 @@ func (d *driveHTTP) open(
 ) (*http.Response, FileMetadata, error) {
 	id := destination.Query().Get("id")
 	resourceKey := destination.Query().Get("resourcekey")
-	for attempt := 0; attempt < 3; attempt++ {
+	for range 3 {
 		if !driveEndpoint(destination) {
 			return nil, FileMetadata{}, domain.Fail("source", "Google Driveの取得先が不正です。")
 		}
@@ -192,36 +192,36 @@ func (d *driveHTTP) open(
 			return nil, FileMetadata{}, err
 		}
 		if response.StatusCode == http.StatusUnauthorized {
-			response.Body.Close()
+			_ = response.Body.Close()
 			return nil, FileMetadata{}, domain.Fail(
 				"authentication-required",
 				"Googleにログインし直してください。",
 			)
 		}
 		if response.StatusCode == http.StatusForbidden {
-			response.Body.Close()
+			_ = response.Body.Close()
 			return nil, FileMetadata{}, domain.Fail(
 				"forbidden",
 				"このGoogle Drive資料をダウンロードする権限がありません。",
 			)
 		}
 		if response.StatusCode != http.StatusOK &&
-			!(probe && response.StatusCode == http.StatusPartialContent) {
-			response.Body.Close()
+			(!probe || response.StatusCode != http.StatusPartialContent) {
+			_ = response.Body.Close()
 			return nil, FileMetadata{}, domain.Fail("source", "Google Driveからファイルを取得できません。")
 		}
 		disposition, params, _ := mime.ParseMediaType(response.Header.Get("Content-Disposition"))
 		if disposition == "attachment" && params["filename"] != "" {
 			metadata, err := driveMetadata(response, params["filename"], probe)
 			if err != nil {
-				response.Body.Close()
+				_ = response.Body.Close()
 				return nil, FileMetadata{}, err
 			}
 			return response, metadata, nil
 		}
 		// Only a small HTML confirmation page is buffered, never a large file.
 		body, readErr := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
-		response.Body.Close()
+		_ = response.Body.Close()
 		if readErr != nil {
 			return nil, FileMetadata{}, readErr
 		}
@@ -367,8 +367,7 @@ func googleDownloadError(ctx context.Context, err error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	var failure *domain.Error
-	if errors.As(err, &failure) {
+	if failure, ok := errors.AsType[*domain.Error](err); ok {
 		// HTTP errors may wrap a URL containing confirmation/session tokens.
 		// Keep only the public error, never the transport's URL diagnostics.
 		if failure.Reason == "authentication-required" {
@@ -388,16 +387,16 @@ func (d *driveHTTP) download(
 	if err != nil {
 		return "", "", err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	file, err := os.CreateTemp(directory, "drive-*")
 	if err != nil {
 		return "", "", err
 	}
 	success := false
 	defer func() {
-		file.Close()
+		_ = file.Close()
 		if !success {
-			os.Remove(file.Name())
+			_ = os.Remove(file.Name())
 		}
 	}()
 	size, err := io.Copy(file, response.Body)

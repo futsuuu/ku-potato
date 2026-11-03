@@ -15,7 +15,7 @@ func newDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schema.SQL); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 			_, err = tx.Exec(
 				"INSERT INTO courses(retrieval_id, position, name, availability, type, weekday, period) VALUES (1, 0, '', '', ?, ?, ?)",
 				test.kind,

@@ -45,7 +45,7 @@ func (f *zstdFile) Read(p []byte) (int, error) {
 	n, err := f.decoder.Read(p)
 	f.position += int64(n)
 	f.decodedPos += int64(n)
-	if err == io.EOF && f.position < f.size {
+	if errors.Is(err, io.EOF) && f.position < f.size {
 		err = io.ErrUnexpectedEOF
 	}
 	return n, err

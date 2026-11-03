@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,10 +17,8 @@ func enumValue(id, field, value string, allowed ...string) string {
 	if value == "" || value == "unknown" {
 		return "unknown"
 	}
-	for _, candidate := range allowed {
-		if value == candidate {
-			return value
-		}
+	if slices.Contains(allowed, value) {
+		return value
 	}
 	unknown(id, field, value)
 	return "unknown"

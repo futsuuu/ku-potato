@@ -55,7 +55,7 @@ func (o resourceOpener) open(
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		var failure struct {
 			Error  struct{ Message string }

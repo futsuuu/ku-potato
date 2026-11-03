@@ -47,7 +47,7 @@ func (s *Scheduler) work() {
 			if err := t.ctx.Err(); err != nil {
 				t.result.err = err
 			} else {
-				for attempt := 0; attempt < 3; attempt++ {
+				for attempt := range 3 {
 					t.result.value, t.result.err = t.run(t.ctx)
 					var failure *browser.Failure
 					if t.key == "" || t.ctx.Err() != nil || attempt == 2 ||

@@ -100,11 +100,7 @@ export default defineConfig({
         cache: false,
       },
       check: {
-        command: [
-          "vp check",
-          "golangci-lint fmt --diff",
-          "go vet ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...",
-        ],
+        command: ["vp check", "golangci-lint fmt --diff", "golangci-lint run ./..."],
         dependsOn: ["frontend:build", "db:check", "proto:check"],
         cache: false,
       },

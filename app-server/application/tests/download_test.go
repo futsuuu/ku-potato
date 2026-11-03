@@ -38,7 +38,7 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	snapshot := domain.Snapshot{
 		AcademicYear: 2026,
 		Courses:      []domain.Course{{ID: "KOG1", Name: "course", Availability: "available"}},
@@ -117,7 +117,7 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Content.Close()
+	defer func() { _ = file.Content.Close() }()
 	body, err := io.ReadAll(file.Content)
 	if err != nil || string(body) != "%PDF fixture" {
 		t.Fatal("file delivery failed", string(body), err)

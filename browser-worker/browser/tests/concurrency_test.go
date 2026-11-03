@@ -66,7 +66,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 				MaxAge: 3600,
 			},
 		)
-		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", 302)
+		http.Redirect(w, r, lmsAddress.Load().(string)+"/ticket", http.StatusFound)
 	}))
 	defer ssoSystem.Close()
 	// Distinct hosts model the SSO system and LMS cookie boundaries.
@@ -85,12 +85,12 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 				w,
 				&http.Cookie{Name: "lms-session", Value: session, Path: "/", MaxAge: 3600},
 			)
-			http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+			http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 		case "/lms/homeRedirect/":
 			if session == "" {
-				http.Redirect(w, r, "/lms", 302)
+				http.Redirect(w, r, "/lms", http.StatusFound)
 			} else {
-				http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+				http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 			}
 		case "/lms":
 			fmt.Fprintf(
@@ -164,7 +164,7 @@ func TestParallelLMSOperationsKeepSessionsAndDownloadsSeparate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { b.Close() })
+	t.Cleanup(func() { _ = b.Close() })
 	for range 2 {
 		if _, err := b.Courses(ctx); err != nil {
 			t.Fatal(err)

@@ -74,8 +74,8 @@ func atomicJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
-	defer file.Close()
+	defer func() { _ = os.Remove(file.Name()) }()
+	defer func() { _ = file.Close() }()
 	if err = file.Chmod(0o600); err != nil {
 		return err
 	}

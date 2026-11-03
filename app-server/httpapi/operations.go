@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -285,9 +287,7 @@ func operationErrors(api huma.API, op *huma.Operation) {
 		key := strconv.Itoa(status)
 		response := jsonResponse[errorBody](api, http.StatusText(status))
 		if existing := op.Responses[key]; existing != nil {
-			for kind, media := range existing.Content {
-				response.Content[kind] = media
-			}
+			maps.Copy(response.Content, existing.Content)
 		}
 		op.Responses[key] = response
 	}
@@ -356,14 +356,12 @@ func fileResponses() map[string]*huma.Response {
 // selectors so they cannot accidentally turn into synchronization of all courses.
 func (input *AssignmentsInput) Resolve(ctx huma.Context) []error {
 	r, _ := humago.Unwrap(ctx)
-	for _, id := range r.URL.Query()["courseId"] {
-		if id == "" {
-			return []error{
-				&huma.ErrorDetail{
-					Message:  "courseId must not be empty",
-					Location: "query.courseId",
-				},
-			}
+	if slices.Contains(r.URL.Query()["courseId"], "") {
+		return []error{
+			&huma.ErrorDetail{
+				Message:  "courseId must not be empty",
+				Location: "query.courseId",
+			},
 		}
 	}
 	return nil

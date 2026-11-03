@@ -51,8 +51,8 @@ func (o *Materializer) Prepare(
 	content io.Reader,
 	saved domain.SavedFile,
 ) (string, error) {
-	copy, _ := o.copies.LoadOrStore(saved.ID+"\x00"+saved.OriginalFilename, &openedCopy{})
-	entry := copy.(*openedCopy)
+	value, _ := o.copies.LoadOrStore(saved.ID+"\x00"+saved.OriginalFilename, &openedCopy{})
+	entry := value.(*openedCopy)
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
 	if err := ctx.Err(); err != nil {

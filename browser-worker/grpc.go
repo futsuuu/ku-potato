@@ -150,8 +150,7 @@ func browserError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return status.Error(codes.DeadlineExceeded, "operation timed out")
 	}
-	var failure *chromedp.Failure
-	if errors.As(err, &failure) {
+	if failure, ok := errors.AsType[*chromedp.Failure](err); ok {
 		if failure.Reason == workerproto.FailureReason_FAILURE_REASON_UNSPECIFIED ||
 			workerproto.FailureReason_name[int32(failure.Reason)] == "" {
 			return status.Error(codes.Internal, "unrecognized browser failure")
@@ -285,7 +284,7 @@ func (s *Server) Download(
 	}
 	result := value.(chromedp.DownloadResult)
 	if result.Path != "" {
-		defer os.Remove(result.Path)
+		defer func() { _ = os.Remove(result.Path) }()
 	}
 	if result.Snapshot == nil {
 		result.Snapshot = &workerproto.Snapshot{}
@@ -329,7 +328,7 @@ func (s *Server) Download(
 	if err != nil {
 		return browserError(err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	buffer := make([]byte, 64<<10)
 	for {
 		size, err := file.Read(buffer)

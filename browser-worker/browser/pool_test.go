@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -46,7 +47,7 @@ func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := b.start(ctx); err != nil {
@@ -59,10 +60,8 @@ func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, argument := range arguments {
-		if argument == "--allow-browser-signin=false" {
-			return
-		}
+	if slices.Contains(arguments, "--allow-browser-signin=false") {
+		return
 	}
 	t.Fatal("browser account linking was not disabled")
 }
@@ -89,7 +88,7 @@ func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
 			var failure *Failure
 			if !errors.As(err, &failure) ||
 				failure.Reason != workerproto.FailureReason_FAILURE_REASON_BROWSER_START {
-				done <- fmt.Errorf("missing browser startup error: %v", err)
+				done <- fmt.Errorf("missing browser startup error: %w", err)
 				return
 			}
 			if b.root != nil {
@@ -120,7 +119,7 @@ func TestOccupiedProfileReportsBrowserStartupFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer owner.Close()
+	defer func() { _ = owner.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	if err := owner.start(ctx); err != nil {
@@ -130,7 +129,7 @@ func TestOccupiedProfileReportsBrowserStartupFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer other.Close()
+	defer func() { _ = other.Close() }()
 	err = other.start(ctx)
 	var failure *Failure
 	if !errors.As(err, &failure) ||
@@ -143,7 +142,7 @@ func TestPoolRetainsPagesAndIsolatesParallelLeases(t *testing.T) {
 	executable := testChrome(t)
 	lms := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/lms/homeRedirect/" {
-			http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+			http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -167,7 +166,7 @@ func TestPoolRetainsPagesAndIsolatesParallelLeases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { b.Close() })
+	t.Cleanup(func() { _ = b.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	type identity struct {

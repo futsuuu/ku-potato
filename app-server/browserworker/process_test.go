@@ -49,7 +49,7 @@ func TestProcessRequiresAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer process.Close()
+	defer func() { _ = process.Close() }()
 	if _, err := process.Client.SetSSOCookies(ctx, &workerproto.SSOCookies{}); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestProcessRequiresAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_, err = workerproto.NewBrowserWorkerClient(conn).SetSSOCookies(ctx, &workerproto.SSOCookies{})
 	if status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("unauthenticated call accepted: %v", err)
@@ -80,7 +80,9 @@ func TestWorkerStopsWhenParentIsKilled(t *testing.T) {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stdout, process.endpoint)
+		if _, err := fmt.Fprintln(os.Stdout, process.endpoint); err != nil {
+			t.Fatal(err)
+		}
 		for {
 			time.Sleep(time.Hour)
 		}
@@ -138,7 +140,7 @@ func TestWorkerStopsWhenParentIsKilled(t *testing.T) {
 			if err != nil {
 				return
 			}
-			connection.Close()
+			_ = connection.Close()
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

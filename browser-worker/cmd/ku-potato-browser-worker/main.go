@@ -49,11 +49,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(root)
+	defer func() { _ = os.RemoveAll(root) }()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go func() {
-		io.Copy(io.Discard, os.Stdin)
+		_, _ = io.Copy(io.Discard, os.Stdin)
 		stop()
 	}()
 	browser, err := chromedp.New(
@@ -71,7 +71,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer browser.Close()
+	defer func() { _ = browser.Close() }()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	authorize := func(ctx context.Context) error {
 		values, ok := metadata.FromIncomingContext(ctx)
 		if !ok || len(values.Get("x-ku-potato-worker-token")) != 1 ||
@@ -118,7 +118,9 @@ func run() error {
 		),
 	)
 	workerproto.RegisterBrowserWorkerServer(server, worker)
-	fmt.Fprintln(os.Stdout, listener.Addr().String())
+	if _, err := fmt.Fprintln(os.Stdout, listener.Addr().String()); err != nil {
+		return err
+	}
 	go func() { <-ctx.Done(); server.Stop() }()
 	err = server.Serve(listener)
 	if errors.Is(err, grpc.ErrServerStopped) {

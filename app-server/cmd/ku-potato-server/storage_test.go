@@ -115,7 +115,7 @@ func TestSingletonLockAcrossProcesses(t *testing.T) {
 		lock, err := acquireServerLock(dir)
 		if os.Getenv("KU_POTATO_LOCK_EXPECT_BUSY") == "1" {
 			if err == nil {
-				lock.Close()
+				_ = lock.Close()
 				t.Fatal("second process acquired lock")
 			}
 			return
@@ -133,7 +133,7 @@ func TestSingletonLockAcrossProcesses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { lock.Close() })
+	t.Cleanup(func() { _ = lock.Close() })
 	child := func(busy string) {
 		t.Helper()
 		cmd := exec.Command(os.Args[0], "-test.run=^TestSingletonLockAcrossProcesses$")

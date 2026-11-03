@@ -18,7 +18,7 @@ func TestDeletingWebAuthnKeepsSharedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	if err := os.MkdirAll(b.opts.ProfileDir, 0o700); err != nil {
 		t.Fatal(err)
 	}

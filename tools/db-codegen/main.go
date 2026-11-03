@@ -31,14 +31,14 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		defer os.RemoveAll(temporary)
+		defer func() { _ = os.RemoveAll(temporary) }()
 		output = temporary
 	}
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schema.SQL); err != nil {
 		return err
@@ -75,7 +75,10 @@ func compare(source, destination string) error {
 		}
 		actual, err := os.ReadFile(filepath.Join(destination, relative))
 		if err != nil || !bytes.Equal(expected, actual) {
-			return fmt.Errorf("Jet types are stale (%s); run vp run db:generate", relative)
+			return fmt.Errorf(
+				"generated database types are stale (%s); run vp run db:generate",
+				relative,
+			)
 		}
 		return nil
 	})

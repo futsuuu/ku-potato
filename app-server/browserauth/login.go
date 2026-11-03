@@ -88,28 +88,6 @@ func (b *Browser) navigateHome(ctx context.Context) error {
 	return cd.Run(ctx, cd.Navigate(destination))
 }
 
-func (b *Browser) home(ctx context.Context) error {
-	if err := b.navigateHome(ctx); err != nil {
-		return err
-	}
-	if err := poll(
-		ctx,
-		`(`+b.homeExpression()+`) || (`+b.notLoginExpression()+`)
-			|| location.origin === `+js(b.opts.SSOURL)+`
-			|| !!document.querySelector('button[name="loginButton"]')`,
-	); err != nil {
-		return err
-	}
-	var home bool
-	if err := cd.Run(ctx, cd.Evaluate(b.homeExpression(), &home)); err != nil {
-		return err
-	}
-	if !home {
-		return domain.Fail("authentication-required", "再ログインが必要です。")
-	}
-	return nil
-}
-
 func (b *Browser) authenticate(ctx context.Context, interactive bool, stored *credentials) error {
 	if err := poll(ctx, b.authenticationPageExpression()); err != nil {
 		return err

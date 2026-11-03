@@ -2,6 +2,55 @@ version: "2"
 
 linters:
   default: none
+  enable:
+    - asasalint
+    - bidichk
+    - bodyclose
+    - durationcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - gocheckcompilerdirectives
+    - govet
+    - ineffassign
+    - loggercheck
+    - makezero
+    - modernize
+    - nilerr
+    - nilnesserr
+    - nolintlint
+    - nosprintfhostport
+    - predeclared
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - thelper
+    - tparallel
+    - unconvert
+    - unused
+    - usestdlibvars
+  settings:
+    exhaustive:
+      check:
+        - switch
+      # Handle unknown wire values in default without hiding missing enum cases.
+      default-signifies-exhaustive: false
+    errcheck:
+      # A response write failure cannot be recovered by sending another response.
+      exclude-functions:
+        - fmt.Fprint(net/http.ResponseWriter)
+        - fmt.Fprintf(net/http.ResponseWriter)
+        - fmt.Fprintln(net/http.ResponseWriter)
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    generated: strict
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 formatters:
   enable:

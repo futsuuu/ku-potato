@@ -24,7 +24,7 @@ func TestPackageBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list packages: %v\n%s", err, output)
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(output)), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 0 {
 			continue
@@ -61,7 +61,7 @@ func TestWorkerDependencyClosure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list worker dependencies: %v\n%s", err, output)
 	}
-	for _, dependency := range strings.Fields(string(output)) {
+	for dependency := range strings.FieldsSeq(string(output)) {
 		if strings.HasPrefix(dependency, module+"app-server/") ||
 			dependency == module+"app-server" {
 			t.Errorf("worker depends on app-server package %s", dependency)

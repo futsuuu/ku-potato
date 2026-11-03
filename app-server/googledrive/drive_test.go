@@ -46,9 +46,9 @@ func driveFixture(t *testing.T, handler http.HandlerFunc) *driveHTTP {
 				if !driveEndpoint(r.URL) {
 					t.Errorf("unexpected request: %s", r.URL.Host)
 				}
-				copy := r.Clone(r.Context())
-				copy.URL.Scheme, copy.URL.Host = origin.Scheme, origin.Host
-				return transport.RoundTrip(copy)
+				request := r.Clone(r.Context())
+				request.URL.Scheme, request.URL.Host = origin.Scheme, origin.Host
+				return transport.RoundTrip(request)
 			}),
 		},
 	}
@@ -155,7 +155,7 @@ func TestDriveDownloadAndMetadataFollowConfirmationWithCookies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if metadata.Filename != "資料.pdf" || metadata.MIMEType != "application/pdf" ||
 		metadata.Size != 5000000000 {
 		t.Fatal(metadata)
@@ -232,10 +232,16 @@ func TestDriveMetadataClosesRangeIgnoringServerWithoutReadingFile(t *testing.T) 
 	d := &driveHTTP{
 		client: &http.Client{
 			Transport: driveTransport(func(r *http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: 200, ContentLength: 2048, Header: http.Header{
-					"Content-Disposition": {`attachment; filename="notebook.ipynb"`},
-					"Content-Type":        {"application/octet-stream"},
-				}, Body: body, Request: r}, nil
+				return &http.Response{
+					StatusCode:    http.StatusOK,
+					ContentLength: 2048,
+					Header: http.Header{
+						"Content-Disposition": {`attachment; filename="notebook.ipynb"`},
+						"Content-Type":        {"application/octet-stream"},
+					},
+					Body:    body,
+					Request: r,
+				}, nil
 			}),
 		},
 	}
@@ -244,7 +250,7 @@ func TestDriveMetadataClosesRangeIgnoringServerWithoutReadingFile(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if metadata.Size != 2048 || metadata.MIMEType != "application/x-ipynb+json" ||
 		body.read > 512 ||
 		!body.closed {
@@ -280,7 +286,10 @@ func TestDriveInvalidRangeCannotBecomeFileSize(t *testing.T) {
 				fmt.Fprint(w, strings.Repeat("x", 512))
 			})
 			u, _ := driveDownloadURL("https://drive.google.com/open?id=file")
-			_, _, err := d.open(context.Background(), u, true)
+			response, _, err := d.open(context.Background(), u, true)
+			if response != nil {
+				_ = response.Body.Close()
+			}
 			if err == nil {
 				t.Fatal("accepted invalid range")
 			}
@@ -306,7 +315,7 @@ func TestDriveSniffingPreservesDownloadAndUnknownSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if metadata.Size != -1 || metadata.MIMEType != "application/pdf" {
 		t.Fatal(metadata)
 	}

@@ -58,7 +58,7 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 	if err != nil {
 		return domain.SavedFile{}, err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	id := make([]byte, 16)
 	if _, err = rand.Read(id); err != nil {
 		return domain.SavedFile{}, err
@@ -74,9 +74,9 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 	}
 	success := false
 	defer func() {
-		out.Close()
+		_ = out.Close()
 		if !success {
-			os.Remove(destination)
+			_ = os.Remove(destination)
 		}
 	}()
 	var writer io.Writer = out
@@ -126,12 +126,12 @@ func (f *Files) Open(file domain.SavedFile) (io.ReadSeekCloser, error) {
 	}
 	stat, err := in.Stat()
 	if err != nil {
-		in.Close()
+		_ = in.Close()
 		return nil, err
 	}
 	decoder, err := zstd.NewReader(io.NewSectionReader(in, 0, stat.Size()))
 	if err != nil {
-		in.Close()
+		_ = in.Close()
 		return nil, err
 	}
 	return &zstdFile{

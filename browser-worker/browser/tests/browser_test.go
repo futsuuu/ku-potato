@@ -54,10 +54,10 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 			cookie, err := r.Cookie("session")
 			if err == nil && cookie.Value == "ok" &&
 				(!requireHomeToken.Load() || r.URL.Query().Get("sid") == "fixture") {
-				http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+				http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 				return
 			}
-			http.Redirect(w, r, "/lms/error/notLogin", 302)
+			http.Redirect(w, r, "/lms/error/notLogin", http.StatusFound)
 		case "/lms/error/notLogin":
 			w.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprint(w, "<p>Not logged in</p>")
@@ -72,9 +72,9 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 					w,
 					&http.Cookie{Name: "session", Value: "ok", Path: "/", MaxAge: 3600},
 				)
-				http.Redirect(w, r, "/lms/homeHoml/doIndex", 302)
+				http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound)
 			} else {
-				http.Redirect(w, r, ssoSystem.URL+"/pub/login.cgi", 302)
+				http.Redirect(w, r, ssoSystem.URL+"/pub/login.cgi", http.StatusFound)
 			}
 		case "/lms/homeHoml/doIndex":
 			fmt.Fprint(w, `<a href="/lms/homeRedirect/?sid=fixture">HOME</a>`)
@@ -173,7 +173,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { browser.Close() })
+	t.Cleanup(func() { _ = browser.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	courses, err := browser.Courses(ctx)
@@ -234,7 +234,7 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	if err != nil || string(body) != "fixture file" || download.Filename != "handout.txt" {
 		t.Fatal(string(body), download, err)
 	}
-	os.Remove(download.Path)
+	_ = os.Remove(download.Path)
 	external, err := browser.Download(ctx, "SRY1", "SRS2", "KOG1")
 	if err != nil || external.URL != "https://example.org/resource#anchor" {
 		t.Fatal(external, err)
