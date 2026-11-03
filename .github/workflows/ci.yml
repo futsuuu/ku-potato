@@ -9,8 +9,12 @@ permissions:
   contents: read
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
@@ -20,26 +24,25 @@ jobs:
         with:
           cache: true
       - name: Install desktop build dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
-      - run: vp run frontend:build
-      - run: vp run frontend:test
-      - run: vp check
-      - run: vp run db:check
-      - run: go vet ./app-server/... ./browser-worker/... ./internal/... ./desktop/... ./tools/...
-      - run: go test -short ./app-server/... ./browser-worker/... ./internal/... ./desktop/...
       - run: vp run build
+      - run: vp run test
 
-  platform:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  check:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
-      - run: go test -short ./app-server/... ./browser-worker/... ./internal/... ./desktop/launcher/...
+      - uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          cache: true
+      - name: Install check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
+      - run: vp run check
