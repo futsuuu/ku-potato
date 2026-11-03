@@ -1,12 +1,10 @@
 import solid from "@solidjs/vite-plugin";
 import { defineConfig } from "vite-plus";
-import UnoCSS from "unocss/vite";
 import { fileRoutes } from "filesystem-routing/vite";
 import { fontAssets } from "./font-assets";
 
 export default defineConfig({
   plugins: [
-    UnoCSS(),
     fontAssets(),
     solid({
       start: {

@@ -131,11 +131,7 @@ export default defineConfig({
   },
   lint: {
     options: { typeAware: true, typeCheck: true },
-    jsPlugins: [
-      "eslint-plugin-solid",
-      { name: "unocss", specifier: "@unocss/eslint-plugin" },
-      { name: "eslint-js", specifier: "oxlint-plugin-eslint" },
-    ],
+    jsPlugins: ["eslint-plugin-solid"],
     settings: solidLint.settings,
     rules: {
       "typescript/no-floating-promises": "error",
@@ -147,31 +143,6 @@ export default defineConfig({
         files: ["desktop/frontend/src/**/*.{ts,tsx}"],
         rules: {
           ...solidLint.rules,
-          "unocss/order": "error",
-          "unocss/blocklist": "error",
-          "eslint-js/no-restricted-syntax": [
-            "error",
-            {
-              selector: "JSXAttribute[name.name=/^(class|className)$/] > JSXExpressionContainer",
-              message: "Use static class strings so UnoCSS can validate every utility.",
-            },
-            {
-              selector:
-                "JSXAttribute[name.name=/^(style|classList)$/], JSXAttribute[name.namespace.name='style'], JSXOpeningElement[name.name='style']",
-              message: "Use theme classes; define shared styles in uno.config.ts.",
-            },
-          ],
-          "no-restricted-imports": [
-            "error",
-            {
-              patterns: [
-                {
-                  group: ["**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "!virtual:uno.css"],
-                  message: "Define shared styles in uno.config.ts using theme tokens.",
-                },
-              ],
-            },
-          ],
         },
       },
     ],

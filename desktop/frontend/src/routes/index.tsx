@@ -41,7 +41,7 @@ function CourseRow(props: { course: Schema["Course"] }) {
       <Show
         when={props.course.lmsCourseId}
         fallback={
-          <div class="course-link flex items-center justify-between gap-lg border-b-thin border-line border-solid px-section py-lg">
+          <div class="course-link">
             <CourseInfo course={props.course} />
             <Show when={props.course.availability !== "unavailable"}>
               <span class="muted-note">利用不可</span>
@@ -50,10 +50,7 @@ function CourseRow(props: { course: Schema["Course"] }) {
         }
       >
         {(id) => (
-          <a
-            class="course-link flex items-center justify-between gap-lg border-b-thin border-line border-solid linked-item px-section py-lg"
-            href={coursePath(id())}
-          >
+          <a class="course-link linked-item" href={coursePath(id())}>
             <CourseInfo course={props.course} />
           </a>
         )}
@@ -75,7 +72,7 @@ export default function Courses() {
         />
       </PageHeader>
       <div class="page-content">
-        <p class="mb-section muted-note tnum">{workspace.courses.data()?.length ?? 0}件の講義</p>
+        <p class="course-count muted-note tnum">{workspace.courses.data()?.length ?? 0}件の講義</p>
         <Progress
           pending={workspace.courses.pending()}
           error={workspace.courses.error()}
@@ -90,8 +87,8 @@ export default function Courses() {
           }
         >
           {(group) => (
-            <section class="mb-xl">
-              <h2 class="mb-md">{group.label}</h2>
+            <section class="course-group">
+              <h2 class="section-heading">{group.label}</h2>
               <ul class="item-list">
                 <For each={group.courses}>{(course) => <CourseRow course={course} />}</For>
               </ul>

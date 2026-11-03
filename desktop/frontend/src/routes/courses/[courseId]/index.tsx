@@ -53,13 +53,13 @@ export default function Materials() {
           }
         >
           {(folder) => (
-            <section class="folder-section grid border-t-thin border-line border-solid grid-cols-asymmetric [&>ul]:flex [&>ul>li:last-child]:flex [&>ul>li:last-child]:flex-auto [&>ul>li:last-child>:first-child]:flex-auto [&>ul]:flex-col [&>ul>li:last-child]:flex-col [&>ul>li:last-child>:first-child]:items-start [&>ul]:border-t-none [&>ul>li>:first-child]:border-b-none lt-md:grid-cols-single">
-              <div class="pb-section pl-none pr-lg pt-section lt-md:pb-md">
+            <section class="folder-section">
+              <div class="folder-intro">
                 <h3>
                   <BudouxText text={folder.name} />
                 </h3>
                 <Show when={folder.classDate}>
-                  <small class="mt-sm muted-note tnum">
+                  <small class="folder-date muted-note tnum">
                     授業日: {formatDate(folder.classDate!)}
                   </small>
                 </Show>
@@ -68,11 +68,7 @@ export default function Materials() {
               <ul class="item-list">
                 <For
                   each={folder.materials ?? []}
-                  fallback={
-                    <li class="p-section text-small text-muted">
-                      このフォルダに教材はありません。
-                    </li>
-                  }
+                  fallback={<li class="folder-empty">このフォルダに教材はありません。</li>}
                 >
                   {(material) => (
                     <li>

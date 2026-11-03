@@ -1,3 +1,5 @@
+import RefreshCw from "@lucide/solid/icons/refresh-cw";
+
 export default function RefreshButton(props: {
   label: string;
   disabled: boolean;
@@ -5,13 +7,13 @@ export default function RefreshButton(props: {
 }) {
   return (
     <button
-      class="inline-flex items-center justify-center rounded-none p-sm text-ink disabled:cursor-default hover:enabled:bg-surface"
+      class="refresh-button"
       aria-label={props.label}
       title={props.label}
       disabled={props.disabled}
       onClick={() => props.onClick()}
     >
-      <span class="i-lucide-refresh-cw opacity-opaque" aria-hidden="true" />
+      <RefreshCw class="icon" aria-hidden="true" />
     </button>
   );
 }

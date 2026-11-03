@@ -1,5 +1,6 @@
 import type { JSX } from "@solidjs/web";
 import { For, onSettled, Show } from "solid-js";
+import ChevronRight from "@lucide/solid/icons/chevron-right";
 
 export default function PageHeader(props: {
   title: string;
@@ -32,35 +33,25 @@ export default function PageHeader(props: {
     return () => observer.disconnect();
   });
   return (
-    <header
-      class="page-header fixed left-sidebar right-none top-none z-header min-h-toolbar flex items-center gap-lg px-page py-lg before:pointer-events-none before:absolute before:inset-x-none before:top-none lt-sm:left-none before:bg-frosted lt-md:px-section lt-sm:px-lg lt-sm:py-md before:content-empty before:backdrop-blur-soft before:mask-fade-bottom before:-bottom-toolbar before:-z-action"
-      ref={(element) => (header = element)}
-    >
+    <header class="page-header" ref={(element) => (header = element)}>
       <Show when={props.children}>
-        {(actions) => <div class="flex shrink-none gap-sm -ml-lg lt-sm:-ml-sm">{actions()}</div>}
+        {(actions) => <div class="page-header-actions">{actions()}</div>}
       </Show>
-      <nav class="min-w-none flex-auto" aria-label="パンくずリスト">
-        <ol class="m-none flex flex-wrap items-center gap-sm p-none list-none">
+      <nav class="breadcrumbs" aria-label="パンくずリスト">
+        <ol class="breadcrumb-list">
           <For each={props.ancestors ?? []} keyed={(ancestor) => ancestor.href}>
             {(ancestor) => (
-              <li class="max-w-full min-w-none flex items-center gap-sm text-small text-muted">
-                <a
-                  class="min-w-none overflow-hidden text-ellipsis whitespace-nowrap focus-visible:text-accent hover:text-accent focus-visible:underline hover:underline"
-                  href={ancestor().href}
-                  title={ancestor().label}
-                >
+              <li class="breadcrumb-ancestor">
+                <a class="breadcrumb-link" href={ancestor().href} title={ancestor().label}>
                   {ancestor().label}
                 </a>
-                <span class="i-lucide-chevron-right" aria-hidden="true" />
+                <ChevronRight class="icon" aria-hidden="true" />
               </li>
             )}
           </For>
-          <li class="min-w-none flex flex-auto items-center gap-sm" aria-current="page">
+          <li class="breadcrumb-current" aria-current="page">
             {props.icon}
-            <h1
-              class="overflow-hidden text-ellipsis whitespace-nowrap lt-sm:text-heading"
-              title={props.title}
-            >
+            <h1 class="page-title" title={props.title}>
               {props.title}
             </h1>
           </li>

@@ -3,9 +3,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@unocss/eslint-plugin": "66.10.5",
     "eslint-plugin-solid": "^0.18.1",
-    "oxlint-plugin-eslint": "^1.87.0",
     "typescript": "~7.0.2",
     "vite-plus": "1.1.0"
   },

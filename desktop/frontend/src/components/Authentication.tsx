@@ -1,4 +1,5 @@
 import { createEffect, createSignal, Show, untrack } from "solid-js";
+import LogIn from "@lucide/solid/icons/log-in";
 import type { JSX } from "@solidjs/web";
 import type { API, Schema } from "../api";
 import { createOperation } from "../operation";
@@ -13,11 +14,7 @@ function SecondaryAuthButton(props: {
   children: JSX.Element;
 }) {
   return (
-    <button
-      class="inline-flex items-center gap-sm py-xs text-left text-small text-muted disabled:cursor-default hover:text-ink"
-      disabled={props.disabled}
-      onClick={() => props.onClick()}
-    >
+    <button class="secondary-auth-button" disabled={props.disabled} onClick={() => props.onClick()}>
       {props.children}
     </button>
   );
@@ -67,10 +64,7 @@ export default function Authentication(props: {
     },
   );
   return (
-    <section
-      class="flex flex-col gap-md border-t-thin border-line border-solid pt-section text-small lt-sm:mt-none"
-      aria-label={props.title}
-    >
+    <section class="authentication" aria-label={props.title}>
       <strong>{props.title}</strong>
       <span>
         {state().status === "authenticated"
@@ -84,7 +78,7 @@ export default function Authentication(props: {
         disabled={operation.pending()}
         onClick={() => void authenticate("login")}
       >
-        <span class="i-lucide-log-in" aria-hidden="true" />
+        <LogIn class="icon" aria-hidden="true" />
         ブラウザでログイン
       </button>
       <SecondaryAuthButton
@@ -96,7 +90,7 @@ export default function Authentication(props: {
       <Show when={props.api.register}>
         <details>
           <summary>認証の設定</summary>
-          <div class="grid mt-sm gap-sm">
+          <div class="authentication-settings">
             <Show when={!registered()}>
               <SecondaryAuthButton
                 disabled={operation.pending()}

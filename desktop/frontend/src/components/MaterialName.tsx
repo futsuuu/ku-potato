@@ -4,9 +4,9 @@ import BudouxText from "./BudouxText";
 
 export default function MaterialName(props: { material: Schema["Material"] }) {
   return (
-    <span class="flex items-center gap-sm">
+    <span class="material-name">
       <MaterialIcon type={props.material.type} />
-      <span class="link-label min-w-none">
+      <span class="link-label">
         <BudouxText text={props.material.name} />
       </span>
     </span>

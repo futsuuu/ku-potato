@@ -17,18 +17,18 @@ export default function ReportContent(props: {
   archived: boolean;
 }) {
   return (
-    <section class="mt-section">
-      <h2 class="mb-md">課題内容</h2>
+    <section class="report-section">
+      <h2 class="section-heading">課題内容</h2>
       <LmsHtmlContent
         html={props.report.promptHtml ?? ""}
         kind="report"
         fallback={<p class="no-content">課題文はありません。</p>}
       />
-      <dl class="grid my-section gap-x-section gap-y-sm grid-cols-key-value">
-        <dt class="text-muted">提出状況</dt>
-        <dd class="m-none break-anywhere">{statuses[props.report.status]}</dd>
-        <dt class="text-muted">提出期間</dt>
-        <dd class="m-none tnum break-anywhere">
+      <dl class="report-details">
+        <dt>提出状況</dt>
+        <dd>{statuses[props.report.status]}</dd>
+        <dt>提出期間</dt>
+        <dd class="tnum">
           {props.report.submissionPeriodKind === "unlisted"
             ? "指定なし"
             : props.report.submissionPeriodKind === "at"

@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { Plugin } from "vite-plus";
 
-// CSS imports live in a virtual module: application styles stay governed by UnoCSS.
 export function fontAssets(): Plugin {
   const require = createRequire(import.meta.url);
   const license = readFileSync(require.resolve("gen-interface-jp/OFL.txt"));

@@ -1,4 +1,6 @@
 import { Show, untrack } from "solid-js";
+import Download from "@lucide/solid/icons/download";
+import ExternalLink from "@lucide/solid/icons/external-link";
 import type { JSX } from "@solidjs/web";
 import type { API, Schema } from "../api";
 import { createOperation } from "../operation";
@@ -13,7 +15,7 @@ function ResourceActionButton(props: {
 }) {
   return (
     <button
-      class="relative z-action app-button"
+      class="resource-action app-button"
       disabled={props.disabled}
       onClick={() => props.onClick()}
     >
@@ -62,10 +64,10 @@ export default function ResourceRow(props: {
     }
   }
   return (
-    <li class="relative flex flex-col gap-md border-b-thin border-line border-solid px-section py-section [&:has(.resource-main:hover)]:bg-surface [&_.resource-main:focus-visible]:text-accent [&:has(.resource-main:hover)_.resource-main]:text-accent [&:has(.resource-main:focus-visible)]:outline-focus [&:has(.resource-main:focus-visible)]:outline-accent [&:has(.resource-main:focus-visible)]:outline-offset-focus [&:has(.resource-main:focus-visible)]:outline-solid">
-      <div class="flex items-center justify-between gap-md">
+    <li class="resource-row">
+      <div class="resource-heading">
         <button
-          class="resource-main text-left after:absolute after:inset-none after:content-empty [&_span]:underlined-link"
+          class="resource-main"
           disabled={
             operation.pending() ||
             (!props.resource.savedFile &&
@@ -76,7 +78,7 @@ export default function ResourceRow(props: {
         >
           <BudouxText text={props.resource.name} />
         </button>
-        <span class="text-small text-muted">
+        <span class="resource-type">
           {props.resource.type === "file"
             ? "ファイル"
             : props.resource.type === "external"
@@ -87,7 +89,7 @@ export default function ResourceRow(props: {
       <Show when={props.resource.availability === "archived"}>
         <small class="muted-note">過去の取得データ（現在は公開されていません）</small>
       </Show>
-      <div class="flex flex-wrap gap-sm">
+      <div class="resource-actions">
         <Show when={props.resource.type === "external" && props.resource.url}>
           <ResourceActionButton
             disabled={operation.pending()}
@@ -96,7 +98,7 @@ export default function ResourceRow(props: {
               void operation.run(async () => openExternal(url));
             }}
           >
-            <span class="i-lucide-external-link" aria-hidden="true" />
+            <ExternalLink class="icon" aria-hidden="true" />
             リンクを開く
           </ResourceActionButton>
         </Show>
@@ -105,7 +107,7 @@ export default function ResourceRow(props: {
             disabled={operation.pending() || props.resource.availability === "archived"}
             onClick={() => void download(false)}
           >
-            <span class="i-lucide-download" aria-hidden="true" />
+            <Download class="icon" aria-hidden="true" />
             再ダウンロード
           </ResourceActionButton>
         </Show>

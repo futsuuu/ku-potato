@@ -9,7 +9,9 @@ import { WorkspaceProvider } from "./workspace";
 import Layout from "./components/Layout";
 import Progress from "./components/Progress";
 import "virtual:app-fonts";
-import "virtual:uno.css";
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/app.css";
 
 const Router = createRouter({
   routes: fileRoutes(pageRoutes),
@@ -28,8 +30,8 @@ export default function App() {
     <Show
       when={connection.data()}
       fallback={
-        <div class="grid justify-items-start gap-lg p-page">
-          <span class="block">KU-POTATO</span>
+        <div class="connection-screen">
+          <span class="app-brand">KU-POTATO</span>
           <Progress pending={connection.pending()} error={connection.error()} />
           <Show when={connection.error()}>
             <button class="app-button" onClick={() => window.location.reload()}>

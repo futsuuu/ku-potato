@@ -1,8 +1,33 @@
 /* oxlint-disable solid/no-innerhtml -- Render only LMS HTML sanitized before insertion. */
-import { createMemo, Show } from "solid-js";
-import type { JSX } from "@solidjs/web";
+import { createMemo, createSignal, For, onSettled, Show } from "solid-js";
+import { Portal, type JSX } from "@solidjs/web";
+import ExternalLink from "@lucide/solid/icons/external-link";
 import { addJapaneseBreaks } from "../budoux";
 import { compactFolderDescriptionHtml, openLmsHtmlLink, sanitizeLmsHtml } from "../lms-html";
+
+function LmsHtmlMarkup(props: { html: string; kind: "folder" | "report" }) {
+  let element: HTMLDivElement | undefined;
+  const [links, setLinks] = createSignal<Element[]>([]);
+  onSettled(() => {
+    if (element) setLinks([...element.querySelectorAll("a[href]")]);
+  });
+  return (
+    <>
+      <div
+        ref={(value) => (element = value)}
+        class={props.kind === "folder" ? "folder-description" : "report-content"}
+        innerHTML={props.html}
+      />
+      <For each={links()}>
+        {(link) => (
+          <Portal mount={link}>
+            <ExternalLink class="icon lms-link-icon" aria-hidden="true" />
+          </Portal>
+        )}
+      </For>
+    </>
+  );
+}
 
 export default function LmsHtmlContent(props: {
   html: string;
@@ -16,27 +41,14 @@ export default function LmsHtmlContent(props: {
         : sanitizeLmsHtml(props.html),
     ),
   );
+  // Recreate the markup and its portals together when sanitized HTML changes.
   return (
-    <Show when={content().trim()} fallback={props.fallback}>
-      <div
-        class="[&_a[href]]:after:i-lucide-external-link budoux-text [&_a[href]:focus-visible]:text-accent [&_a[href]:hover]:text-accent [&_a[href]]:underlined-link [&_a[href]]:after:ml-xs [&_a[href]]:after:align-middle [&_a[href]]:after:content-empty"
-        onClick={openLmsHtmlLink}
-      >
-        <Show
-          when={props.kind === "folder"}
-          fallback={
-            <div
-              class="report-content [&>*+*]:mt-md [&_table]:max-w-full [&_pre]:whitespace-pre-wrap [&_table]:border-collapse [&_td]:table-cell-bordered [&_th]:table-cell-bordered"
-              innerHTML={content()}
-            />
-          }
-        >
-          <div
-            class="folder-description mt-lg text-small [&>*+*]:mt-sm [&_.folder-description-gap]:block [&_.folder-description-gap]:pt-sm"
-            innerHTML={content()}
-          />
-        </Show>
-      </div>
+    <Show when={content().trim() && content()} keyed fallback={props.fallback}>
+      {(html) => (
+        <div class="lms-html budoux-text" onClick={openLmsHtmlLink}>
+          <LmsHtmlMarkup html={html} kind={props.kind} />
+        </div>
+      )}
     </Show>
   );
 }

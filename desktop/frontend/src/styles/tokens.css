@@ -1,0 +1,75 @@
+:root {
+  color-scheme: light dark;
+
+  --app-canvas: #fdfdff;
+  --app-ink: #081f38;
+  --app-muted: #596979;
+  --app-accent: #1c73d0;
+  --app-line: #dddddd;
+  --app-surface: #f4f7fb;
+  --app-danger: #b91c1c;
+  --app-link-underline: color-mix(in srgb, currentColor 35%, transparent);
+  --app-frosted: color-mix(in srgb, var(--app-canvas) 85%, transparent);
+
+  --app-space-xs: 0.25rem;
+  --app-space-sm: 0.5rem;
+  --app-space-md: 0.75rem;
+  --app-space-lg: 1rem;
+  --app-space-section: 1.5rem;
+  --app-space-xl: 2rem;
+  --app-space-page: 2.5rem;
+
+  --app-sidebar-width: 15rem;
+  --app-toolbar-height: 4rem;
+  --app-content-width: 76rem;
+  --app-sidebar-max-height: 30dvh;
+  --app-content-offset: calc(var(--app-toolbar-height) + var(--app-space-xl));
+  --app-content-offset-compact: calc(var(--app-toolbar-height) + var(--app-space-section));
+
+  --app-font-sans: "Gen Interface JP", system-ui, sans-serif;
+  --app-font-body: 0.9375rem;
+  --app-font-small: 0.8125rem;
+  --app-font-title: 1.375rem;
+  --app-font-heading: 1.125rem;
+  --app-weight-normal: 400;
+  --app-weight-bold: 700;
+  --app-leading-body: 1.5;
+  --app-leading-heading: 1.2;
+
+  --app-border-thin: 1px;
+  --app-focus-width: 2px;
+  --app-radius-control: 0;
+  --app-z-action: 1;
+  --app-z-header: 2;
+  --app-z-skip: 20;
+  --app-icon-size: 1.25em;
+  --app-icon-opacity: 0.7;
+  --app-backdrop-blur: 12px;
+  /* Keep the blur radius fixed and fade the backdrop's opacity instead. */
+  --app-backdrop-mask: linear-gradient(
+    to bottom,
+    black 40%,
+    rgb(0 0 0 / 0.972) 46%,
+    rgb(0 0 0 / 0.896) 52%,
+    rgb(0 0 0 / 0.784) 58%,
+    rgb(0 0 0 / 0.648) 64%,
+    rgb(0 0 0 / 0.5) 70%,
+    rgb(0 0 0 / 0.352) 76%,
+    rgb(0 0 0 / 0.216) 82%,
+    rgb(0 0 0 / 0.104) 88%,
+    rgb(0 0 0 / 0.028) 94%,
+    transparent 100%
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-canvas: #171a20;
+    --app-ink: #e6e9ef;
+    --app-muted: #a1a8b4;
+    --app-accent: #a2b5ce;
+    --app-line: #383e49;
+    --app-surface: #242932;
+    --app-danger: #fca5a5;
+  }
+}

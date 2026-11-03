@@ -6,11 +6,7 @@ export default function Progress(props: { pending: boolean; error: string; statu
   return (
     <>
       <Show when={props.pending}>
-        <div
-          class="flex flex-wrap gap-sm py-sm text-small text-muted"
-          role="status"
-          aria-live="polite"
-        >
+        <div class="operation-progress" role="status" aria-live="polite">
           <span>
             {props.status?.status === "retrying" ? "再試行中 · " : ""}
             {props.status?.progress ? stages[props.status.progress.stage] : "読み込み中"}

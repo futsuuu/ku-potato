@@ -30,7 +30,7 @@ it("renders report markup, status, and submission dates", () => {
   expect(document.body.textContent).not.toContain("過去の取得データ");
 });
 
-it("strips executable markup and styling while opening safe links externally", () => {
+it("strips executable markup and styling while opening safe links externally", async () => {
   const open = vi.spyOn(window, "open").mockImplementation(() => null);
   dispose = render(
     () => (
@@ -46,9 +46,16 @@ it("strips executable markup and styling while opening safe links externally", (
     document.body,
   );
   const content = document.querySelector(".report-content")!;
-  expect(content.querySelector("script, [onclick], [style], [class]")).toBeNull();
+  expect(content.querySelector("script, [onclick], [style], .intrusive")).toBeNull();
   expect(content.querySelectorAll("a[href]")).toHaveLength(1);
+  await vi.waitFor(() => expect(content.querySelectorAll("a[href] svg.icon")).toHaveLength(1));
+  expect(content.querySelectorAll("[class]")).toHaveLength(1);
   content.querySelector<HTMLSpanElement>("a[href] span")!.click();
+  expect(open).toHaveBeenCalledWith("https://example.com/report", "_blank", "noopener,noreferrer");
+  open.mockClear();
+  content
+    .querySelector("a[href] svg")!
+    .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
   expect(open).toHaveBeenCalledWith("https://example.com/report", "_blank", "noopener,noreferrer");
 });
 
