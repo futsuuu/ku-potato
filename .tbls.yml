@@ -1,0 +1,4 @@
+name: ku-potato
+docPath: docs/db
+er:
+  format: mermaid

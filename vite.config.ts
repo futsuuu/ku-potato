@@ -64,6 +64,10 @@ export default defineConfig({
         command: "go run ./tools/db-codegen",
         cache: false,
       },
+      "db:docs": {
+        command: "go run ./tools/db-docs",
+        cache: false,
+      },
       "db:check": {
         command: "go run ./tools/db-codegen -check",
         cache: {
