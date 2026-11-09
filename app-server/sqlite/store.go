@@ -13,7 +13,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db *sql.DB
+}
 
 var _ outport.Archive = (*Store)(nil)
 

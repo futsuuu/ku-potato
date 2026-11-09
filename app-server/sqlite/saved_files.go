@@ -47,7 +47,7 @@ func findSavedFile(
 func (s *Store) ReplaceSavedFile(
 	ctx context.Context,
 	material, resource string,
-	retrievalID int64,
+	retrievalID string,
 	file domain.SavedFile,
 ) (*domain.SavedFile, error) {
 	tx, err := s.db.BeginTx(ctx, nil)

@@ -8,8 +8,8 @@
 package model
 
 type MaterialResources struct {
-	RetrievalID   int64 `sql:"primary_key"`
-	Position      int64 `sql:"primary_key"`
+	RetrievalID   string `sql:"primary_key"`
+	Position      int64  `sql:"primary_key"`
 	LmsResourceID string
 	Name          string
 	Type          string

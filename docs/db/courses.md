@@ -10,7 +10,7 @@
 ```sql
 CREATE TABLE courses (
     -- 講義一覧のスナップショット。LMSの講義IDがない行も表示順を含めて保持する
-    retrieval_id INTEGER NOT NULL REFERENCES course_retrievals(id), -- 講義一覧の取得ID
+    retrieval_id TEXT NOT NULL REFERENCES course_retrievals(id), -- 講義一覧の取得ID
     position INTEGER NOT NULL, -- 取得した一覧内の表示順（0始まり）
     lms_course_id TEXT, -- LMSの講義ID。IDが取得できない行はNULL
     name TEXT NOT NULL, -- 講義名
@@ -32,7 +32,7 @@ CREATE TABLE courses (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | INTEGER |  | false |  | [course_retrievals](course_retrievals.md) | 講義一覧の取得ID |
+| retrieval_id | TEXT |  | false |  | [course_retrievals](course_retrievals.md) | 講義一覧の取得ID |
 | position | INTEGER |  | false |  |  | 取得した一覧内の表示順（0始まり） |
 | lms_course_id | TEXT |  | true |  |  | LMSの講義ID。IDが取得できない行はNULL |
 | name | TEXT |  | false |  |  | 講義名 |
@@ -69,7 +69,7 @@ erDiagram
 "courses" |o--|| "course_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES course_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "courses" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_course_id
   TEXT name
@@ -79,8 +79,10 @@ erDiagram
   INTEGER period
 }
 "course_retrievals" {
-  INTEGER id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
   INTEGER academic_year
 }
 ```

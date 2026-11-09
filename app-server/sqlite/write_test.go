@@ -13,6 +13,7 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	snapshot := archiveSnapshot()
+	snapshot.Report = &domain.ReportDetail{}
 	first, err := s.Append(ctx, snapshot)
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +39,7 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 		detail.Resources[0].SavedFile == nil || *detail.Resources[0].SavedFile != file {
 		t.Fatal(detail, err)
 	}
-	var retrievalID int64
+	var retrievalID string
 	if err := s.db.QueryRow("SELECT resource_retrieval_id FROM saved_resources").
 		Scan(&retrievalID); err != nil || retrievalID != first.Resources || retrievalID == second.Resources {
 		t.Fatal(retrievalID, err)
@@ -50,7 +51,7 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, invalid := range []int64{0, other.Resources} {
+	for _, invalid := range []string{"", first.Courses, first.Materials, first.Report, other.Resources} {
 		if _, err := s.ReplaceSavedFile(ctx, "SRY1", "SRS1", invalid, file); err == nil {
 			t.Fatal("accepted invalid retrieval", invalid)
 		}

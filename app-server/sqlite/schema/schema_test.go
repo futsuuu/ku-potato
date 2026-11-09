@@ -3,6 +3,7 @@ package schema_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 
 	"github.com/futsuuu/ku-potato/app-server/sqlite/schema"
@@ -30,14 +31,14 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 	db := newDB(t)
 	for _, year := range []any{nil, 0, 10000} {
 		if _, err := db.Exec(
-			"INSERT INTO course_retrievals(fetched_at, academic_year) VALUES (0, ?)",
+			"INSERT INTO course_retrievals(id, academic_year, fetched_at, clock_millis, clock_counter) VALUES (1, ?, 0, 0, 0)",
 			year,
 		); err == nil {
 			t.Fatalf("accepted year %v", year)
 		}
 	}
 	if _, err := db.Exec(
-		"INSERT INTO course_retrievals(id, fetched_at, academic_year) VALUES (1, 0, 2026)",
+		"INSERT INTO course_retrievals(id, academic_year, fetched_at, clock_millis, clock_counter) VALUES (1, 2026, 0, 0, 0)",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -81,10 +82,10 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 	db := newDB(t)
 	for _, query := range []string{
-		"INSERT INTO course_material_retrievals(id, lms_course_id, fetched_at) VALUES (1, 'KOG1', 0)",
+		"INSERT INTO course_material_retrievals(id, lms_course_id, fetched_at, clock_millis, clock_counter) VALUES (1, 'KOG1', 0, 0, 0)",
 		"INSERT INTO course_material_folders(retrieval_id, position, name) VALUES (1, 0, 'week')",
 		"INSERT INTO course_materials(retrieval_id, position, folder_position, lms_material_id, name, type, status, material_link_available, publication_deadline_kind, publication_deadline_at, resource_availability) VALUES (1, 0, 0, 'SRY1', 'handout', 'material', 'unknown', 1, 'at', 0, 'available')",
-		"INSERT INTO material_resource_retrievals(id, lms_material_id, fetched_at) VALUES (1, 'SRY1', 0)",
+		"INSERT INTO material_resource_retrievals(id, lms_material_id, fetched_at, clock_millis, clock_counter) VALUES (1, 'SRY1', 0, 0, 0)",
 		"INSERT INTO material_resources(retrieval_id, position, lms_resource_id, name, type, status, url) VALUES (1, 0, 'SRS1', 'file', 'file', 'unknown', '')",
 	} {
 		if _, err := db.Exec(query); err != nil {
@@ -155,7 +156,7 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 func TestSchemaEnforcesReportConditions(t *testing.T) {
 	db := newDB(t)
 	if _, err := db.Exec(
-		"INSERT INTO report_detail_retrievals(id,lms_material_id,fetched_at) VALUES(1,'REP1',0)",
+		"INSERT INTO report_detail_retrievals(id,lms_material_id,fetched_at,clock_millis,clock_counter) VALUES(1,'REP1',0,0,0)",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -186,5 +187,55 @@ func TestSchemaEnforcesReportConditions(t *testing.T) {
 		"UPDATE report_details SET submission_period_kind = 'at', submission_due_at = 0, correction_mode = 'limited', correction_limit = 0, text_answer_allowed = 0, file_answer_allowed = 1, max_total_file_bytes = 0",
 	); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSchemaEnforcesRetrievalClockComponents(t *testing.T) {
+	for _, retrieval := range []struct {
+		table, scope string
+		target       any
+	}{
+		{"course_retrievals", "academic_year", 2026},
+		{"course_material_retrievals", "lms_course_id", "KOG1"},
+		{"material_resource_retrievals", "lms_material_id", "SRY1"},
+		{"report_detail_retrievals", "lms_material_id", "REP1"},
+	} {
+		t.Run(retrieval.table, func(t *testing.T) {
+			db := newDB(t)
+			query := fmt.Sprintf(
+				"INSERT INTO %s(id, %s, fetched_at, clock_millis, clock_counter) VALUES(?, ?, ?, ?, ?)",
+				retrieval.table,
+				retrieval.scope,
+			)
+			for _, test := range []struct{ fetchedAt, millis, counter any }{
+				{-1, 0, 0},
+				{2, 1, 0},
+				{0, 0, -1},
+				{0, -1, 0},
+				{nil, 0, 0},
+				{0, nil, 0},
+				{0, 0, nil},
+			} {
+				if _, err := db.Exec(
+					query,
+					"invalid",
+					retrieval.target,
+					test.fetchedAt,
+					test.millis,
+					test.counter,
+				); err == nil {
+					t.Fatalf("accepted invalid retrieval clock: %+v", test)
+				}
+			}
+			// Different retrieval IDs can have identical clocks, including within one scope.
+			for _, id := range []string{"first", "second"} {
+				if _, err := db.Exec(query, id, retrieval.target, 0, 0, 0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.Exec(query, "first", retrieval.target, 1, 1, 0); err == nil {
+				t.Fatal("accepted duplicate retrieval ID")
+			}
+		})
 	}
 }

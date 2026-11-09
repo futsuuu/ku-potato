@@ -17,9 +17,11 @@ type reportDetailRetrievalsTable struct {
 	sqlite.Table
 
 	// Columns
-	ID            sqlite.ColumnInteger
-	LmsMaterialID sqlite.ColumnString
+	ID            sqlite.ColumnString
 	FetchedAt     sqlite.ColumnInteger
+	ClockMillis   sqlite.ColumnInteger
+	ClockCounter  sqlite.ColumnInteger
+	LmsMaterialID sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -61,11 +63,13 @@ func newReportDetailRetrievalsTable(schemaName, tableName, alias string) *Report
 
 func newReportDetailRetrievalsTableImpl(schemaName, tableName, alias string) reportDetailRetrievalsTable {
 	var (
-		IDColumn            = sqlite.IntegerColumn("id")
-		LmsMaterialIDColumn = sqlite.StringColumn("lms_material_id")
+		IDColumn            = sqlite.StringColumn("id")
 		FetchedAtColumn     = sqlite.IntegerColumn("fetched_at")
-		allColumns          = sqlite.ColumnList{IDColumn, LmsMaterialIDColumn, FetchedAtColumn}
-		mutableColumns      = sqlite.ColumnList{LmsMaterialIDColumn, FetchedAtColumn}
+		ClockMillisColumn   = sqlite.IntegerColumn("clock_millis")
+		ClockCounterColumn  = sqlite.IntegerColumn("clock_counter")
+		LmsMaterialIDColumn = sqlite.StringColumn("lms_material_id")
+		allColumns          = sqlite.ColumnList{IDColumn, FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsMaterialIDColumn}
+		mutableColumns      = sqlite.ColumnList{FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsMaterialIDColumn}
 		defaultColumns      = sqlite.ColumnList{}
 	)
 
@@ -74,8 +78,10 @@ func newReportDetailRetrievalsTableImpl(schemaName, tableName, alias string) rep
 
 		//Columns
 		ID:            IDColumn,
-		LmsMaterialID: LmsMaterialIDColumn,
 		FetchedAt:     FetchedAtColumn,
+		ClockMillis:   ClockMillisColumn,
+		ClockCounter:  ClockCounterColumn,
+		LmsMaterialID: LmsMaterialIDColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

@@ -17,9 +17,11 @@ type courseMaterialRetrievalsTable struct {
 	sqlite.Table
 
 	// Columns
-	ID          sqlite.ColumnInteger
-	LmsCourseID sqlite.ColumnString
-	FetchedAt   sqlite.ColumnInteger
+	ID           sqlite.ColumnString
+	FetchedAt    sqlite.ColumnInteger
+	ClockMillis  sqlite.ColumnInteger
+	ClockCounter sqlite.ColumnInteger
+	LmsCourseID  sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -61,21 +63,25 @@ func newCourseMaterialRetrievalsTable(schemaName, tableName, alias string) *Cour
 
 func newCourseMaterialRetrievalsTableImpl(schemaName, tableName, alias string) courseMaterialRetrievalsTable {
 	var (
-		IDColumn          = sqlite.IntegerColumn("id")
-		LmsCourseIDColumn = sqlite.StringColumn("lms_course_id")
-		FetchedAtColumn   = sqlite.IntegerColumn("fetched_at")
-		allColumns        = sqlite.ColumnList{IDColumn, LmsCourseIDColumn, FetchedAtColumn}
-		mutableColumns    = sqlite.ColumnList{LmsCourseIDColumn, FetchedAtColumn}
-		defaultColumns    = sqlite.ColumnList{}
+		IDColumn           = sqlite.StringColumn("id")
+		FetchedAtColumn    = sqlite.IntegerColumn("fetched_at")
+		ClockMillisColumn  = sqlite.IntegerColumn("clock_millis")
+		ClockCounterColumn = sqlite.IntegerColumn("clock_counter")
+		LmsCourseIDColumn  = sqlite.StringColumn("lms_course_id")
+		allColumns         = sqlite.ColumnList{IDColumn, FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsCourseIDColumn}
+		mutableColumns     = sqlite.ColumnList{FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsCourseIDColumn}
+		defaultColumns     = sqlite.ColumnList{}
 	)
 
 	return courseMaterialRetrievalsTable{
 		Table: sqlite.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		ID:          IDColumn,
-		LmsCourseID: LmsCourseIDColumn,
-		FetchedAt:   FetchedAtColumn,
+		ID:           IDColumn,
+		FetchedAt:    FetchedAtColumn,
+		ClockMillis:  ClockMillisColumn,
+		ClockCounter: ClockCounterColumn,
+		LmsCourseID:  LmsCourseIDColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

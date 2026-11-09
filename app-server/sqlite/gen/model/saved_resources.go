@@ -14,5 +14,5 @@ type SavedResources struct {
 	OriginalFilename    string
 	Sha256              string
 	FileSize            int64
-	ResourceRetrievalID int64
+	ResourceRetrievalID string
 }

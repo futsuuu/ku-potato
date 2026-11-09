@@ -52,7 +52,7 @@ func (providerDownloadArchive) Append(
 	context.Context,
 	domain.Snapshot,
 ) (outport.RetrievalIDs, error) {
-	return outport.RetrievalIDs{Resources: 1}, nil
+	return outport.RetrievalIDs{Resources: "retrieval"}, nil
 }
 
 func TestExternalDownloadAuthenticationFailureKeepsLMSSession(t *testing.T) {

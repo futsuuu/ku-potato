@@ -27,11 +27,11 @@ func readStore[T any](
 	return load(tx)
 }
 
-func latestID(ctx context.Context, db qrm.DB, query sqlite.SelectStatement) (int64, error) {
-	var row struct{ ID int64 }
+func latestID(ctx context.Context, db qrm.DB, query sqlite.SelectStatement) (string, error) {
+	var row struct{ ID string }
 	err := query.QueryContext(ctx, db, &row)
 	if errors.Is(err, qrm.ErrNoRows) {
-		return 0, domain.ErrMissing
+		return "", domain.ErrMissing
 	}
 	return row.ID, err
 }
@@ -42,34 +42,30 @@ func (s *Store) Courses(ctx context.Context) ([]domain.Course, error) {
 
 func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 	r := table.CourseRetrievals
-	_, err := latestID(ctx, db, r.SELECT(r.ID.AS("id")).ORDER_BY(r.ID.DESC()).LIMIT(1))
+	_, err := latestID(ctx, db, r.SELECT(r.ID.AS("id")).
+		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).LIMIT(1))
 	if err != nil {
 		return nil, err
 	}
 	t, history := table.Courses, table.Courses.AS("history")
 	hr := r.AS("history_retrieval")
-	latestPerYear := sqlite.SELECT(hr.AcademicYear, sqlite.MAX(hr.ID)).
-		FROM(hr).
-		GROUP_BY(hr.AcademicYear)
-	latestPerCourse := sqlite.SELECT(
-		hr.AcademicYear, history.LmsCourseID, sqlite.MAX(history.RetrievalID),
-	).
+	latestPerYear := hr.SELECT(hr.ID).
+		WHERE(hr.AcademicYear.EQ(r.AcademicYear)).
+		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
+	latestPerCourse := history.SELECT(history.RetrievalID).
 		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
-		GROUP_BY(hr.AcademicYear, history.LmsCourseID)
+		WHERE(hr.AcademicYear.EQ(r.AcademicYear).AND(history.LmsCourseID.EQ(t.LmsCourseID))).
+		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
+	currentYear := r.ID.EQ(sqlite.StringExp(latestPerYear))
 	var rows []struct {
 		model.Courses
 		model.CourseRetrievals
 	}
 	err = t.SELECT(t.AllColumns, r.AllColumns).
 		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
-		WHERE(sqlite.OR(
-			sqlite.ROW(r.AcademicYear, r.ID).IN(latestPerYear),
-			sqlite.AND(
-				t.LmsCourseID.IS_NOT_NULL(),
-				sqlite.ROW(r.AcademicYear, t.LmsCourseID, t.RetrievalID).IN(latestPerCourse),
-			),
-		)).
-		ORDER_BY(t.RetrievalID.DESC(), t.Position.ASC()).
+		WHERE(currentYear.OR(
+			t.LmsCourseID.IS_NOT_NULL().AND(t.RetrievalID.EQ(sqlite.StringExp(latestPerCourse))))).
+		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID, t.Position.ASC())...).
 		QueryContext(ctx, db, &rows)
 	if err != nil {
 		return nil, err
@@ -77,15 +73,13 @@ func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 	result := []domain.Course{}
 	var retrievals []model.CourseRetrievals
 	if err := r.SELECT(r.AllColumns).
-		WHERE(sqlite.ROW(r.AcademicYear, r.ID).IN(latestPerYear)).
+		WHERE(currentYear).
 		QueryContext(ctx, db, &retrievals); err != nil {
 		return nil, err
 	}
-	latestYear := map[int64]int64{}
+	latestYear := map[int64]string{}
 	for _, retrieval := range retrievals {
-		if _, exists := latestYear[retrieval.AcademicYear]; !exists {
-			latestYear[retrieval.AcademicYear] = *retrieval.ID
-		}
+		latestYear[retrieval.AcademicYear] = retrieval.ID
 	}
 	for _, row := range rows {
 		course := domain.Course{
@@ -127,19 +121,22 @@ func materialHistory(
 ) ([]materialRow, error) {
 	t, r, f := table.CourseMaterials, table.CourseMaterialRetrievals, table.CourseMaterialFolders
 	history, hr := t.AS("history"), r.AS("history_retrieval")
-	condition := hr.LmsCourseID.EQ(sqlite.String(course))
+	condition := hr.LmsCourseID.EQ(r.LmsCourseID).AND(history.LmsMaterialID.EQ(t.LmsMaterialID))
 	if accessible {
 		condition = condition.AND(history.ResourceAvailability.NOT_EQ(sqlite.String("unavailable"))).
 			AND(history.PublicationDeadlineKind.NOT_EQ(sqlite.String("closed")))
 	}
-	latest := sqlite.SELECT(history.LmsMaterialID, sqlite.MAX(history.RetrievalID)).
+	latest := history.SELECT(history.RetrievalID).
 		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
-		WHERE(condition).GROUP_BY(history.LmsMaterialID)
+		WHERE(condition).
+		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
 	var rows []materialRow
 	err := t.SELECT(t.AllColumns, f.AllColumns, r.AllColumns).
-		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID)).INNER_JOIN(f, t.RetrievalID.EQ(f.RetrievalID).AND(t.FolderPosition.EQ(f.Position)))).
-		WHERE(r.LmsCourseID.EQ(sqlite.String(course)).AND(sqlite.ROW(t.LmsMaterialID, t.RetrievalID).IN(latest))).
-		ORDER_BY(t.RetrievalID.DESC(), t.Position.ASC()).QueryContext(ctx, db, &rows)
+		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID)).
+			INNER_JOIN(f, t.RetrievalID.EQ(f.RetrievalID).AND(t.FolderPosition.EQ(f.Position)))).
+		WHERE(r.LmsCourseID.EQ(sqlite.String(course)).AND(t.RetrievalID.EQ(sqlite.StringExp(latest)))).
+		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID, t.Position.ASC())...).
+		QueryContext(ctx, db, &rows)
 	return rows, err
 }
 
@@ -153,13 +150,17 @@ func materialContentTimes(
 	ids := t.SELECT(t.LmsMaterialID).FROM(t.INNER_JOIN(cr, t.RetrievalID.EQ(cr.ID))).
 		WHERE(cr.LmsCourseID.EQ(sqlite.String(course)))
 	r := table.MaterialResourceRetrievals
+	hr := r.AS("history_retrieval")
+	latest := hr.SELECT(hr.ID).
+		WHERE(hr.LmsMaterialID.EQ(r.LmsMaterialID)).
+		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
 	var rows []struct {
 		MaterialID string
 		FetchedAt  int64
 	}
 	err := r.SELECT(r.LmsMaterialID.AS("material_id"), r.FetchedAt.AS("fetched_at")).
-		WHERE(sqlite.ROW(r.LmsMaterialID, r.ID).IN(r.SELECT(r.LmsMaterialID, sqlite.MAX(r.ID)).
-			WHERE(r.LmsMaterialID.IN(ids)).GROUP_BY(r.LmsMaterialID))).QueryContext(ctx, db, &rows)
+		WHERE(r.LmsMaterialID.IN(ids).AND(r.ID.EQ(sqlite.StringExp(latest)))).
+		QueryContext(ctx, db, &rows)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +179,7 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 		db,
 		r.SELECT(r.ID.AS("id")).
 			WHERE(r.LmsCourseID.EQ(sqlite.String(id))).
-			ORDER_BY(r.ID.DESC()).
+			ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
 			LIMIT(1),
 	)
 	if err != nil {
@@ -197,7 +198,7 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 	f := table.CourseMaterialFolders
 	var folders []model.CourseMaterialFolders
 	if err := f.SELECT(f.AllColumns).
-		WHERE(f.RetrievalID.EQ(sqlite.Int(latest))).
+		WHERE(f.RetrievalID.EQ(sqlite.String(latest))).
 		ORDER_BY(f.Position.ASC()).
 		QueryContext(ctx, db, &folders); err != nil {
 		return result, err
@@ -302,9 +303,12 @@ func (s *Store) FindCourse(ctx context.Context, material string) (string, error)
 func findCourse(ctx context.Context, db qrm.DB, material string) (string, error) {
 	t, r := table.CourseMaterials, table.CourseMaterialRetrievals
 	var row model.CourseMaterialRetrievals
-	err := r.SELECT(r.AllColumns).FROM(r.INNER_JOIN(t, r.ID.EQ(t.RetrievalID))).
+	err := r.SELECT(r.AllColumns).
+		FROM(r.INNER_JOIN(t, r.ID.EQ(t.RetrievalID))).
 		WHERE(t.LmsMaterialID.EQ(sqlite.String(material))).
-		ORDER_BY(r.ID.DESC()).LIMIT(1).QueryContext(ctx, db, &row)
+		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
+		LIMIT(1).
+		QueryContext(ctx, db, &row)
 	if errors.Is(err, qrm.ErrNoRows) {
 		return "", nil
 	}
@@ -384,7 +388,7 @@ func resources(
 		db,
 		r.SELECT(r.ID.AS("id")).
 			WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).
-			ORDER_BY(r.ID.DESC()).
+			ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
 			LIMIT(1),
 	)
 	if errors.Is(err, domain.ErrMissing) && archived {
@@ -395,13 +399,16 @@ func resources(
 	}
 	t, state := table.MaterialResources, table.SavedResources
 	history, hr := t.AS("history"), r.AS("history_retrieval")
-	latestPerResource := sqlite.SELECT(history.LmsResourceID, sqlite.MAX(history.RetrievalID)).
+	latestPerResource := history.SELECT(history.RetrievalID).
 		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
-		WHERE(hr.LmsMaterialID.EQ(sqlite.String(material))).GROUP_BY(history.LmsResourceID)
+		WHERE(hr.LmsMaterialID.EQ(r.LmsMaterialID).AND(history.LmsResourceID.EQ(t.LmsResourceID))).
+		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
 	var rows []model.MaterialResources
-	err = t.SELECT(t.AllColumns).FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
-		WHERE(r.LmsMaterialID.EQ(sqlite.String(material)).AND(sqlite.ROW(t.LmsResourceID, t.RetrievalID).IN(latestPerResource))).
-		ORDER_BY(t.RetrievalID.DESC(), t.Position.ASC()).QueryContext(ctx, db, &rows)
+	err = t.SELECT(t.AllColumns).
+		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
+		WHERE(r.LmsMaterialID.EQ(sqlite.String(material)).AND(t.RetrievalID.EQ(sqlite.StringExp(latestPerResource)))).
+		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID, t.Position.ASC())...).
+		QueryContext(ctx, db, &rows)
 	if err != nil {
 		return nil, err
 	}

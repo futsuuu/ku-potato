@@ -49,7 +49,7 @@ type Archive interface {
 	ReplaceSavedFile(
 		ctx context.Context,
 		material, resource string,
-		retrievalID int64,
+		retrievalID string,
 		file domain.SavedFile,
 	) (*domain.SavedFile, error)
 }

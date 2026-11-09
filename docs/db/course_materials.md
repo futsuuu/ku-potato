@@ -10,7 +10,7 @@
 ```sql
 CREATE TABLE course_materials (
     -- 教材一覧のスナップショット。教材の種類・状態・公開期限と所属フォルダーを保持する
-    retrieval_id INTEGER NOT NULL, -- 教材一覧の取得ID
+    retrieval_id TEXT NOT NULL, -- 教材一覧の取得ID
     position INTEGER NOT NULL, -- 全フォルダーを通した教材の表示順（0始まり）
     folder_position INTEGER NOT NULL, -- 同じ取得内の所属フォルダーの表示順
     lms_material_id TEXT NOT NULL, -- LMSの教材ID。同じ取得内で一意
@@ -43,7 +43,7 @@ CREATE TABLE course_materials (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | INTEGER |  | false |  | [course_material_folders](course_material_folders.md) | 教材一覧の取得ID |
+| retrieval_id | TEXT |  | false |  | [course_material_folders](course_material_folders.md) | 教材一覧の取得ID |
 | position | INTEGER |  | false |  |  | 全フォルダーを通した教材の表示順（0始まり） |
 | folder_position | INTEGER |  | false |  | [course_material_folders](course_material_folders.md) | 同じ取得内の所属フォルダーの表示順 |
 | lms_material_id | TEXT |  | false |  |  | LMSの教材ID。同じ取得内で一意 |
@@ -86,7 +86,7 @@ erDiagram
 "course_materials" }o--|| "course_material_folders" : "FOREIGN KEY (retrieval_id, folder_position) REFERENCES course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "course_materials" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   INTEGER folder_position FK
   TEXT lms_material_id
@@ -99,7 +99,7 @@ erDiagram
   TEXT resource_availability
 }
 "course_material_folders" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT name
   TEXT class_date

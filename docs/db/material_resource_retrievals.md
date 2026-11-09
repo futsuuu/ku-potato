@@ -10,9 +10,11 @@
 ```sql
 CREATE TABLE material_resource_retrievals (
     -- 教材ごとの資料一覧の取得履歴。未取得と、取得済みの空一覧を区別する
-    id INTEGER PRIMARY KEY AUTOINCREMENT, -- 取得ID。IDの降順で最新の取得を選ぶ
+    id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
+    fetched_at INTEGER NOT NULL CHECK (fetched_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
+    clock_millis INTEGER NOT NULL CHECK (clock_millis >= fetched_at), -- 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める
+    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める
     lms_material_id TEXT NOT NULL, -- 取得対象のLMS教材ID
-    fetched_at INTEGER NOT NULL, -- 取得時刻（Unixミリ秒）
     UNIQUE (id, lms_material_id)
 )
 ```
@@ -23,23 +25,30 @@ CREATE TABLE material_resource_retrievals (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | INTEGER |  | true | [material_resources](material_resources.md) [saved_resources](saved_resources.md) |  | 取得ID。IDの降順で最新の取得を選ぶ |
+| id | TEXT |  | false | [material_resources](material_resources.md) [saved_resources](saved_resources.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
+| fetched_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒）。表示用の日時 |
+| clock_millis | INTEGER |  | false |  |  | 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める |
+| clock_counter | INTEGER |  | false |  |  | 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める |
 | lms_material_id | TEXT |  | false | [saved_resources](saved_resources.md) |  | 取得対象のLMS教材ID |
-| fetched_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒） |
 
 ## Constraints
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | id | PRIMARY KEY | PRIMARY KEY (id) |
-| sqlite_autoindex_material_resource_retrievals_1 | UNIQUE | UNIQUE (id, lms_material_id) |
+| sqlite_autoindex_material_resource_retrievals_2 | UNIQUE | UNIQUE (id, lms_material_id) |
+| sqlite_autoindex_material_resource_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
+| - | CHECK | CHECK (fetched_at >= 0) |
+| - | CHECK | CHECK (clock_millis >= fetched_at) |
+| - | CHECK | CHECK (clock_counter >= 0) |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
-| resource_retrievals_material | CREATE INDEX resource_retrievals_material ON material_resource_retrievals(lms_material_id, id) |
-| sqlite_autoindex_material_resource_retrievals_1 | UNIQUE (id, lms_material_id) |
+| resource_retrievals_material | CREATE INDEX resource_retrievals_material ON material_resource_retrievals(lms_material_id, clock_millis, clock_counter, id) |
+| sqlite_autoindex_material_resource_retrievals_2 | UNIQUE (id, lms_material_id) |
+| sqlite_autoindex_material_resource_retrievals_1 | PRIMARY KEY (id) |
 
 ## Relations
 
@@ -50,12 +59,14 @@ erDiagram
 "saved_resources" }o--|| "material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "material_resource_retrievals" {
-  INTEGER id
-  TEXT lms_material_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_material_id
 }
 "material_resources" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_resource_id
   TEXT name
@@ -73,7 +84,7 @@ erDiagram
   TEXT original_filename
   TEXT sha256
   INTEGER file_size
-  INTEGER resource_retrieval_id FK
+  TEXT resource_retrieval_id FK
 }
 ```
 

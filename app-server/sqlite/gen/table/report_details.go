@@ -17,7 +17,7 @@ type reportDetailsTable struct {
 	sqlite.Table
 
 	// Columns
-	RetrievalID          sqlite.ColumnInteger
+	RetrievalID          sqlite.ColumnString
 	PromptHTML           sqlite.ColumnString
 	Status               sqlite.ColumnString
 	SubmissionPeriodKind sqlite.ColumnString
@@ -69,7 +69,7 @@ func newReportDetailsTable(schemaName, tableName, alias string) *ReportDetailsTa
 
 func newReportDetailsTableImpl(schemaName, tableName, alias string) reportDetailsTable {
 	var (
-		RetrievalIDColumn          = sqlite.IntegerColumn("retrieval_id")
+		RetrievalIDColumn          = sqlite.StringColumn("retrieval_id")
 		PromptHTMLColumn           = sqlite.StringColumn("prompt_html")
 		StatusColumn               = sqlite.StringColumn("status")
 		SubmissionPeriodKindColumn = sqlite.StringColumn("submission_period_kind")

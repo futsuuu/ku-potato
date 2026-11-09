@@ -8,8 +8,8 @@
 package model
 
 type Courses struct {
-	RetrievalID  int64 `sql:"primary_key"`
-	Position     int64 `sql:"primary_key"`
+	RetrievalID  string `sql:"primary_key"`
+	Position     int64  `sql:"primary_key"`
 	LmsCourseID  *string
 	Name         string
 	Availability string

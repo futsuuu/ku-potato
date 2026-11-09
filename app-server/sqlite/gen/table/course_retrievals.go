@@ -17,8 +17,10 @@ type courseRetrievalsTable struct {
 	sqlite.Table
 
 	// Columns
-	ID           sqlite.ColumnInteger
+	ID           sqlite.ColumnString
 	FetchedAt    sqlite.ColumnInteger
+	ClockMillis  sqlite.ColumnInteger
+	ClockCounter sqlite.ColumnInteger
 	AcademicYear sqlite.ColumnInteger
 
 	AllColumns     sqlite.ColumnList
@@ -61,11 +63,13 @@ func newCourseRetrievalsTable(schemaName, tableName, alias string) *CourseRetrie
 
 func newCourseRetrievalsTableImpl(schemaName, tableName, alias string) courseRetrievalsTable {
 	var (
-		IDColumn           = sqlite.IntegerColumn("id")
+		IDColumn           = sqlite.StringColumn("id")
 		FetchedAtColumn    = sqlite.IntegerColumn("fetched_at")
+		ClockMillisColumn  = sqlite.IntegerColumn("clock_millis")
+		ClockCounterColumn = sqlite.IntegerColumn("clock_counter")
 		AcademicYearColumn = sqlite.IntegerColumn("academic_year")
-		allColumns         = sqlite.ColumnList{IDColumn, FetchedAtColumn, AcademicYearColumn}
-		mutableColumns     = sqlite.ColumnList{FetchedAtColumn, AcademicYearColumn}
+		allColumns         = sqlite.ColumnList{IDColumn, FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, AcademicYearColumn}
+		mutableColumns     = sqlite.ColumnList{FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, AcademicYearColumn}
 		defaultColumns     = sqlite.ColumnList{}
 	)
 
@@ -75,6 +79,8 @@ func newCourseRetrievalsTableImpl(schemaName, tableName, alias string) courseRet
 		//Columns
 		ID:           IDColumn,
 		FetchedAt:    FetchedAtColumn,
+		ClockMillis:  ClockMillisColumn,
+		ClockCounter: ClockCounterColumn,
 		AcademicYear: AcademicYearColumn,
 
 		AllColumns:     allColumns,

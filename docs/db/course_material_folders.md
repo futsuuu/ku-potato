@@ -10,7 +10,7 @@
 ```sql
 CREATE TABLE course_material_folders (
     -- 教材一覧の取得時点における教材フォルダー。LMS上では「授業」と表示されるまとまり
-    retrieval_id INTEGER NOT NULL REFERENCES course_material_retrievals(id), -- 教材一覧の取得ID
+    retrieval_id TEXT NOT NULL REFERENCES course_material_retrievals(id), -- 教材一覧の取得ID
     position INTEGER NOT NULL, -- 取得した一覧内のフォルダー表示順（0始まり）
     name TEXT NOT NULL, -- 教材フォルダー名
     class_date TEXT, -- 授業日（YYYY-MM-DD）。未掲載・不正な日付はNULL
@@ -25,7 +25,7 @@ CREATE TABLE course_material_folders (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | INTEGER |  | false | [course_materials](course_materials.md) | [course_material_retrievals](course_material_retrievals.md) | 教材一覧の取得ID |
+| retrieval_id | TEXT |  | false | [course_materials](course_materials.md) | [course_material_retrievals](course_material_retrievals.md) | 教材一覧の取得ID |
 | position | INTEGER |  | false | [course_materials](course_materials.md) |  | 取得した一覧内のフォルダー表示順（0始まり） |
 | name | TEXT |  | false |  |  | 教材フォルダー名 |
 | class_date | TEXT |  | true |  |  | 授業日（YYYY-MM-DD）。未掲載・不正な日付はNULL |
@@ -55,19 +55,21 @@ erDiagram
 "course_materials" }o--|| "course_material_folders" : "FOREIGN KEY (retrieval_id, folder_position) REFERENCES course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "course_material_folders" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT name
   TEXT class_date
   TEXT description_html
 }
 "course_material_retrievals" {
-  INTEGER id
-  TEXT lms_course_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_course_id
 }
 "course_materials" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   INTEGER folder_position FK
   TEXT lms_material_id

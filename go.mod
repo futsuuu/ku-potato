@@ -8,6 +8,7 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/go-jet/jet/v2 v2.16.1
 	github.com/gofrs/flock v0.13.1
+	github.com/google/uuid v1.6.0
 	github.com/k1LoW/tbls v1.96.1
 	github.com/klauspost/compress v1.20.1
 	github.com/wailsapp/wails/v3 v3.1.0
@@ -91,7 +92,6 @@ require (
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/rpmpack v0.7.1 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gookit/color v1.6.0 // indirect
 	github.com/goreleaser/chglog v0.7.4 // indirect
 	github.com/goreleaser/fileglob v1.4.0 // indirect

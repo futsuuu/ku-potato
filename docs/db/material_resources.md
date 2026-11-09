@@ -10,7 +10,7 @@
 ```sql
 CREATE TABLE material_resources (
     -- 資料一覧のスナップショット。ファイルや外部リンクの情報を取得時点のまま保持する
-    retrieval_id INTEGER NOT NULL REFERENCES material_resource_retrievals(id), -- 資料一覧の取得ID
+    retrieval_id TEXT NOT NULL REFERENCES material_resource_retrievals(id), -- 資料一覧の取得ID
     position INTEGER NOT NULL, -- 取得した一覧内の表示順（0始まり）
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID。同じ取得内で一意
     name TEXT NOT NULL, -- 資料名
@@ -31,7 +31,7 @@ CREATE TABLE material_resources (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | INTEGER |  | false | [saved_resources](saved_resources.md) | [material_resource_retrievals](material_resource_retrievals.md) | 資料一覧の取得ID |
+| retrieval_id | TEXT |  | false | [saved_resources](saved_resources.md) | [material_resource_retrievals](material_resource_retrievals.md) | 資料一覧の取得ID |
 | position | INTEGER |  | false |  |  | 取得した一覧内の表示順（0始まり） |
 | lms_resource_id | TEXT |  | false | [saved_resources](saved_resources.md) |  | LMSの資料ID。同じ取得内で一意 |
 | name | TEXT |  | false |  |  | 資料名 |
@@ -71,7 +71,7 @@ erDiagram
 "saved_resources" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "material_resources" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_resource_id
   TEXT name
@@ -83,9 +83,11 @@ erDiagram
   TEXT url
 }
 "material_resource_retrievals" {
-  INTEGER id
-  TEXT lms_material_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_material_id
 }
 "saved_resources" {
   TEXT lms_material_id PK
@@ -94,7 +96,7 @@ erDiagram
   TEXT original_filename
   TEXT sha256
   INTEGER file_size
-  INTEGER resource_retrieval_id FK
+  TEXT resource_retrieval_id FK
 }
 ```
 

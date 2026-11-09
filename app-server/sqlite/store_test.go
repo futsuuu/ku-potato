@@ -310,7 +310,7 @@ func TestSnapshotConstraintFailureRollsBackAllChanges(t *testing.T) {
 		t.Fatal(materials, err)
 	}
 	if _, err := s.db.Exec(
-		"INSERT INTO course_material_folders VALUES(999,0,'invalid','')",
+		"INSERT INTO course_material_folders(retrieval_id, position, name) VALUES('missing',0,'invalid')",
 	); err == nil {
 		t.Fatal("accepted invalid foreign key")
 	}

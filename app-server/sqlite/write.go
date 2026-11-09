@@ -3,12 +3,12 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"github.com/futsuuu/ku-potato/app-server/application/outport"
 	"github.com/futsuuu/ku-potato/app-server/domain"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/model"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/table"
+	"github.com/google/uuid"
 )
 
 func (s *Store) Append(
@@ -20,72 +20,95 @@ func (s *Store) Append(
 		return ids, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	clock, err := newRetrievalClock(ctx, tx)
+	if err != nil {
+		return ids, err
+	}
+	if ids, err = insertSnapshot(ctx, tx, clock, snapshot); err != nil {
+		return outport.RetrievalIDs{}, err
+	}
+	return ids, tx.Commit()
+}
+
+func insertSnapshot(
+	ctx context.Context,
+	tx *sql.Tx,
+	clock retrievalClock,
+	snapshot domain.Snapshot,
+) (ids outport.RetrievalIDs, err error) {
 	if snapshot.Courses != nil {
-		if ids.Courses, err = insertCourses(
+		ids.Courses, err = insertCourses(
 			ctx,
 			tx,
+			uuid.NewString(),
+			clock,
 			snapshot.AcademicYear,
 			snapshot.Courses,
-		); err != nil {
-			return outport.RetrievalIDs{}, err
+		)
+		if err != nil {
+			return ids, err
 		}
 	}
 	if snapshot.Materials != nil {
-		if ids.Materials, err = insertMaterials(ctx, tx, *snapshot.Materials); err != nil {
-			return outport.RetrievalIDs{}, err
+		ids.Materials, err = insertMaterials(ctx, tx, uuid.NewString(), clock, *snapshot.Materials)
+		if err != nil {
+			return ids, err
 		}
 	}
-	// nil means the resource list was not fetched (for example, a private material).
-	// A non-nil empty slice is a successfully fetched, empty list.
-	if snapshot.MaterialID != "" && snapshot.Resources != nil {
-		if ids.Resources, err = insertResources(
+	if snapshot.Resources != nil {
+		if snapshot.MaterialID == "" {
+			return ids, domain.Fail("invalid-input", "resources require a material ID")
+		}
+		ids.Resources, err = insertResources(
 			ctx,
 			tx,
+			uuid.NewString(),
+			clock,
 			snapshot.MaterialID,
 			snapshot.Resources,
-		); err != nil {
-			return outport.RetrievalIDs{}, err
+		)
+		if err != nil {
+			return ids, err
 		}
 	}
 	if snapshot.Report != nil {
 		if snapshot.MaterialID == "" {
-			return outport.RetrievalIDs{}, domain.Fail(
-				"invalid-input",
-				"report detail requires a material ID",
-			)
+			return ids, domain.Fail("invalid-input", "report detail requires a material ID")
 		}
-		if ids.Report, err = insertReport(
+		ids.Report, err = insertReport(
 			ctx,
 			tx,
+			uuid.NewString(),
+			clock,
 			snapshot.MaterialID,
 			*snapshot.Report,
-		); err != nil {
-			return outport.RetrievalIDs{}, err
-		}
+		)
 	}
-	if err := tx.Commit(); err != nil {
-		return outport.RetrievalIDs{}, err
-	}
-	return ids, nil
+	return ids, err
 }
 
 func insertCourses(
 	ctx context.Context,
 	tx *sql.Tx,
+	id string,
+	clock retrievalClock,
 	year int,
 	courses []domain.Course,
-) (int64, error) {
+) (string, error) {
 	r := table.CourseRetrievals
-	result, err := r.INSERT(r.FetchedAt, r.AcademicYear).
-		MODEL(model.CourseRetrievals{FetchedAt: time.Now().UnixMilli(), AcademicYear: int64(year)}).
+	_, err := r.INSERT(r.AllColumns).
+		MODEL(model.CourseRetrievals{
+			ID:           id,
+			AcademicYear: int64(year),
+			FetchedAt:    clock.FetchedAt,
+			ClockMillis:  clock.ClockMillis,
+			ClockCounter: clock.ClockCounter,
+		}).
 		ExecContext(ctx, tx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
+
 	t := table.Courses
 	for position, course := range courses {
 		row := model.Courses{
@@ -99,7 +122,7 @@ func insertCourses(
 			row.LmsCourseID = &course.ID
 		}
 		if _, err := t.INSERT(t.AllColumns).MODEL(row).ExecContext(ctx, tx); err != nil {
-			return 0, err
+			return "", err
 		}
 	}
 	return id, nil
@@ -108,19 +131,22 @@ func insertCourses(
 func insertMaterials(
 	ctx context.Context,
 	tx *sql.Tx,
+	id string,
+	clock retrievalClock,
 	materials domain.CourseMaterials,
-) (int64, error) {
+) (string, error) {
 	r := table.CourseMaterialRetrievals
-	result, err := r.INSERT(r.LmsCourseID, r.FetchedAt).MODEL(model.CourseMaterialRetrievals{
-		LmsCourseID: materials.CourseID, FetchedAt: time.Now().UnixMilli(),
+	_, err := r.INSERT(r.AllColumns).MODEL(model.CourseMaterialRetrievals{
+		ID:           id,
+		LmsCourseID:  materials.CourseID,
+		FetchedAt:    clock.FetchedAt,
+		ClockMillis:  clock.ClockMillis,
+		ClockCounter: clock.ClockCounter,
 	}).ExecContext(ctx, tx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
+
 	f := table.CourseMaterialFolders
 	t := table.CourseMaterials
 	position := int64(0)
@@ -132,7 +158,7 @@ func insertMaterials(
 			ClassDate:       folderDate(folder),
 			DescriptionHTML: folder.DescriptionHTML,
 		}).ExecContext(ctx, tx); err != nil {
-			return 0, err
+			return "", err
 		}
 		for _, material := range folder.Materials {
 			row := model.CourseMaterials{
@@ -159,7 +185,7 @@ func insertMaterials(
 			row.Status = materialStatus(material.ID, row.Type, material.Status)
 			row.PublicationDeadlineKind, row.PublicationDeadlineAt = deadline(material)
 			if _, err := t.INSERT(t.AllColumns).MODEL(row).ExecContext(ctx, tx); err != nil {
-				return 0, err
+				return "", err
 			}
 			position++
 		}
@@ -170,20 +196,23 @@ func insertMaterials(
 func insertResources(
 	ctx context.Context,
 	tx *sql.Tx,
+	id string,
+	clock retrievalClock,
 	material string,
 	resources []domain.RetrievedResource,
-) (int64, error) {
+) (string, error) {
 	r := table.MaterialResourceRetrievals
-	result, err := r.INSERT(r.LmsMaterialID, r.FetchedAt).MODEL(model.MaterialResourceRetrievals{
-		LmsMaterialID: material, FetchedAt: time.Now().UnixMilli(),
+	_, err := r.INSERT(r.AllColumns).MODEL(model.MaterialResourceRetrievals{
+		ID:            id,
+		LmsMaterialID: material,
+		FetchedAt:     clock.FetchedAt,
+		ClockMillis:   clock.ClockMillis,
+		ClockCounter:  clock.ClockCounter,
 	}).ExecContext(ctx, tx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
+
 	t := table.MaterialResources
 	for position, resource := range resources {
 		if _, err := t.INSERT(t.AllColumns).MODEL(model.MaterialResources{
@@ -202,7 +231,7 @@ func insertResources(
 			),
 			Description: resource.Description,
 		}).ExecContext(ctx, tx); err != nil {
-			return 0, err
+			return "", err
 		}
 	}
 	return id, nil

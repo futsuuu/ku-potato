@@ -46,7 +46,7 @@ func (a *replacementArchive) Detail(ctx context.Context, material string) (domai
 func (a *replacementArchive) ReplaceSavedFile(
 	ctx context.Context,
 	material, resource string,
-	retrievalID int64,
+	retrievalID string,
 	file domain.SavedFile,
 ) (*domain.SavedFile, error) {
 	a.replacements++

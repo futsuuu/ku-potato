@@ -8,8 +8,8 @@
 package model
 
 type CourseMaterialFolders struct {
-	RetrievalID     int64 `sql:"primary_key"`
-	Position        int64 `sql:"primary_key"`
+	RetrievalID     string `sql:"primary_key"`
+	Position        int64  `sql:"primary_key"`
 	Name            string
 	ClassDate       *string
 	DescriptionHTML *string

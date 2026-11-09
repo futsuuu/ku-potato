@@ -8,7 +8,7 @@
 package model
 
 type ReportDetails struct {
-	RetrievalID          *int64 `sql:"primary_key"`
+	RetrievalID          string `sql:"primary_key"`
 	PromptHTML           *string
 	Status               string
 	SubmissionPeriodKind string

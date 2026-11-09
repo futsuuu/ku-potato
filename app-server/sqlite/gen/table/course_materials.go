@@ -17,7 +17,7 @@ type courseMaterialsTable struct {
 	sqlite.Table
 
 	// Columns
-	RetrievalID             sqlite.ColumnInteger
+	RetrievalID             sqlite.ColumnString
 	Position                sqlite.ColumnInteger
 	FolderPosition          sqlite.ColumnInteger
 	LmsMaterialID           sqlite.ColumnString
@@ -69,7 +69,7 @@ func newCourseMaterialsTable(schemaName, tableName, alias string) *CourseMateria
 
 func newCourseMaterialsTableImpl(schemaName, tableName, alias string) courseMaterialsTable {
 	var (
-		RetrievalIDColumn             = sqlite.IntegerColumn("retrieval_id")
+		RetrievalIDColumn             = sqlite.StringColumn("retrieval_id")
 		PositionColumn                = sqlite.IntegerColumn("position")
 		FolderPositionColumn          = sqlite.IntegerColumn("folder_position")
 		LmsMaterialIDColumn           = sqlite.StringColumn("lms_material_id")

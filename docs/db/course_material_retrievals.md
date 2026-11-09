@@ -10,9 +10,11 @@
 ```sql
 CREATE TABLE course_material_retrievals (
     -- 講義ごとの教材一覧の取得履歴。空の一覧を取得した場合も記録する
-    id INTEGER PRIMARY KEY AUTOINCREMENT, -- 取得ID。IDの降順で最新の取得を選ぶ
-    lms_course_id TEXT NOT NULL, -- 取得対象のLMS講義ID
-    fetched_at INTEGER NOT NULL -- 取得時刻（Unixミリ秒）
+    id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
+    fetched_at INTEGER NOT NULL CHECK (fetched_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
+    clock_millis INTEGER NOT NULL CHECK (clock_millis >= fetched_at), -- 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める
+    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める
+    lms_course_id TEXT NOT NULL -- 取得対象のLMS講義ID
 )
 ```
 
@@ -22,21 +24,28 @@ CREATE TABLE course_material_retrievals (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | INTEGER |  | true | [course_material_folders](course_material_folders.md) |  | 取得ID。IDの降順で最新の取得を選ぶ |
+| id | TEXT |  | false | [course_material_folders](course_material_folders.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
+| fetched_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒）。表示用の日時 |
+| clock_millis | INTEGER |  | false |  |  | 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める |
+| clock_counter | INTEGER |  | false |  |  | 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める |
 | lms_course_id | TEXT |  | false |  |  | 取得対象のLMS講義ID |
-| fetched_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒） |
 
 ## Constraints
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | id | PRIMARY KEY | PRIMARY KEY (id) |
+| sqlite_autoindex_course_material_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
+| - | CHECK | CHECK (fetched_at >= 0) |
+| - | CHECK | CHECK (clock_millis >= fetched_at) |
+| - | CHECK | CHECK (clock_counter >= 0) |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
-| material_retrievals_course | CREATE INDEX material_retrievals_course ON course_material_retrievals(lms_course_id, id) |
+| material_retrievals_course | CREATE INDEX material_retrievals_course ON course_material_retrievals(lms_course_id, clock_millis, clock_counter, id) |
+| sqlite_autoindex_course_material_retrievals_1 | PRIMARY KEY (id) |
 
 ## Relations
 
@@ -46,12 +55,14 @@ erDiagram
 "course_material_folders" |o--|| "course_material_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES course_material_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "course_material_retrievals" {
-  INTEGER id
-  TEXT lms_course_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_course_id
 }
 "course_material_folders" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT name
   TEXT class_date

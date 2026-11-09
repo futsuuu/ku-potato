@@ -4,15 +4,16 @@
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [course_retrievals](course_retrievals.md) | 3 | 年度ごとの講義一覧の取得履歴。取得ごとに追記し、過去の一覧を保持する | table |
+| [archive_state](archive_state.md) | 3 | 取得順序を採番する論理時計。端末間で共有しないローカル状態 | table |
+| [course_retrievals](course_retrievals.md) | 5 | 年度ごとの講義一覧の取得履歴。取得ごとに追記し、過去の一覧を保持する | table |
 | [courses](courses.md) | 8 | 講義一覧のスナップショット。LMSの講義IDがない行も表示順を含めて保持する | table |
-| [course_material_retrievals](course_material_retrievals.md) | 3 | 講義ごとの教材一覧の取得履歴。空の一覧を取得した場合も記録する | table |
+| [course_material_retrievals](course_material_retrievals.md) | 5 | 講義ごとの教材一覧の取得履歴。空の一覧を取得した場合も記録する | table |
 | [course_material_folders](course_material_folders.md) | 5 | 教材一覧の取得時点における教材フォルダー。LMS上では「授業」と表示されるまとまり | table |
 | [course_materials](course_materials.md) | 11 | 教材一覧のスナップショット。教材の種類・状態・公開期限と所属フォルダーを保持する | table |
-| [material_resource_retrievals](material_resource_retrievals.md) | 3 | 教材ごとの資料一覧の取得履歴。未取得と、取得済みの空一覧を区別する | table |
+| [material_resource_retrievals](material_resource_retrievals.md) | 5 | 教材ごとの資料一覧の取得履歴。未取得と、取得済みの空一覧を区別する | table |
 | [material_resources](material_resources.md) | 10 | 資料一覧のスナップショット。ファイルや外部リンクの情報を取得時点のまま保持する | table |
 | [saved_resources](saved_resources.md) | 7 | 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する | table |
-| [report_detail_retrievals](report_detail_retrievals.md) | 3 | レポート教材ごとの詳細の取得履歴。取得ごとに追記する | table |
+| [report_detail_retrievals](report_detail_retrievals.md) | 5 | レポート教材ごとの詳細の取得履歴。取得ごとに追記する | table |
 | [report_details](report_details.md) | 11 | レポート詳細のスナップショット。提出期間・修正条件・回答形式を保持する | table |
 
 ## Relations
@@ -26,15 +27,22 @@ erDiagram
 "material_resources" |o--|| "material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 "saved_resources" }o--|| "material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 "saved_resources" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"report_details" |o--o| "report_detail_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"report_details" |o--|| "report_detail_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
+"archive_state" {
+  INTEGER singleton
+  INTEGER clock_millis
+  INTEGER clock_counter
+}
 "course_retrievals" {
-  INTEGER id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
   INTEGER academic_year
 }
 "courses" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_course_id
   TEXT name
@@ -44,19 +52,21 @@ erDiagram
   INTEGER period
 }
 "course_material_retrievals" {
-  INTEGER id
-  TEXT lms_course_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_course_id
 }
 "course_material_folders" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT name
   TEXT class_date
   TEXT description_html
 }
 "course_materials" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   INTEGER folder_position FK
   TEXT lms_material_id
@@ -69,12 +79,14 @@ erDiagram
   TEXT resource_availability
 }
 "material_resource_retrievals" {
-  INTEGER id
-  TEXT lms_material_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_material_id
 }
 "material_resources" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_resource_id
   TEXT name
@@ -92,15 +104,17 @@ erDiagram
   TEXT original_filename
   TEXT sha256
   INTEGER file_size
-  INTEGER resource_retrieval_id FK
+  TEXT resource_retrieval_id FK
 }
 "report_detail_retrievals" {
-  INTEGER id
-  TEXT lms_material_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_material_id
 }
 "report_details" {
-  INTEGER retrieval_id FK
+  TEXT retrieval_id PK
   TEXT prompt_html
   TEXT status
   TEXT submission_period_kind

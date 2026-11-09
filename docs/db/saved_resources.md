@@ -16,7 +16,7 @@ CREATE TABLE saved_resources (
     original_filename TEXT NOT NULL, -- 保存ファイルの元のファイル名
     sha256 TEXT NOT NULL, -- 保存ファイルのSHA-256ハッシュ
     file_size INTEGER NOT NULL CHECK (file_size >= 0), -- 保存ファイルのサイズ（バイト）
-    resource_retrieval_id INTEGER NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
+    resource_retrieval_id TEXT NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
     PRIMARY KEY (lms_material_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources(retrieval_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)
@@ -35,7 +35,7 @@ CREATE TABLE saved_resources (
 | original_filename | TEXT |  | false |  |  | 保存ファイルの元のファイル名 |
 | sha256 | TEXT |  | false |  |  | 保存ファイルのSHA-256ハッシュ |
 | file_size | INTEGER |  | false |  |  | 保存ファイルのサイズ（バイト） |
-| resource_retrieval_id | INTEGER |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) [material_resources](material_resources.md) | 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する |
+| resource_retrieval_id | TEXT |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) [material_resources](material_resources.md) | 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する |
 
 ## Constraints
 
@@ -71,15 +71,17 @@ erDiagram
   TEXT original_filename
   TEXT sha256
   INTEGER file_size
-  INTEGER resource_retrieval_id FK
+  TEXT resource_retrieval_id FK
 }
 "material_resource_retrievals" {
-  INTEGER id
-  TEXT lms_material_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_material_id
 }
 "material_resources" {
-  INTEGER retrieval_id PK
+  TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_resource_id
   TEXT name

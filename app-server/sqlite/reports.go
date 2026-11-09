@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/futsuuu/ku-potato/app-server/domain"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/model"
@@ -16,22 +15,25 @@ import (
 func insertReport(
 	ctx context.Context,
 	tx *sql.Tx,
+	id string,
+	clock retrievalClock,
 	material string,
 	detail domain.ReportDetail,
-) (int64, error) {
+) (string, error) {
 	r := table.ReportDetailRetrievals
-	result, err := r.INSERT(r.LmsMaterialID, r.FetchedAt).MODEL(model.ReportDetailRetrievals{
-		LmsMaterialID: material, FetchedAt: time.Now().UnixMilli(),
+	_, err := r.INSERT(r.AllColumns).MODEL(model.ReportDetailRetrievals{
+		ID:            id,
+		LmsMaterialID: material,
+		FetchedAt:     clock.FetchedAt,
+		ClockMillis:   clock.ClockMillis,
+		ClockCounter:  clock.ClockCounter,
 	}).ExecContext(ctx, tx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
+
 	row := model.ReportDetails{
-		RetrievalID: &id,
+		RetrievalID: id,
 		PromptHTML:  detail.PromptHTML,
 		Status:      materialStatus(material, "report", detail.Status),
 		SubmissionPeriodKind: enumValue(
@@ -75,7 +77,7 @@ func insertReport(
 	}
 	t := table.ReportDetails
 	if _, err := t.INSERT(t.AllColumns).MODEL(row).ExecContext(ctx, tx); err != nil {
-		return 0, err
+		return "", err
 	}
 	return id, nil
 }
@@ -95,9 +97,12 @@ func reportDetail(ctx context.Context, db qrm.DB, material string) (domain.Repor
 		model.ReportDetails
 		model.ReportDetailRetrievals
 	}
-	err := t.SELECT(t.AllColumns, r.AllColumns).FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
+	err := t.SELECT(t.AllColumns, r.AllColumns).
+		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
 		WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).
-		ORDER_BY(r.ID.DESC()).LIMIT(1).QueryContext(ctx, db, &row)
+		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
+		LIMIT(1).
+		QueryContext(ctx, db, &row)
 	if errors.Is(err, qrm.ErrNoRows) {
 		return domain.ReportDetail{}, domain.ErrMissing
 	}

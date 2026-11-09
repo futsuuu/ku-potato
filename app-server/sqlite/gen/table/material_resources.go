@@ -17,7 +17,7 @@ type materialResourcesTable struct {
 	sqlite.Table
 
 	// Columns
-	RetrievalID   sqlite.ColumnInteger
+	RetrievalID   sqlite.ColumnString
 	Position      sqlite.ColumnInteger
 	LmsResourceID sqlite.ColumnString
 	Name          sqlite.ColumnString
@@ -68,7 +68,7 @@ func newMaterialResourcesTable(schemaName, tableName, alias string) *MaterialRes
 
 func newMaterialResourcesTableImpl(schemaName, tableName, alias string) materialResourcesTable {
 	var (
-		RetrievalIDColumn   = sqlite.IntegerColumn("retrieval_id")
+		RetrievalIDColumn   = sqlite.StringColumn("retrieval_id")
 		PositionColumn      = sqlite.IntegerColumn("position")
 		LmsResourceIDColumn = sqlite.StringColumn("lms_resource_id")
 		NameColumn          = sqlite.StringColumn("name")

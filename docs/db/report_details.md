@@ -10,7 +10,7 @@
 ```sql
 CREATE TABLE report_details (
     -- レポート詳細のスナップショット。提出期間・修正条件・回答形式を保持する
-    retrieval_id INTEGER PRIMARY KEY REFERENCES report_detail_retrievals(id), -- レポート詳細の取得ID。1回の取得に1行が対応する
+    retrieval_id TEXT PRIMARY KEY NOT NULL REFERENCES report_detail_retrievals(id), -- レポート詳細の取得ID。1回の取得に1行が対応する
     prompt_html TEXT, -- 課題本文のHTML。取得できない場合はNULL
     status TEXT NOT NULL CHECK (status IN ('unviewed', 'unsubmitted', 'submitted', 'resubmission-required', 'evaluated', 'unknown')), -- 提出状態：unviewed、unsubmitted、submitted、resubmission-required、evaluated、unknown
     submission_period_kind TEXT NOT NULL CHECK (submission_period_kind IN ('at', 'unlisted', 'unknown')), -- 提出期間の区分：at（開始または締切あり）、unlisted（掲載なし）、unknown（不明）
@@ -36,7 +36,7 @@ CREATE TABLE report_details (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | INTEGER |  | true |  | [report_detail_retrievals](report_detail_retrievals.md) | レポート詳細の取得ID。1回の取得に1行が対応する |
+| retrieval_id | TEXT |  | false |  | [report_detail_retrievals](report_detail_retrievals.md) | レポート詳細の取得ID。1回の取得に1行が対応する |
 | prompt_html | TEXT |  | true |  |  | 課題本文のHTML。取得できない場合はNULL |
 | status | TEXT |  | false |  |  | 提出状態：unviewed、unsubmitted、submitted、resubmission-required、evaluated、unknown |
 | submission_period_kind | TEXT |  | false |  |  | 提出期間の区分：at（開始または締切あり）、unlisted（掲載なし）、unknown（不明） |
@@ -54,6 +54,7 @@ CREATE TABLE report_details (
 | ---- | ---- | ---------- |
 | retrieval_id | PRIMARY KEY | PRIMARY KEY (retrieval_id) |
 | - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
+| sqlite_autoindex_report_details_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id) |
 | - | CHECK | CHECK (status IN ('unviewed', 'unsubmitted', 'submitted', 'resubmission-required', 'evaluated', 'unknown')) |
 | - | CHECK | CHECK (submission_period_kind IN ('at', 'unlisted', 'unknown')) |
 | - | CHECK | CHECK (correction_mode IN ('unknown', 'not-allowed', 'unlimited', 'limited')) |
@@ -65,15 +66,21 @@ CREATE TABLE report_details (
 | - | CHECK | CHECK (submission_starts_at IS NULL OR submission_due_at IS NULL OR submission_due_at >= submission_starts_at) |
 | - | CHECK | CHECK ((correction_mode = 'limited') = (correction_limit IS NOT NULL)) |
 
+## Indexes
+
+| Name | Definition |
+| ---- | ---------- |
+| sqlite_autoindex_report_details_1 | PRIMARY KEY (retrieval_id) |
+
 ## Relations
 
 ```mermaid
 erDiagram
 
-"report_details" |o--o| "report_detail_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"report_details" |o--|| "report_detail_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "report_details" {
-  INTEGER retrieval_id FK
+  TEXT retrieval_id PK
   TEXT prompt_html
   TEXT status
   TEXT submission_period_kind
@@ -86,9 +93,11 @@ erDiagram
   INTEGER max_total_file_bytes
 }
 "report_detail_retrievals" {
-  INTEGER id
-  TEXT lms_material_id
+  TEXT id PK
   INTEGER fetched_at
+  INTEGER clock_millis
+  INTEGER clock_counter
+  TEXT lms_material_id
 }
 ```
 
