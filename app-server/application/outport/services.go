@@ -44,7 +44,10 @@ type Archive interface {
 	Append(context.Context, domain.Snapshot) (RetrievalIDs, error)
 	// SavedFile reads the current saved file without assembling a material detail.
 	SavedFile(context.Context, string, string) (domain.SavedFile, error)
-	// ReplaceSavedFile commits the new file and returns the previous file for cleanup.
+	// FileReferenced reports whether any current resource uses this content ID.
+	FileReferenced(context.Context, string) (bool, error)
+	// ReplaceSavedFile commits the new file and returns the previous file.
+	// Check FileReferenced before removing its shared content.
 	// retrievalID must identify the resource list used for this download.
 	ReplaceSavedFile(
 		ctx context.Context,

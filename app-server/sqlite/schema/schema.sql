@@ -111,15 +111,16 @@ CREATE TABLE IF NOT EXISTS saved_resources (
     -- 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
     lms_material_id TEXT NOT NULL, -- LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID
-    file_id TEXT NOT NULL UNIQUE, -- ローカル保存ファイルのID。保存ごとに新しいIDを割り当てる
+    file_id TEXT NOT NULL CHECK (length(file_id) = 64 AND file_id NOT GLOB '*[^0-9a-f]*'), -- 原本のSHA-256。同じ内容を複数資料から参照できる
     original_filename TEXT NOT NULL, -- 保存ファイルの元のファイル名
-    sha256 TEXT NOT NULL, -- 保存ファイルのSHA-256ハッシュ
     file_size INTEGER NOT NULL CHECK (file_size >= 0), -- 保存ファイルのサイズ（バイト）
     resource_retrieval_id TEXT NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
     PRIMARY KEY (lms_material_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources(retrieval_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)
 );
+
+CREATE INDEX IF NOT EXISTS saved_resources_file ON saved_resources(file_id);
 
 CREATE TABLE IF NOT EXISTS report_detail_retrievals (
     -- レポート教材ごとの詳細の取得履歴。取得ごとに追記する

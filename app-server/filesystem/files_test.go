@@ -56,7 +56,7 @@ func TestSaveKeepsCommonCompressedFormatsUnchanged(t *testing.T) {
 	}
 }
 
-func TestSaveUsesOpaqueIdentityAndVerifiesBytes(t *testing.T) {
+func TestSaveUsesOriginalSHA256AsIdentity(t *testing.T) {
 	dir := t.TempDir()
 	files, err := New(filepath.Join(dir, "resources"))
 	if err != nil {
@@ -70,11 +70,11 @@ func TestSaveUsesOpaqueIdentityAndVerifiesBytes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(saved.ID, ".zst") || saved.Size != 5 ||
+	if saved.ID != saved.SHA256 || saved.Size != 5 ||
 		saved.SHA256 != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
 		t.Fatal(saved)
 	}
-	stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ID))
+	stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ID+zstdSuffix))
 	if err != nil || len(stored) < 4 || string(stored[:4]) != "\x28\xb5\x2f\xfd" {
 		t.Fatal("saved data is not a zstd frame", err)
 	}
@@ -110,7 +110,7 @@ func TestCompressedFileSupportsSeeking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stat, err := os.Stat(filepath.Join(dir, "resources", saved.ID))
+	stat, err := os.Stat(filepath.Join(dir, "resources", saved.ID+zstdSuffix))
 	if err != nil || stat.Size() >= saved.Size {
 		t.Fatal("repetitive data did not compress", stat, saved, err)
 	}
@@ -157,13 +157,13 @@ func TestCompressedFileSupportsSeeking(t *testing.T) {
 	}
 }
 
-func TestLegacyUncompressedFileRemainsReadable(t *testing.T) {
+func TestUncompressedContentIDRemainsReadable(t *testing.T) {
 	dir := t.TempDir()
 	files, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy := domain.SavedFile{ID: strings.Repeat("a", 32), Size: 6}
+	legacy := domain.SavedFile{ID: strings.Repeat("a", 64), Size: 6}
 	if err := os.WriteFile(filepath.Join(dir, legacy.ID), []byte("legacy"), 0o600); err != nil {
 		t.Fatal(err)
 	}

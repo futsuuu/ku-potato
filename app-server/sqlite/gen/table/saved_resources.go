@@ -21,7 +21,6 @@ type savedResourcesTable struct {
 	LmsResourceID       sqlite.ColumnString
 	FileID              sqlite.ColumnString
 	OriginalFilename    sqlite.ColumnString
-	Sha256              sqlite.ColumnString
 	FileSize            sqlite.ColumnInteger
 	ResourceRetrievalID sqlite.ColumnString
 
@@ -69,11 +68,10 @@ func newSavedResourcesTableImpl(schemaName, tableName, alias string) savedResour
 		LmsResourceIDColumn       = sqlite.StringColumn("lms_resource_id")
 		FileIDColumn              = sqlite.StringColumn("file_id")
 		OriginalFilenameColumn    = sqlite.StringColumn("original_filename")
-		Sha256Column              = sqlite.StringColumn("sha256")
 		FileSizeColumn            = sqlite.IntegerColumn("file_size")
 		ResourceRetrievalIDColumn = sqlite.StringColumn("resource_retrieval_id")
-		allColumns                = sqlite.ColumnList{LmsMaterialIDColumn, LmsResourceIDColumn, FileIDColumn, OriginalFilenameColumn, Sha256Column, FileSizeColumn, ResourceRetrievalIDColumn}
-		mutableColumns            = sqlite.ColumnList{FileIDColumn, OriginalFilenameColumn, Sha256Column, FileSizeColumn, ResourceRetrievalIDColumn}
+		allColumns                = sqlite.ColumnList{LmsMaterialIDColumn, LmsResourceIDColumn, FileIDColumn, OriginalFilenameColumn, FileSizeColumn, ResourceRetrievalIDColumn}
+		mutableColumns            = sqlite.ColumnList{FileIDColumn, OriginalFilenameColumn, FileSizeColumn, ResourceRetrievalIDColumn}
 		defaultColumns            = sqlite.ColumnList{}
 	)
 
@@ -85,7 +83,6 @@ func newSavedResourcesTableImpl(schemaName, tableName, alias string) savedResour
 		LmsResourceID:       LmsResourceIDColumn,
 		FileID:              FileIDColumn,
 		OriginalFilename:    OriginalFilenameColumn,
-		Sha256:              Sha256Column,
 		FileSize:            FileSizeColumn,
 		ResourceRetrievalID: ResourceRetrievalIDColumn,
 

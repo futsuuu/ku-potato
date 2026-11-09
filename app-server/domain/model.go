@@ -64,7 +64,7 @@ type CourseMaterials struct {
 	Folders  []Folder `json:"folders"`
 }
 type SavedFile struct {
-	ID               string `json:"id"`
+	ID               string `json:"id" pattern:"^[a-f0-9]{64}$"`
 	OriginalFilename string `json:"originalFilename"`
 	SHA256           string `json:"sha256" pattern:"^[a-f0-9]{64}$"`
 	Size             int64  `json:"size" minimum:"0"`

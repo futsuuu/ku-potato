@@ -49,6 +49,8 @@ func (a *Application) download(ctx context.Context, r operation.Request) (any, e
 		return domain.DownloadResult{Type: "external", URL: download.URL}, nil
 	}
 
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	report(ctx, operation.Progress{Stage: "saving"})
 	file, err := a.files.Save(download.Path, download.Filename)
 	if err != nil {
@@ -62,17 +64,28 @@ func (a *Application) download(ctx context.Context, r operation.Request) (any, e
 		file,
 	)
 	if err != nil {
-		if e := a.files.Remove(file); e != nil {
-			slog.Error("remove uncommitted resource", "error", e)
-		}
+		a.removeUnreferencedFile(ctx, file)
 		return nil, err
 	}
 	if previous != nil && previous.ID != file.ID {
-		if e := a.files.Remove(*previous); e != nil {
-			slog.Error("remove superseded resource", "error", e)
-		}
+		a.removeUnreferencedFile(ctx, *previous)
 	}
 	return domain.DownloadResult{Type: "file", File: &file}, nil
+}
+
+// Caller holds filesMu so another download cannot acquire a reference between
+// the check and removal. On uncertainty, leave an orphan rather than lose data.
+func (a *Application) removeUnreferencedFile(ctx context.Context, file domain.SavedFile) {
+	referenced, err := a.archive.FileReferenced(context.WithoutCancel(ctx), file.ID)
+	if err != nil {
+		slog.Error("check saved file references", "error", err)
+		return
+	}
+	if !referenced {
+		if err := a.files.Remove(file); err != nil {
+			slog.Error("remove unreferenced resource", "error", err)
+		}
+	}
 }
 
 type transferResult struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/futsuuu/ku-potato/app-server/domain"
@@ -23,7 +24,12 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := domain.SavedFile{ID: "saved", OriginalFilename: "file", SHA256: "hash", Size: 1}
+	file := domain.SavedFile{
+		ID:               strings.Repeat("a", 64),
+		OriginalFilename: "file",
+		SHA256:           strings.Repeat("a", 64),
+		Size:             1,
+	}
 	if previous, err := s.ReplaceSavedFile(
 		ctx,
 		"SRY1",
@@ -56,9 +62,8 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 			t.Fatal("accepted invalid retrieval", invalid)
 		}
 	}
-	// A fresh file ID prevents a UNIQUE violation from masking a missing resource foreign key.
+	// Use valid content metadata so only the resource foreign key can reject this.
 	missingResourceFile := file
-	missingResourceFile.ID = "unassigned"
 	if _, err := s.ReplaceSavedFile(
 		ctx,
 		"SRY1",
@@ -90,11 +95,16 @@ func TestSavedFilesOnlyKeepCurrentFile(t *testing.T) {
 	if _, err := s.SavedFile(ctx, "SRY1", "SRS1"); !errors.Is(err, domain.ErrMissing) {
 		t.Fatal(err)
 	}
-	first := domain.SavedFile{ID: "first", OriginalFilename: "first.pdf", SHA256: "hash", Size: 1}
+	first := domain.SavedFile{
+		ID:               strings.Repeat("a", 64),
+		OriginalFilename: "first.pdf",
+		SHA256:           strings.Repeat("a", 64),
+		Size:             1,
+	}
 	second := domain.SavedFile{
-		ID:               "second",
+		ID:               strings.Repeat("b", 64),
 		OriginalFilename: "second.pdf",
-		SHA256:           "hash2",
+		SHA256:           strings.Repeat("b", 64),
 		Size:             2,
 	}
 	if _, err := s.ReplaceSavedFile(ctx, "SRY1", "SRS1", ids.Resources, first); err != nil {

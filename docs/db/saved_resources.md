@@ -12,9 +12,8 @@ CREATE TABLE saved_resources (
     -- 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
     lms_material_id TEXT NOT NULL, -- LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID
-    file_id TEXT NOT NULL UNIQUE, -- ローカル保存ファイルのID。保存ごとに新しいIDを割り当てる
+    file_id TEXT NOT NULL CHECK (length(file_id) = 64 AND file_id NOT GLOB '*[^0-9a-f]*'), -- 原本のSHA-256。同じ内容を複数資料から参照できる
     original_filename TEXT NOT NULL, -- 保存ファイルの元のファイル名
-    sha256 TEXT NOT NULL, -- 保存ファイルのSHA-256ハッシュ
     file_size INTEGER NOT NULL CHECK (file_size >= 0), -- 保存ファイルのサイズ（バイト）
     resource_retrieval_id TEXT NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
     PRIMARY KEY (lms_material_id, lms_resource_id),
@@ -31,9 +30,8 @@ CREATE TABLE saved_resources (
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | lms_material_id | TEXT |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) | LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する |
 | lms_resource_id | TEXT |  | false |  | [material_resources](material_resources.md) | LMSの資料ID |
-| file_id | TEXT |  | false |  |  | ローカル保存ファイルのID。保存ごとに新しいIDを割り当てる |
+| file_id | TEXT |  | false |  |  | 原本のSHA-256。同じ内容を複数資料から参照できる |
 | original_filename | TEXT |  | false |  |  | 保存ファイルの元のファイル名 |
-| sha256 | TEXT |  | false |  |  | 保存ファイルのSHA-256ハッシュ |
 | file_size | INTEGER |  | false |  |  | 保存ファイルのサイズ（バイト） |
 | resource_retrieval_id | TEXT |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) [material_resources](material_resources.md) | 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する |
 
@@ -45,16 +43,16 @@ CREATE TABLE saved_resources (
 | lms_resource_id | PRIMARY KEY | PRIMARY KEY (lms_resource_id) |
 | - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
 | - (Foreign key ID: 1) | FOREIGN KEY | FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
-| sqlite_autoindex_saved_resources_2 | PRIMARY KEY | PRIMARY KEY (lms_material_id, lms_resource_id) |
-| sqlite_autoindex_saved_resources_1 | UNIQUE | UNIQUE (file_id) |
+| sqlite_autoindex_saved_resources_1 | PRIMARY KEY | PRIMARY KEY (lms_material_id, lms_resource_id) |
+| - | CHECK | CHECK (length(file_id) = 64 AND file_id NOT GLOB '*[^0-9a-f]*') |
 | - | CHECK | CHECK (file_size >= 0) |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
-| sqlite_autoindex_saved_resources_2 | PRIMARY KEY (lms_material_id, lms_resource_id) |
-| sqlite_autoindex_saved_resources_1 | UNIQUE (file_id) |
+| saved_resources_file | CREATE INDEX saved_resources_file ON saved_resources(file_id) |
+| sqlite_autoindex_saved_resources_1 | PRIMARY KEY (lms_material_id, lms_resource_id) |
 
 ## Relations
 
@@ -69,7 +67,6 @@ erDiagram
   TEXT lms_resource_id PK
   TEXT file_id
   TEXT original_filename
-  TEXT sha256
   INTEGER file_size
   TEXT resource_retrieval_id FK
 }

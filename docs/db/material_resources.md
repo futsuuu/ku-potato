@@ -94,7 +94,6 @@ erDiagram
   TEXT lms_resource_id PK
   TEXT file_id
   TEXT original_filename
-  TEXT sha256
   INTEGER file_size
   TEXT resource_retrieval_id FK
 }

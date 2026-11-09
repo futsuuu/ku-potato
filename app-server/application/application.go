@@ -15,15 +15,18 @@ import (
 )
 
 type Application struct {
-	content      outport.ContentSource
-	external     outport.ExternalDownloader
-	lmsAuth      outport.LMSAuthentication
-	archive      outport.Archive
-	lmsState     outport.AuthenticationState
-	active       map[string]*execution
-	activeMu     sync.Mutex
-	background   context.Context
-	stop         context.CancelFunc
+	content    outport.ContentSource
+	external   outport.ExternalDownloader
+	lmsAuth    outport.LMSAuthentication
+	archive    outport.Archive
+	lmsState   outport.AuthenticationState
+	active     map[string]*execution
+	activeMu   sync.Mutex
+	background context.Context
+	stop       context.CancelFunc
+	// Protect saving, reference replacement/cleanup and metadata-to-open lookup.
+	// Content IDs may be shared by downloads of different resources.
+	filesMu      sync.Mutex
 	files        outport.Files
 	materializer outport.ResourceMaterializer
 	timeout      time.Duration
@@ -114,6 +117,8 @@ func (a *Application) PrepareResource(
 }
 
 func (a *Application) File(ctx context.Context, material, resource string) (inport.File, error) {
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	metadata, err := a.archive.SavedFile(ctx, material, resource)
 	if err != nil {
 		return inport.File{}, err

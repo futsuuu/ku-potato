@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -75,7 +76,7 @@ func TestSnapshotsPreserveSavedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := &domain.SavedFile{ID: "test", SHA256: "hash"}
+	file := &domain.SavedFile{ID: strings.Repeat("a", 64), SHA256: strings.Repeat("a", 64)}
 	if _, err := s.ReplaceSavedFile(
 		ctx,
 		"SRY1",
@@ -96,7 +97,7 @@ func TestSnapshotsPreserveSavedFiles(t *testing.T) {
 	}
 	r := detail.Resources[0]
 	if !detail.Material.Archived || r.Availability != "archived" || r.SavedFile == nil ||
-		r.SavedFile.ID != "test" {
+		r.SavedFile.ID != file.ID {
 		t.Fatalf("lost archived state: %#v", detail)
 	}
 }
@@ -172,9 +173,9 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 		t.Fatal(err)
 	}
 	file := &domain.SavedFile{
-		ID:               "saved",
+		ID:               strings.Repeat("a", 64),
 		OriginalFilename: "handout.pdf",
-		SHA256:           "hash",
+		SHA256:           strings.Repeat("a", 64),
 		Size:             42,
 	}
 	if _, err := s.ReplaceSavedFile(
@@ -384,10 +385,14 @@ func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.Exec("UPDATE material_resource_retrievals SET fetched_at=1000"); err != nil {
+	if _, err := s.db.Exec(
+		"UPDATE material_resource_retrievals SET fetched_at=1000",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.Exec("UPDATE report_detail_retrievals SET fetched_at=2000"); err != nil {
+	if _, err := s.db.Exec(
+		"UPDATE report_detail_retrievals SET fetched_at=2000",
+	); err != nil {
 		t.Fatal(err)
 	}
 	for _, private := range []bool{false, true} {

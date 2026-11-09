@@ -12,7 +12,6 @@ type SavedResources struct {
 	LmsResourceID       string `sql:"primary_key"`
 	FileID              string
 	OriginalFilename    string
-	Sha256              string
 	FileSize            int64
 	ResourceRetrievalID string
 }

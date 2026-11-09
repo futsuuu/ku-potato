@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"strings"
 
 	"github.com/futsuuu/ku-potato/app-server/domain"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/model"
@@ -15,9 +17,17 @@ func savedFile(row model.SavedResources) domain.SavedFile {
 	return domain.SavedFile{
 		ID:               row.FileID,
 		OriginalFilename: row.OriginalFilename,
-		SHA256:           row.Sha256,
+		SHA256:           row.FileID,
 		Size:             row.FileSize,
 	}
+}
+
+func (s *Store) FileReferenced(ctx context.Context, id string) (bool, error) {
+	t := table.SavedResources
+	var row struct{ Referenced bool }
+	err := sqlite.SELECT(sqlite.EXISTS(t.SELECT(t.FileID).WHERE(t.FileID.EQ(sqlite.String(id)))).AS("referenced")).
+		QueryContext(ctx, s.db, &row)
+	return row.Referenced, err
 }
 
 func (s *Store) SavedFile(
@@ -50,6 +60,12 @@ func (s *Store) ReplaceSavedFile(
 	retrievalID string,
 	file domain.SavedFile,
 ) (*domain.SavedFile, error) {
+	_, decodeErr := hex.DecodeString(file.ID)
+	if decodeErr != nil || len(file.ID) != 64 || file.ID != strings.ToLower(file.ID) ||
+		file.SHA256 != file.ID ||
+		file.Size < 0 {
+		return nil, domain.Fail("invalid-input", "saved file identity must be its SHA-256")
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -65,7 +81,6 @@ func (s *Store) ReplaceSavedFile(
 		LmsResourceID:       resource,
 		FileID:              file.ID,
 		OriginalFilename:    file.OriginalFilename,
-		Sha256:              file.SHA256,
 		FileSize:            file.Size,
 		ResourceRetrievalID: retrievalID,
 	}

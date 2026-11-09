@@ -57,7 +57,7 @@ func (a *replacementArchive) ReplaceSavedFile(
 }
 
 func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
-	for _, scenario := range []string{"success", "source failure", "save failure", "database failure", "external link"} {
+	for _, scenario := range []string{"success", "source failure", "save failure", "database failure", "external link", "same content", "shared previous", "shared failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			ctx := context.Background()
@@ -81,7 +81,10 @@ func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
 					},
 				},
 				MaterialID: "SRY1",
-				Resources:  []domain.RetrievedResource{{ID: "SRS1", Name: "file", Type: "file"}},
+				Resources: []domain.RetrievedResource{
+					{ID: "SRS1", Name: "file", Type: "file"},
+					{ID: "SRS2", Name: "other", Type: "file"},
+				},
 			}
 			ids, err := store.Append(ctx, snapshot)
 			if err != nil {
@@ -104,8 +107,38 @@ func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(staging, []byte("replacement"), 0o600); err != nil {
+			if scenario == "shared previous" {
+				if _, err := store.ReplaceSavedFile(
+					ctx,
+					"SRY1",
+					"SRS2",
+					ids.Resources,
+					old,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			payload := "replacement"
+			if scenario == "same content" {
+				payload = "previous"
+			}
+			if err := os.WriteFile(staging, []byte(payload), 0o600); err != nil {
 				t.Fatal(err)
+			}
+			if scenario == "shared failure" {
+				shared, err := files.Save(staging, "shared.txt")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := store.ReplaceSavedFile(
+					ctx,
+					"SRY1",
+					"SRS2",
+					ids.Resources,
+					shared,
+				); err != nil {
+					t.Fatal(err)
+				}
 			}
 			failure := domain.Fail("source", "failed fixture")
 			source := replacementSource{
@@ -120,7 +153,7 @@ func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
 			case "save failure":
 				source.result.Path = filepath.Join(root, "missing")
 				wantFailure = true
-			case "database failure":
+			case "database failure", "shared failure":
 				archive.err = failure
 				wantFailure = true
 			case "external link":
@@ -147,13 +180,19 @@ func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantBody := "previous"
-			if scenario == "success" {
+			if scenario == "success" || scenario == "shared previous" {
 				wantBody = "replacement"
 				if current.ID == old.ID {
 					t.Fatal("successful download did not replace file")
 				}
-				if _, err := files.Open(old); !errors.Is(err, domain.ErrMissing) {
-					t.Fatal("superseded file was retained", err)
+				if scenario == "success" {
+					if _, err := files.Open(old); !errors.Is(err, domain.ErrMissing) {
+						t.Fatal("superseded file was retained", err)
+					}
+				}
+			} else if scenario == "same content" {
+				if current.ID != old.ID {
+					t.Fatal("identical bytes got another identity")
 				}
 			} else if current != old {
 				t.Fatal("failed or non-file download changed saved file", current, old)
@@ -172,12 +211,32 @@ func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
 					archive.details,
 				)
 			}
+			wantEntries := 1
+			if scenario == "shared previous" || scenario == "shared failure" {
+				wantEntries = 2
+				shared, err := app.File(ctx, "SRY1", "SRS2")
+				if err != nil {
+					t.Fatal("shared content was deleted", err)
+				}
+				body, err := io.ReadAll(shared.Content)
+				_ = shared.Content.Close()
+				want := "previous"
+				if scenario == "shared failure" {
+					want = "replacement"
+				}
+				if err != nil || string(body) != want {
+					t.Fatal(string(body), err)
+				}
+			}
 			entries, err := os.ReadDir(filesRoot)
-			if err != nil || len(entries) != 1 || entries[0].Name() != current.ID {
+			if err != nil || len(entries) != wantEntries {
 				t.Fatal("orphan or file history retained", entries, err)
 			}
 			wantReplacements := 0
-			if scenario == "success" || scenario == "database failure" {
+			if scenario == "success" || scenario == "database failure" ||
+				scenario == "same content" ||
+				scenario == "shared previous" ||
+				scenario == "shared failure" {
 				wantReplacements = 1
 			}
 			if archive.replacements != wantReplacements {
