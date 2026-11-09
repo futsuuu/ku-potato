@@ -69,15 +69,6 @@ type SavedFile struct {
 	SHA256           string `json:"sha256" pattern:"^[a-f0-9]{64}$"`
 	Size             int64  `json:"size" minimum:"0"`
 }
-type Attempt struct {
-	At     time.Time `json:"at"`
-	Status string    `json:"status" enum:"success,failure"`
-	Error  string    `json:"error,omitempty"`
-}
-type Acquisition struct {
-	LastSucceededAt *time.Time `json:"lastSucceededAt,omitempty"`
-	LastAttempt     Attempt    `json:"lastAttempt"`
-}
 
 // RetrievedResource contains LMS data to append to the resource retrieval history.
 type RetrievedResource struct {
@@ -93,19 +84,16 @@ type RetrievedResource struct {
 
 // Resource is assembled from retrieval history and the currently saved file.
 type Resource struct {
-	ID                       string       `json:"lmsResourceId"`
-	Name                     string       `json:"name"`
-	Type                     string       `json:"type" enum:"file,external,unknown"`
-	Status                   string       `json:"status,omitempty" enum:"unviewed,viewed,unknown"`
-	RegisteredOn             *string      `json:"registeredOn,omitempty" format:"date"`
-	FirstViewedOn            *string      `json:"firstViewedOn,omitempty" format:"date"`
-	Description              *string      `json:"description,omitempty"`
-	RetrievalID              int64        `json:"-"`
-	SavedResourceRetrievalID *int64       `json:"-"`
-	URL                      string       `json:"url,omitempty" format:"uri" pattern:"^https?://"`
-	Availability             string       `json:"availability" enum:"current,archived"`
-	SavedFile                *SavedFile   `json:"savedFile,omitempty"`
-	Acquisition              *Acquisition `json:"acquisition,omitempty"`
+	ID            string     `json:"lmsResourceId"`
+	Name          string     `json:"name"`
+	Type          string     `json:"type" enum:"file,external,unknown"`
+	Status        string     `json:"status,omitempty" enum:"unviewed,viewed,unknown"`
+	RegisteredOn  *string    `json:"registeredOn,omitempty" format:"date"`
+	FirstViewedOn *string    `json:"firstViewedOn,omitempty" format:"date"`
+	Description   *string    `json:"description,omitempty"`
+	URL           string     `json:"url,omitempty" format:"uri" pattern:"^https?://"`
+	Availability  string     `json:"availability" enum:"current,archived"`
+	SavedFile     *SavedFile `json:"savedFile,omitempty"`
 }
 type Detail struct {
 	Course    Course        `json:"course"`

@@ -58,7 +58,7 @@ func newStore(t *testing.T) *Store {
 	return s
 }
 
-func TestSnapshotsPreserveFilesAndFailedAcquisition(t *testing.T) {
+func TestSnapshotsPreserveSavedFiles(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	snapshot := domain.Snapshot{
@@ -71,12 +71,18 @@ func TestSnapshotsPreserveFilesAndFailedAcquisition(t *testing.T) {
 		MaterialID: "SRY1",
 		Resources:  []domain.RetrievedResource{{ID: "SRS1", Name: "file", Type: "file"}},
 	}
-	observations, err := s.Append(ctx, snapshot)
+	retrievals, err := s.Append(ctx, snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
 	file := &domain.SavedFile{ID: "test", SHA256: "hash"}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", observations.Resources, file, nil); err != nil {
+	if _, err := s.ReplaceSavedFile(
+		ctx,
+		"SRY1",
+		"SRS1",
+		retrievals.Resources,
+		*file,
+	); err != nil {
 		t.Fatal(err)
 	}
 	snapshot.Materials.Folders = []domain.Folder{}
@@ -84,17 +90,13 @@ func TestSnapshotsPreserveFilesAndFailedAcquisition(t *testing.T) {
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", 0, nil, domain.Fail("source", "failed")); err != nil {
-		t.Fatal(err)
-	}
 	detail, err := s.Detail(ctx, "SRY1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := detail.Resources[0]
-	if !detail.Material.Archived || r.Availability != "archived" || r.SavedFile.ID != "test" ||
-		r.Acquisition.LastSucceededAt == nil ||
-		r.Acquisition.LastAttempt.Status != "failure" {
+	if !detail.Material.Archived || r.Availability != "archived" || r.SavedFile == nil ||
+		r.SavedFile.ID != "test" {
 		t.Fatalf("lost archived state: %#v", detail)
 	}
 }
@@ -165,7 +167,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	}
 	t.Cleanup(func() { _ = s.Close() })
 	snapshot := archiveSnapshot()
-	observations, err := s.Append(ctx, snapshot)
+	retrievals, err := s.Append(ctx, snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +177,13 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 		SHA256:           "hash",
 		Size:             42,
 	}
-	if err := s.Acquired(ctx, "SRY1", "SRS1", observations.Resources, file, nil); err != nil {
+	if _, err := s.ReplaceSavedFile(
+		ctx,
+		"SRY1",
+		"SRS1",
+		retrievals.Resources,
+		*file,
+	); err != nil {
 		t.Fatal(err)
 	}
 	before, err := s.Detail(ctx, "SRY1")
@@ -220,7 +228,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	if err := s.db.QueryRow("SELECT count(*) FROM material_resource_retrievals").
 		Scan(&count); err != nil ||
 		count != 1 {
-		t.Fatalf("private observation became an empty resource retrieval: %d %v", count, err)
+		t.Fatalf("private retrieval became an empty resource retrieval: %d %v", count, err)
 	}
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
@@ -230,7 +238,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 		detail.Resources[0].SavedFile == nil {
 		t.Fatal(detail, err)
 	}
-	// A fetched empty list is a new observation, but it retains past resource metadata.
+	// A fetched empty list is a new retrieval, but it retains past resource metadata.
 	snapshot.Resources = []domain.RetrievedResource{}
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
@@ -418,7 +426,7 @@ func TestUnsupportedMaterialTypesDoNotClaimFetchedContents(t *testing.T) {
 			ctx := context.Background()
 			snapshot := archiveSnapshot()
 			snapshot.Materials.Folders[0].Materials[0].Type = kind
-			// Legacy resource observations must not stand in for unsupported content.
+			// Legacy resource retrievals must not stand in for unsupported content.
 			if _, err := s.Append(ctx, snapshot); err != nil {
 				t.Fatal(err)
 			}

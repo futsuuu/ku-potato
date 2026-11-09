@@ -39,11 +39,11 @@ type materialArchive struct {
 func (s *materialArchive) Append(
 	_ context.Context,
 	snapshot domain.Snapshot,
-) (outport.ObservationIDs, error) {
+) (outport.RetrievalIDs, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.values[snapshot.Materials.CourseID] = *snapshot.Materials
-	return outport.ObservationIDs{}, nil
+	return outport.RetrievalIDs{}, nil
 }
 
 func (s *materialArchive) Materials(_ context.Context, id string) (domain.CourseMaterials, error) {

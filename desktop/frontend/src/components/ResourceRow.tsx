@@ -112,9 +112,6 @@ export default function ResourceRow(props: {
           </ResourceActionButton>
         </Show>
       </div>
-      <Show when={props.resource.acquisition?.lastAttempt.error}>
-        <p class="error-message">{props.resource.acquisition?.lastAttempt.error}</p>
-      </Show>
       <Progress
         pending={operation.pending()}
         error={operation.error()}

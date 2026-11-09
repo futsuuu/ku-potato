@@ -350,8 +350,19 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 	}
 	fake.failDownload.Store(true)
 	failed := wait(request("POST", "/materials/SRY1/resources/SRS1/download", ""))
-	if failed.Status != "failed" {
+	if failed.Status != "failed" || failed.Error == nil ||
+		failed.Error.Message != "failed fixture" {
 		t.Fatal(failed)
+	}
+	cachedDetail := request("GET", "/materials/SRY1?sync=false", "")
+	if cachedDetail.Code != 200 || strings.Contains(cachedDetail.Body.String(), "acquisition") ||
+		strings.Contains(cachedDetail.Body.String(), "lastAttempt") ||
+		strings.Contains(cachedDetail.Body.String(), "failed fixture") {
+		t.Fatal(
+			"download failure was persisted in the resource",
+			cachedDetail.Code,
+			cachedDetail.Body,
+		)
 	}
 	res := request("GET", "/materials/SRY1/resources/SRS1/file", "")
 	body, _ := io.ReadAll(res.Result().Body)

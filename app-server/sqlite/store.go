@@ -1,17 +1,14 @@
-// Package sqlite persists archive retrievals and authentication state.
+// Package sqlite persists retrieval history and current saved files.
 package sqlite
 
 import (
-	"context"
 	"database/sql"
-	"errors"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/futsuuu/ku-potato/app-server/application/outport"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/schema"
 	_ "modernc.org/sqlite"
 )
@@ -60,19 +57,6 @@ func initialize(db *sql.DB) error {
 }
 
 func (s *Store) Close() error { return s.db.Close() }
-
-func publicError(err error) *domain.Error {
-	if e, ok := errors.AsType[*domain.Error](err); ok {
-		return e
-	}
-	if errors.Is(err, domain.ErrMissing) {
-		return &domain.Error{Reason: "archive-data-missing", Message: "保存済みデータがありません。"}
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return &domain.Error{Reason: "timeout", Message: "処理がタイムアウトしました。"}
-	}
-	return &domain.Error{Reason: "internal", Message: "処理に失敗しました。"}
-}
 
 func millisTime(value *int64) *time.Time {
 	if value == nil {

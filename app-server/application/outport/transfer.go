@@ -2,9 +2,9 @@ package outport
 
 import "github.com/futsuuu/ku-potato/app-server/domain"
 
-// ObservationIDs identify the histories committed by Archive.Append.
-// Downloads attach saved files to that observation, not to the latest retrieval.
-type ObservationIDs struct {
+// RetrievalIDs identify the histories committed by Archive.Append.
+// Downloads attach saved files to that retrieval, not to the latest retrieval.
+type RetrievalIDs struct {
 	Courses, Materials, Resources, Report int64
 }
 

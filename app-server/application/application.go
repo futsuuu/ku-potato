@@ -114,17 +114,12 @@ func (a *Application) PrepareResource(
 }
 
 func (a *Application) File(ctx context.Context, material, resource string) (inport.File, error) {
-	detail, err := a.archive.Detail(ctx, material)
+	metadata, err := a.archive.SavedFile(ctx, material, resource)
 	if err != nil {
 		return inport.File{}, err
 	}
-	for _, r := range detail.Resources {
-		if r.ID == resource && r.SavedFile != nil {
-			file, err := a.files.Open(*r.SavedFile)
-			return inport.File{Content: file, Metadata: *r.SavedFile}, err
-		}
-	}
-	return inport.File{}, domain.ErrMissing
+	file, err := a.files.Open(metadata)
+	return inport.File{Content: file, Metadata: metadata}, err
 }
 
 func (a *Application) execute(ctx context.Context, r operation.Request) (result any, err error) {
@@ -238,10 +233,10 @@ func (a *Application) execute(ctx context.Context, r operation.Request) (result 
 func (a *Application) append(
 	ctx context.Context,
 	s domain.Snapshot,
-) (outport.ObservationIDs, error) {
+) (outport.RetrievalIDs, error) {
 	ids, err := a.archive.Append(ctx, s)
 	if err != nil {
-		return outport.ObservationIDs{}, err
+		return outport.RetrievalIDs{}, err
 	}
 	return ids, a.lmsState.SetAuth(ctx, "authenticated")
 }

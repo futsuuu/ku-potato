@@ -86,7 +86,6 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 		"INSERT INTO course_materials(retrieval_id, position, folder_position, lms_material_id, name, type, status, material_link_available, publication_deadline_kind, publication_deadline_at, resource_availability) VALUES (1, 0, 0, 'SRY1', 'handout', 'material', 'unknown', 1, 'at', 0, 'available')",
 		"INSERT INTO material_resource_retrievals(id, lms_material_id, fetched_at) VALUES (1, 'SRY1', 0)",
 		"INSERT INTO material_resources(retrieval_id, position, lms_resource_id, name, type, status, url) VALUES (1, 0, 'SRS1', 'file', 'file', 'unknown', '')",
-		"INSERT INTO resource_states(lms_material_id, lms_resource_id) VALUES ('SRY1', 'SRS1')",
 	} {
 		if _, err := db.Exec(query); err != nil {
 			t.Fatal(err)
@@ -138,7 +137,6 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 		"UPDATE course_materials SET material_link_available = 2",
 		"UPDATE course_materials SET publication_deadline_kind = 'closed'", // existing timestamp must also be cleared
 		"UPDATE course_materials SET publication_deadline_at = NULL",       // at needs a timestamp
-		"UPDATE resource_states SET last_attempt_status = 'success'",       // missing attempt timestamp
 	} {
 		if _, err := db.Exec(query); err == nil {
 			t.Fatalf("accepted: %s", query)
@@ -151,12 +149,6 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-	}
-	var status any
-	if err := db.QueryRow("SELECT last_attempt_status FROM resource_states LIMIT 1").
-		Scan(&status); err != nil ||
-		status != nil {
-		t.Fatal(status, err)
 	}
 }
 

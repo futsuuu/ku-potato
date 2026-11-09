@@ -31,9 +31,9 @@ CREATE TABLE material_resources (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | INTEGER |  | false | [resource_states](resource_states.md) | [material_resource_retrievals](material_resource_retrievals.md) | 資料一覧の取得ID |
+| retrieval_id | INTEGER |  | false | [saved_resources](saved_resources.md) | [material_resource_retrievals](material_resource_retrievals.md) | 資料一覧の取得ID |
 | position | INTEGER |  | false |  |  | 取得した一覧内の表示順（0始まり） |
-| lms_resource_id | TEXT |  | false | [resource_states](resource_states.md) |  | LMSの資料ID。同じ取得内で一意 |
+| lms_resource_id | TEXT |  | false | [saved_resources](saved_resources.md) |  | LMSの資料ID。同じ取得内で一意 |
 | name | TEXT |  | false |  |  | 資料名 |
 | type | TEXT |  | false |  |  | 資料種別：file（ファイル）、external（外部リンク）、unknown（不明） |
 | status | TEXT |  | false |  |  | 閲覧状態：unviewed（未閲覧）、viewed（閲覧済み）、unknown（不明） |
@@ -68,7 +68,7 @@ CREATE TABLE material_resources (
 erDiagram
 
 "material_resources" |o--|| "material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"resource_states" }o--|| "material_resources" : "FOREIGN KEY (saved_resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"saved_resources" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "material_resources" {
   INTEGER retrieval_id PK
@@ -87,18 +87,14 @@ erDiagram
   TEXT lms_material_id
   INTEGER fetched_at
 }
-"resource_states" {
+"saved_resources" {
   TEXT lms_material_id PK
   TEXT lms_resource_id PK
   TEXT file_id
   TEXT original_filename
   TEXT sha256
   INTEGER file_size
-  INTEGER saved_resource_retrieval_id FK
-  INTEGER last_succeeded_at
-  INTEGER last_attempt_at
-  TEXT last_attempt_status
-  TEXT last_attempt_error
+  INTEGER resource_retrieval_id FK
 }
 ```
 

@@ -3,21 +3,18 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/futsuuu/ku-potato/app-server/application/outport"
 	"github.com/futsuuu/ku-potato/app-server/domain"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/model"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/table"
-	"github.com/go-jet/jet/v2/qrm"
-	"github.com/go-jet/jet/v2/sqlite"
 )
 
 func (s *Store) Append(
 	ctx context.Context,
 	snapshot domain.Snapshot,
-) (ids outport.ObservationIDs, err error) {
+) (ids outport.RetrievalIDs, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return ids, err
@@ -30,12 +27,12 @@ func (s *Store) Append(
 			snapshot.AcademicYear,
 			snapshot.Courses,
 		); err != nil {
-			return outport.ObservationIDs{}, err
+			return outport.RetrievalIDs{}, err
 		}
 	}
 	if snapshot.Materials != nil {
 		if ids.Materials, err = insertMaterials(ctx, tx, *snapshot.Materials); err != nil {
-			return outport.ObservationIDs{}, err
+			return outport.RetrievalIDs{}, err
 		}
 	}
 	// nil means the resource list was not fetched (for example, a private material).
@@ -47,12 +44,12 @@ func (s *Store) Append(
 			snapshot.MaterialID,
 			snapshot.Resources,
 		); err != nil {
-			return outport.ObservationIDs{}, err
+			return outport.RetrievalIDs{}, err
 		}
 	}
 	if snapshot.Report != nil {
 		if snapshot.MaterialID == "" {
-			return outport.ObservationIDs{}, domain.Fail(
+			return outport.RetrievalIDs{}, domain.Fail(
 				"invalid-input",
 				"report detail requires a material ID",
 			)
@@ -63,11 +60,11 @@ func (s *Store) Append(
 			snapshot.MaterialID,
 			*snapshot.Report,
 		); err != nil {
-			return outport.ObservationIDs{}, err
+			return outport.RetrievalIDs{}, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return outport.ObservationIDs{}, err
+		return outport.RetrievalIDs{}, err
 	}
 	return ids, nil
 }
@@ -188,7 +185,6 @@ func insertResources(
 		return 0, err
 	}
 	t := table.MaterialResources
-	state := table.ResourceStates
 	for position, resource := range resources {
 		if _, err := t.INSERT(t.AllColumns).MODEL(model.MaterialResources{
 			RetrievalID:   id,
@@ -208,54 +204,6 @@ func insertResources(
 		}).ExecContext(ctx, tx); err != nil {
 			return 0, err
 		}
-		if _, err := state.INSERT(state.LmsMaterialID, state.LmsResourceID).
-			MODEL(model.ResourceStates{
-				LmsMaterialID: material, LmsResourceID: resource.ID,
-			}).
-			ON_CONFLICT(state.LmsMaterialID, state.LmsResourceID).
-			DO_NOTHING().
-			ExecContext(ctx, tx); err != nil {
-			return 0, err
-		}
 	}
 	return id, nil
-}
-
-func (s *Store) Acquired(
-	ctx context.Context,
-	material, resource string,
-	retrievalID int64,
-	file *domain.SavedFile,
-	failure error,
-) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	t := table.ResourceStates
-	key := t.LmsMaterialID.EQ(sqlite.String(material)).
-		AND(t.LmsResourceID.EQ(sqlite.String(resource)))
-	var row model.ResourceStates
-	if err := t.SELECT(t.AllColumns).WHERE(key).QueryContext(ctx, tx, &row); err != nil {
-		if errors.Is(err, qrm.ErrNoRows) {
-			return domain.ErrMissing
-		}
-		return err
-	}
-	now, status, message := time.Now().UnixMilli(), "success", ""
-	row.LastAttemptAt, row.LastAttemptStatus, row.LastAttemptError = &now, &status, &message
-	if failure == nil {
-		row.LastSucceededAt = &now
-		if file != nil {
-			row.FileID, row.OriginalFilename, row.Sha256, row.FileSize = &file.ID, &file.OriginalFilename, &file.SHA256, &file.Size
-			row.SavedResourceRetrievalID = &retrievalID
-		}
-	} else {
-		status, message = "failure", publicError(failure).Message
-	}
-	if _, err := t.UPDATE(t.MutableColumns).MODEL(row).WHERE(key).ExecContext(ctx, tx); err != nil {
-		return err
-	}
-	return tx.Commit()
 }

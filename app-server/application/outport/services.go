@@ -41,8 +41,17 @@ type Archive interface {
 	Materials(context.Context, string) (domain.CourseMaterials, error)
 	Detail(context.Context, string) (domain.Detail, error)
 	FindCourse(context.Context, string) (string, error)
-	Append(context.Context, domain.Snapshot) (ObservationIDs, error)
-	Acquired(context.Context, string, string, int64, *domain.SavedFile, error) error
+	Append(context.Context, domain.Snapshot) (RetrievalIDs, error)
+	// SavedFile reads the current saved file without assembling a material detail.
+	SavedFile(context.Context, string, string) (domain.SavedFile, error)
+	// ReplaceSavedFile commits the new file and returns the previous file for cleanup.
+	// retrievalID must identify the resource list used for this download.
+	ReplaceSavedFile(
+		ctx context.Context,
+		material, resource string,
+		retrievalID int64,
+		file domain.SavedFile,
+	) (*domain.SavedFile, error)
 }
 type AuthenticationState interface {
 	Auth(context.Context) (authentication.AuthState, error)

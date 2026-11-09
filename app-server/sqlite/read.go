@@ -143,7 +143,7 @@ func materialHistory(
 	return rows, err
 }
 
-// Listing observations do not mean a material's contents have been fetched.
+// Listing retrievals do not mean a material's contents have been fetched.
 func materialContentTimes(
 	ctx context.Context,
 	db qrm.DB,
@@ -233,13 +233,13 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 		return result, err
 	}
 	for _, row := range rows {
-		observation := row.CourseMaterials
-		content := observation
-		private := observation.ResourceAvailability == "unavailable" ||
-			observation.PublicationDeadlineKind == "closed"
+		retrieval := row.CourseMaterials
+		content := retrieval
+		private := retrieval.ResourceAvailability == "unavailable" ||
+			retrieval.PublicationDeadlineKind == "closed"
 		if private {
 			// Preserve the last accessible metadata, while exposing the latest public state.
-			if prior, ok := byID[observation.LmsMaterialID]; ok {
+			if prior, ok := byID[retrieval.LmsMaterialID]; ok {
 				content = prior.CourseMaterials
 			}
 		}
@@ -255,16 +255,16 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 				content.PublicationDeadlineKind,
 				content.PublicationDeadlineAt,
 			),
-			ResourceAvailability:    observation.ResourceAvailability,
+			ResourceAvailability:    retrieval.ResourceAvailability,
 			PublicationDeadlineKind: content.PublicationDeadlineKind,
 			PublicationDeadlineAt:   millisTime(content.PublicationDeadlineAt),
-			Status:                  observation.Status,
-			MaterialLinkAvailable:   observation.MaterialLinkAvailable != 0,
+			Status:                  retrieval.Status,
+			MaterialLinkAvailable:   retrieval.MaterialLinkAvailable != 0,
 			FetchedAt:               fetchedAt,
-			Archived:                courseArchived || observation.RetrievalID != latest || private,
+			Archived:                courseArchived || retrieval.RetrievalID != latest || private,
 		}
-		index, current := currentFolders[observation.FolderPosition]
-		if observation.RetrievalID != latest || !current {
+		index, current := currentFolders[retrieval.FolderPosition]
+		if retrieval.RetrievalID != latest || !current {
 			index = -1
 			for i, folder := range result.Folders {
 				if folder.Name == row.CourseMaterialFolders.Name &&
@@ -393,7 +393,7 @@ func resources(
 	if err != nil {
 		return nil, err
 	}
-	t, state := table.MaterialResources, table.ResourceStates
+	t, state := table.MaterialResources, table.SavedResources
 	history, hr := t.AS("history"), r.AS("history_retrieval")
 	latestPerResource := sqlite.SELECT(history.LmsResourceID, sqlite.MAX(history.RetrievalID)).
 		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
@@ -405,14 +405,14 @@ func resources(
 	if err != nil {
 		return nil, err
 	}
-	var states []model.ResourceStates
+	var savedResources []model.SavedResources
 	if err := state.SELECT(state.AllColumns).
 		WHERE(state.LmsMaterialID.EQ(sqlite.String(material))).
-		QueryContext(ctx, db, &states); err != nil {
+		QueryContext(ctx, db, &savedResources); err != nil {
 		return nil, err
 	}
-	byID := map[string]model.ResourceStates{}
-	for _, row := range states {
+	byID := map[string]model.SavedResources{}
+	for _, row := range savedResources {
 		byID[row.LmsResourceID] = row
 	}
 	result := []domain.Resource{}
@@ -427,32 +427,13 @@ func resources(
 			RegisteredOn:  row.RegisteredOn,
 			FirstViewedOn: row.FirstViewedOn,
 			Description:   row.Description,
-			RetrievalID:   row.RetrievalID,
 		}
 		if archived || row.RetrievalID != latest {
 			resource.Availability = "archived"
 		}
-		saved := byID[row.LmsResourceID]
-		resource.SavedResourceRetrievalID = saved.SavedResourceRetrievalID
-		if saved.FileID != nil {
-			resource.SavedFile = &domain.SavedFile{
-				ID:               *saved.FileID,
-				OriginalFilename: *saved.OriginalFilename,
-				SHA256:           *saved.Sha256,
-				Size:             *saved.FileSize,
-			}
-		}
-		if saved.LastAttemptAt != nil {
-			resource.Acquisition = &domain.Acquisition{
-				LastSucceededAt: millisTime(saved.LastSucceededAt),
-				LastAttempt: domain.Attempt{
-					At:     *millisTime(saved.LastAttemptAt),
-					Status: *saved.LastAttemptStatus,
-				},
-			}
-			if saved.LastAttemptError != nil {
-				resource.Acquisition.LastAttempt.Error = *saved.LastAttemptError
-			}
+		if saved, ok := byID[row.LmsResourceID]; ok {
+			file := savedFile(saved)
+			resource.SavedFile = &file
 		}
 		result = append(result, resource)
 	}

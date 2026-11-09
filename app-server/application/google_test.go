@@ -51,19 +51,8 @@ func (providerDownloadArchive) Detail(context.Context, string) (domain.Detail, e
 func (providerDownloadArchive) Append(
 	context.Context,
 	domain.Snapshot,
-) (outport.ObservationIDs, error) {
-	return outport.ObservationIDs{Resources: 1}, nil
-}
-
-func (providerDownloadArchive) Acquired(
-	context.Context,
-	string,
-	string,
-	int64,
-	*domain.SavedFile,
-	error,
-) error {
-	return nil
+) (outport.RetrievalIDs, error) {
+	return outport.RetrievalIDs{Resources: 1}, nil
 }
 
 func TestExternalDownloadAuthenticationFailureKeepsLMSSession(t *testing.T) {

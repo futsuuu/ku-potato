@@ -294,11 +294,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
-    Acquisition: {
-      lastAttempt: components["schemas"]["Attempt"];
-      /** Format: date-time */
-      lastSucceededAt?: string;
-    };
     Assignment: {
       folderName: string;
       lmsCourseId: string;
@@ -307,13 +302,6 @@ export interface components {
     AssignmentsResult: {
       assignments: components["schemas"]["Assignment"][] | null;
       failures: components["schemas"]["CourseFailure"][] | null;
-    };
-    Attempt: {
-      /** Format: date-time */
-      at: string;
-      error?: string;
-      /** @enum {string} */
-      status: "success" | "failure";
     };
     AuthInputBody: {
       /**
@@ -687,7 +675,6 @@ export interface components {
       textAnswerAllowed?: boolean;
     };
     Resource: {
-      acquisition?: components["schemas"]["Acquisition"];
       /** @enum {string} */
       availability: "current" | "archived";
       description?: string;

@@ -93,6 +93,17 @@ it("opens the URL when an external resource cannot be downloaded", async () => {
   expect(api.openResource).not.toHaveBeenCalled();
 });
 
+it("shows download failures through the current operation without losing the saved file", async () => {
+  api.download.mockRejectedValueOnce(new Error("download failed"));
+  mount({ ...base, savedFile });
+  click("再ダウンロード");
+  await vi.waitFor(() => expect(document.body.textContent).toContain("download failed"));
+  expect(api.openResource).not.toHaveBeenCalled();
+  await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
+  click("Handout");
+  await vi.waitFor(() => expect(api.openResource).toHaveBeenCalledWith("SRY1", "SRS1"));
+});
+
 it("opens archived saved files without contacting the LMS", async () => {
   mount({ ...base, type: "file", url: undefined, savedFile, availability: "archived" });
   click("Handout");

@@ -23,8 +23,8 @@ CREATE TABLE material_resource_retrievals (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | INTEGER |  | true | [material_resources](material_resources.md) [resource_states](resource_states.md) |  | 取得ID。IDの降順で最新の取得を選ぶ |
-| lms_material_id | TEXT |  | false | [resource_states](resource_states.md) |  | 取得対象のLMS教材ID |
+| id | INTEGER |  | true | [material_resources](material_resources.md) [saved_resources](saved_resources.md) |  | 取得ID。IDの降順で最新の取得を選ぶ |
+| lms_material_id | TEXT |  | false | [saved_resources](saved_resources.md) |  | 取得対象のLMS教材ID |
 | fetched_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒） |
 
 ## Constraints
@@ -47,7 +47,7 @@ CREATE TABLE material_resource_retrievals (
 erDiagram
 
 "material_resources" |o--|| "material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"resource_states" }o--|| "material_resource_retrievals" : "FOREIGN KEY (saved_resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"saved_resources" }o--|| "material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "material_resource_retrievals" {
   INTEGER id
@@ -66,18 +66,14 @@ erDiagram
   TEXT description
   TEXT url
 }
-"resource_states" {
+"saved_resources" {
   TEXT lms_material_id PK
   TEXT lms_resource_id PK
   TEXT file_id
   TEXT original_filename
   TEXT sha256
   INTEGER file_size
-  INTEGER saved_resource_retrieval_id FK
-  INTEGER last_succeeded_at
-  INTEGER last_attempt_at
-  TEXT last_attempt_status
-  TEXT last_attempt_error
+  INTEGER resource_retrieval_id FK
 }
 ```
 

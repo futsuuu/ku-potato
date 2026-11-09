@@ -35,64 +35,36 @@ func (a *Application) download(ctx context.Context, r operation.Request) (any, e
 			}
 		}()
 	}
-	var observations outport.ObservationIDs
+	var retrievals outport.RetrievalIDs
 	if download.Snapshot.MaterialID != "" {
 		var e error
-		if observations, e = a.append(ctx, download.Snapshot); e != nil {
+		if retrievals, e = a.append(ctx, download.Snapshot); e != nil {
 			return nil, e
 		}
 	}
 	if err != nil {
-		if e := a.archive.Acquired(
-			ctx,
-			r.MaterialID,
-			r.ResourceID,
-			observations.Resources,
-			nil,
-			err,
-		); e != nil {
-			slog.Error("record acquisition failure", "error", e)
-		}
 		return nil, err
 	}
 	if download.URL != "" {
-		return domain.DownloadResult{
-			Type: "external",
-			URL:  download.URL,
-		}, a.archive.Acquired(
-			ctx,
-			r.MaterialID,
-			r.ResourceID,
-			observations.Resources,
-			nil,
-			nil,
-		)
+		return domain.DownloadResult{Type: "external", URL: download.URL}, nil
 	}
+
 	report(ctx, operation.Progress{Stage: "saving"})
 	file, err := a.files.Save(download.Path, download.Filename)
 	if err != nil {
 		return nil, err
 	}
-	detail, err := a.archive.Detail(ctx, r.MaterialID)
-	if err != nil {
-		_ = a.files.Remove(file)
-		return nil, err
-	}
-	var previous *domain.SavedFile
-	for _, res := range detail.Resources {
-		if res.ID == r.ResourceID {
-			previous = res.SavedFile
-		}
-	}
-	if err = a.archive.Acquired(
+	previous, err := a.archive.ReplaceSavedFile(
 		ctx,
 		r.MaterialID,
 		r.ResourceID,
-		observations.Resources,
-		&file,
-		nil,
-	); err != nil {
-		_ = a.files.Remove(file)
+		retrievals.Resources,
+		file,
+	)
+	if err != nil {
+		if e := a.files.Remove(file); e != nil {
+			slog.Error("remove uncommitted resource", "error", e)
+		}
 		return nil, err
 	}
 	if previous != nil && previous.ID != file.ID {
