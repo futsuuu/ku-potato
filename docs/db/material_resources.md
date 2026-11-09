@@ -31,9 +31,9 @@ CREATE TABLE material_resources (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | TEXT |  | false | [saved_resources](saved_resources.md) | [material_resource_retrievals](material_resource_retrievals.md) | 資料一覧の取得ID |
+| retrieval_id | TEXT |  | false | [saved_files](saved_files.md) | [material_resource_retrievals](material_resource_retrievals.md) | 資料一覧の取得ID |
 | position | INTEGER |  | false |  |  | 取得した一覧内の表示順（0始まり） |
-| lms_resource_id | TEXT |  | false | [saved_resources](saved_resources.md) |  | LMSの資料ID。同じ取得内で一意 |
+| lms_resource_id | TEXT |  | false | [saved_files](saved_files.md) |  | LMSの資料ID。同じ取得内で一意 |
 | name | TEXT |  | false |  |  | 資料名 |
 | type | TEXT |  | false |  |  | 資料種別：file（ファイル）、external（外部リンク）、unknown（不明） |
 | status | TEXT |  | false |  |  | 閲覧状態：unviewed（未閲覧）、viewed（閲覧済み）、unknown（不明） |
@@ -68,7 +68,7 @@ CREATE TABLE material_resources (
 erDiagram
 
 "material_resources" |o--|| "material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"saved_resources" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"saved_files" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "material_resources" {
   TEXT retrieval_id PK
@@ -84,20 +84,20 @@ erDiagram
 }
 "material_resource_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   TEXT lms_material_id
 }
-"saved_resources" {
+"saved_files" {
   TEXT lms_material_id PK
   TEXT lms_resource_id PK
-  TEXT file_id
+  TEXT content_hash
   TEXT original_filename
-  INTEGER file_size
+  INTEGER original_size
   TEXT resource_retrieval_id FK
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
 }
 ```
 

@@ -51,7 +51,7 @@ func (o *Materializer) Prepare(
 	content io.Reader,
 	saved domain.SavedFile,
 ) (string, error) {
-	value, _ := o.copies.LoadOrStore(saved.ID+"\x00"+saved.OriginalFilename, &openedCopy{})
+	value, _ := o.copies.LoadOrStore(saved.ContentHash+"\x00"+saved.OriginalFilename, &openedCopy{})
 	entry := value.(*openedCopy)
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
@@ -60,7 +60,7 @@ func (o *Materializer) Prepare(
 	}
 	if entry.path != "" {
 		if stat, err := os.Stat(entry.path); err == nil &&
-			stat.Mode().IsRegular() && stat.Size() == saved.Size &&
+			stat.Mode().IsRegular() && stat.Size() == saved.OriginalSize &&
 			stat.ModTime().Equal(entry.modified) {
 			return entry.path, nil
 		}
@@ -93,8 +93,12 @@ func (o *Materializer) Prepare(
 	if closeErr != nil {
 		return "", closeErr
 	}
-	if size != saved.Size {
-		return "", fmt.Errorf("saved file size changed: expected %d, got %d", saved.Size, size)
+	if size != saved.OriginalSize {
+		return "", fmt.Errorf(
+			"saved file size changed: expected %d, got %d",
+			saved.OriginalSize,
+			size,
+		)
 	}
 	if err := ctx.Err(); err != nil {
 		return "", err

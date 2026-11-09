@@ -31,14 +31,14 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 	db := newDB(t)
 	for _, year := range []any{nil, 0, 10000} {
 		if _, err := db.Exec(
-			"INSERT INTO course_retrievals(id, academic_year, fetched_at, clock_millis, clock_counter) VALUES (1, ?, 0, 0, 0)",
+			"INSERT INTO course_retrievals(id, academic_year, retrieved_at, timestamp_millis, timestamp_counter) VALUES (1, ?, 0, 0, 0)",
 			year,
 		); err == nil {
 			t.Fatalf("accepted year %v", year)
 		}
 	}
 	if _, err := db.Exec(
-		"INSERT INTO course_retrievals(id, academic_year, fetched_at, clock_millis, clock_counter) VALUES (1, 2026, 0, 0, 0)",
+		"INSERT INTO course_retrievals(id, academic_year, retrieved_at, timestamp_millis, timestamp_counter) VALUES (1, 2026, 0, 0, 0)",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -82,10 +82,10 @@ func TestSchemaRejectsInvalidSchedulesAndYears(t *testing.T) {
 func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 	db := newDB(t)
 	for _, query := range []string{
-		"INSERT INTO course_material_retrievals(id, lms_course_id, fetched_at, clock_millis, clock_counter) VALUES (1, 'KOG1', 0, 0, 0)",
+		"INSERT INTO course_material_retrievals(id, lms_course_id, retrieved_at, timestamp_millis, timestamp_counter) VALUES (1, 'KOG1', 0, 0, 0)",
 		"INSERT INTO course_material_folders(retrieval_id, position, name) VALUES (1, 0, 'week')",
 		"INSERT INTO course_materials(retrieval_id, position, folder_position, lms_material_id, name, type, status, material_link_available, publication_deadline_kind, publication_deadline_at, resource_availability) VALUES (1, 0, 0, 'SRY1', 'handout', 'material', 'unknown', 1, 'at', 0, 'available')",
-		"INSERT INTO material_resource_retrievals(id, lms_material_id, fetched_at, clock_millis, clock_counter) VALUES (1, 'SRY1', 0, 0, 0)",
+		"INSERT INTO material_resource_retrievals(id, lms_material_id, retrieved_at, timestamp_millis, timestamp_counter) VALUES (1, 'SRY1', 0, 0, 0)",
 		"INSERT INTO material_resources(retrieval_id, position, lms_resource_id, name, type, status, url) VALUES (1, 0, 'SRS1', 'file', 'file', 'unknown', '')",
 	} {
 		if _, err := db.Exec(query); err != nil {
@@ -156,7 +156,7 @@ func TestSchemaEnforcesTypeSpecificStatusesAndDeadlines(t *testing.T) {
 func TestSchemaEnforcesReportConditions(t *testing.T) {
 	db := newDB(t)
 	if _, err := db.Exec(
-		"INSERT INTO report_detail_retrievals(id,lms_material_id,fetched_at,clock_millis,clock_counter) VALUES(1,'REP1',0,0,0)",
+		"INSERT INTO report_detail_retrievals(id,lms_material_id,retrieved_at,timestamp_millis,timestamp_counter) VALUES(1,'REP1',0,0,0)",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestSchemaEnforcesReportConditions(t *testing.T) {
 	}
 }
 
-func TestSchemaEnforcesRetrievalClockComponents(t *testing.T) {
+func TestSchemaEnforcesRetrievalTimestamps(t *testing.T) {
 	for _, retrieval := range []struct {
 		table, scope string
 		target       any
@@ -203,11 +203,11 @@ func TestSchemaEnforcesRetrievalClockComponents(t *testing.T) {
 		t.Run(retrieval.table, func(t *testing.T) {
 			db := newDB(t)
 			query := fmt.Sprintf(
-				"INSERT INTO %s(id, %s, fetched_at, clock_millis, clock_counter) VALUES(?, ?, ?, ?, ?)",
+				"INSERT INTO %s(id, %s, retrieved_at, timestamp_millis, timestamp_counter) VALUES(?, ?, ?, ?, ?)",
 				retrieval.table,
 				retrieval.scope,
 			)
-			for _, test := range []struct{ fetchedAt, millis, counter any }{
+			for _, test := range []struct{ retrievedAt, millis, counter any }{
 				{-1, 0, 0},
 				{2, 1, 0},
 				{0, 0, -1},
@@ -220,14 +220,14 @@ func TestSchemaEnforcesRetrievalClockComponents(t *testing.T) {
 					query,
 					"invalid",
 					retrieval.target,
-					test.fetchedAt,
+					test.retrievedAt,
 					test.millis,
 					test.counter,
 				); err == nil {
-					t.Fatalf("accepted invalid retrieval clock: %+v", test)
+					t.Fatalf("accepted invalid retrieval timestamp: %+v", test)
 				}
 			}
-			// Different retrieval IDs can have identical clocks, including within one scope.
+			// Different retrieval IDs can have identical timestamps, including within one scope.
 			for _, id := range []string{"first", "second"} {
 				if _, err := db.Exec(query, id, retrieval.target, 0, 0, 0); err != nil {
 					t.Fatal(err)

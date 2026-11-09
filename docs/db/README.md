@@ -12,7 +12,7 @@
 | [course_materials](course_materials.md) | 11 | 教材一覧のスナップショット。教材の種類・状態・公開期限と所属フォルダーを保持する | table |
 | [material_resource_retrievals](material_resource_retrievals.md) | 5 | 教材ごとの資料一覧の取得履歴。未取得と、取得済みの空一覧を区別する | table |
 | [material_resources](material_resources.md) | 10 | 資料一覧のスナップショット。ファイルや外部リンクの情報を取得時点のまま保持する | table |
-| [saved_resources](saved_resources.md) | 8 | 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する | table |
+| [saved_files](saved_files.md) | 8 | 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する | table |
 | [report_detail_retrievals](report_detail_retrievals.md) | 5 | レポート教材ごとの詳細の取得履歴。取得ごとに追記する | table |
 | [report_details](report_details.md) | 11 | レポート詳細のスナップショット。提出期間・修正条件・回答形式を保持する | table |
 
@@ -25,8 +25,8 @@ erDiagram
 "course_material_folders" |o--|| "course_material_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES course_material_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 "course_materials" }o--|| "course_material_folders" : "FOREIGN KEY (retrieval_id, folder_position) REFERENCES course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 "material_resources" |o--|| "material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"saved_resources" }o--|| "material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"saved_resources" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"saved_files" }o--|| "material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"saved_files" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 "report_details" |o--|| "report_detail_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
 "archive_state" {
@@ -36,9 +36,9 @@ erDiagram
 }
 "course_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   INTEGER academic_year
 }
 "courses" {
@@ -53,9 +53,9 @@ erDiagram
 }
 "course_material_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   TEXT lms_course_id
 }
 "course_material_folders" {
@@ -80,9 +80,9 @@ erDiagram
 }
 "material_resource_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   TEXT lms_material_id
 }
 "material_resources" {
@@ -97,21 +97,21 @@ erDiagram
   TEXT description
   TEXT url
 }
-"saved_resources" {
+"saved_files" {
   TEXT lms_material_id PK
   TEXT lms_resource_id PK
-  TEXT file_id
+  TEXT content_hash
   TEXT original_filename
-  INTEGER file_size
+  INTEGER original_size
   TEXT resource_retrieval_id FK
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
 }
 "report_detail_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   TEXT lms_material_id
 }
 "report_details" {

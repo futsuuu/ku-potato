@@ -7,13 +7,13 @@
 
 package model
 
-type SavedResources struct {
+type SavedFiles struct {
 	LmsMaterialID       string `sql:"primary_key"`
 	LmsResourceID       string `sql:"primary_key"`
-	FileID              string
+	ContentHash         string
 	OriginalFilename    string
-	FileSize            int64
+	OriginalSize        int64
 	ResourceRetrievalID string
-	ClockMillis         int64
-	ClockCounter        int64
+	TimestampMillis     int64
+	TimestampCounter    int64
 }

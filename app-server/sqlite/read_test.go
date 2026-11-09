@@ -142,7 +142,7 @@ func TestMetadataAndReportDetailsRoundTrip(t *testing.T) {
 		*r.TextAnswerAllowed ||
 		!*r.FileAnswerAllowed ||
 		*r.MaxTotalFileBytes != 5*1024*1024 ||
-		r.FetchedAt == nil {
+		r.RetrievedAt == nil {
 		t.Fatal(r)
 	}
 	private := domain.Snapshot{

@@ -16,17 +16,17 @@ func insertReport(
 	ctx context.Context,
 	tx *sql.Tx,
 	id string,
-	clock retrievalClock,
+	timestamp retrievalTimestamp,
 	material string,
 	detail domain.ReportDetail,
 ) (string, error) {
 	r := table.ReportDetailRetrievals
 	_, err := r.INSERT(r.AllColumns).MODEL(model.ReportDetailRetrievals{
-		ID:            id,
-		LmsMaterialID: material,
-		FetchedAt:     clock.FetchedAt,
-		ClockMillis:   clock.ClockMillis,
-		ClockCounter:  clock.ClockCounter,
+		ID:               id,
+		LmsMaterialID:    material,
+		RetrievedAt:      timestamp.RetrievedAt,
+		TimestampMillis:  timestamp.TimestampMillis,
+		TimestampCounter: timestamp.TimestampCounter,
 	}).ExecContext(ctx, tx)
 	if err != nil {
 		return "", err
@@ -100,7 +100,7 @@ func reportDetail(ctx context.Context, db qrm.DB, material string) (domain.Repor
 	err := t.SELECT(t.AllColumns, r.AllColumns).
 		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
 		WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).
-		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
+		ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID)...).
 		LIMIT(1).
 		QueryContext(ctx, db, &row)
 	if errors.Is(err, qrm.ErrNoRows) {
@@ -120,6 +120,6 @@ func reportDetail(ctx context.Context, db qrm.DB, material string) (domain.Repor
 		TextAnswerAllowed:    storedBool(row.TextAnswerAllowed),
 		FileAnswerAllowed:    storedBool(row.FileAnswerAllowed),
 		MaxTotalFileBytes:    row.MaxTotalFileBytes,
-		FetchedAt:            millisTime(&row.FetchedAt),
+		RetrievedAt:          millisTime(&row.RetrievedAt),
 	}, nil
 }

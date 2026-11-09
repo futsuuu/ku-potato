@@ -23,7 +23,7 @@ type LMSAuthentication interface {
 	DeleteWebAuthn(context.Context) error
 }
 
-// ContentSource fetches LMS content and its linked resources.
+// ContentSource retrieves LMS content and its linked resources.
 type ContentSource interface {
 	Courses(context.Context) (domain.CourseListing, error)
 	Materials(context.Context, string) (domain.Snapshot, error)
@@ -44,10 +44,10 @@ type Archive interface {
 	Append(context.Context, domain.Snapshot) (RetrievalIDs, error)
 	// SavedFile reads the current saved file without assembling a material detail.
 	SavedFile(context.Context, string, string) (domain.SavedFile, error)
-	// FileReferenced reports whether any current resource uses this content ID.
-	FileReferenced(context.Context, string) (bool, error)
+	// ReferencesContent reports whether any current resource uses this content hash.
+	ReferencesContent(ctx context.Context, contentHash string) (bool, error)
 	// ReplaceSavedFile commits the new file and returns the previous file.
-	// Check FileReferenced before removing its shared content.
+	// Check ReferencesContent before removing its shared content.
 	// retrievalID must identify the resource list used for this download.
 	ReplaceSavedFile(
 		ctx context.Context,
@@ -66,8 +66,8 @@ type ResourceMaterializer interface {
 }
 
 type Files interface {
-	Save(string, string) (domain.SavedFile, error)
-	Open(domain.SavedFile) (io.ReadSeekCloser, error)
-	Remove(domain.SavedFile) error
-	Discard(string) error
+	Save(sourcePath, originalFilename string) (domain.SavedFile, error)
+	Open(file domain.SavedFile) (io.ReadSeekCloser, error)
+	Remove(contentHash string) error
+	Discard(downloadPath string) error
 }

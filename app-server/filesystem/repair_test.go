@@ -35,7 +35,7 @@ func TestSaveRepairsCorruptContent(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					path, err := files.path(original)
+					path, err := files.contentPath(original.ContentHash)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -78,8 +78,8 @@ func TestSaveRepairsCorruptContent(t *testing.T) {
 						t.Fatal(err)
 					}
 					saved, err := files.Save(source, next)
-					if err != nil || saved.ID != original.ID || saved.SHA256 != original.SHA256 ||
-						saved.Size != original.Size || saved.OriginalFilename != next {
+					if err != nil || saved.ContentHash != original.ContentHash ||
+						saved.OriginalSize != original.OriginalSize || saved.OriginalFilename != next {
 						t.Fatal(saved, err)
 					}
 					assertStoredOriginalContent(t, files, saved, body)
@@ -123,7 +123,7 @@ func TestFailedRepairPreservesExistingStorageAndRemovesTemporaryFile(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, err := files.path(saved)
+	path, err := files.contentPath(saved.ContentHash)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,11 +149,11 @@ func TestFailedRepairPreservesExistingStorageAndRemovesTemporaryFile(t *testing.
 	}
 }
 
-// Open bounds reads by metadata.Size, so inspect storage directly to catch
+// Open bounds reads by metadata.OriginalSize, so inspect storage directly to catch
 // oversized compressed content and errors after the expected original bytes.
 func assertStoredOriginalContent(t *testing.T, files *Files, saved domain.SavedFile, want []byte) {
 	t.Helper()
-	path, err := files.path(saved)
+	path, err := files.contentPath(saved.ContentHash)
 	if err != nil {
 		t.Fatal(err)
 	}

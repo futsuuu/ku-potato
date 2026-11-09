@@ -22,7 +22,7 @@ func insertRetrievalFixtures(
 	t *testing.T,
 	s *Store,
 	seed int64,
-	clock retrievalClock,
+	timestamp retrievalTimestamp,
 	snapshot domain.Snapshot,
 ) {
 	t.Helper()
@@ -40,7 +40,7 @@ func insertRetrievalFixtures(
 			ctx,
 			tx,
 			id(1),
-			clock,
+			timestamp,
 			snapshot.AcademicYear,
 			snapshot.Courses,
 		); err != nil {
@@ -48,7 +48,7 @@ func insertRetrievalFixtures(
 		}
 	}
 	if snapshot.Materials != nil {
-		if _, err := insertMaterials(ctx, tx, id(2), clock, *snapshot.Materials); err != nil {
+		if _, err := insertMaterials(ctx, tx, id(2), timestamp, *snapshot.Materials); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -57,7 +57,7 @@ func insertRetrievalFixtures(
 			ctx,
 			tx,
 			id(3),
-			clock,
+			timestamp,
 			snapshot.MaterialID,
 			snapshot.Resources,
 		); err != nil {
@@ -69,7 +69,7 @@ func insertRetrievalFixtures(
 			ctx,
 			tx,
 			id(4),
-			clock,
+			timestamp,
 			snapshot.MaterialID,
 			*snapshot.Report,
 		); err != nil {
@@ -81,7 +81,7 @@ func insertRetrievalFixtures(
 	}
 }
 
-func TestArchiveSelectionUsesClockAndIDInsteadOfInsertionOrder(t *testing.T) {
+func TestArchiveSelectionUsesTimestampAndIDInsteadOfInsertionOrder(t *testing.T) {
 	ctx := context.Background()
 	first := archiveSnapshot()
 	first.Report = &domain.ReportDetail{Status: "unsubmitted"}
@@ -101,10 +101,10 @@ func TestArchiveSelectionUsesClockAndIDInsteadOfInsertionOrder(t *testing.T) {
 		{AcademicYear: 2026, Courses: []domain.Course{}},
 		{AcademicYear: 2027, Courses: []domain.Course{{ID: "KOG2", Name: "next year"}}},
 	}
-	clocks := []struct {
+	timestamps := []struct {
 		millis, counter, seed int64
 	}{
-		{1000, 0, 100}, {1000, 0, 101}, // ID breaks a clock tie
+		{1000, 0, 100}, {1000, 0, 101}, // ID breaks a timestamp tie
 		{1000, 1, 99}, // counter takes precedence over ID
 		{1001, 0, 98}, {1001, 1, 97}, {1002, 0, 96},
 	}
@@ -121,9 +121,11 @@ func TestArchiveSelectionUsesClockAndIDInsteadOfInsertionOrder(t *testing.T) {
 			slices.Reverse(order)
 		}
 		for _, i := range order {
-			clock := clocks[i]
-			insertRetrievalFixtures(t, s, clock.seed, retrievalClock{
-				FetchedAt: clock.millis, ClockMillis: clock.millis, ClockCounter: clock.counter,
+			timestamp := timestamps[i]
+			insertRetrievalFixtures(t, s, timestamp.seed, retrievalTimestamp{
+				RetrievedAt:      timestamp.millis,
+				TimestampMillis:  timestamp.millis,
+				TimestampCounter: timestamp.counter,
 			}, snapshots[i])
 		}
 		courses, err := s.Courses(ctx)
@@ -139,16 +141,16 @@ func TestArchiveSelectionUsesClockAndIDInsteadOfInsertionOrder(t *testing.T) {
 			t.Fatal(detail, err)
 		}
 		for _, resource := range detail.Resources {
-			if resource.Availability != "archived" || resource.SavedFile != nil {
+			if !resource.Archived || resource.SavedFile != nil {
 				t.Fatal(resource)
 			}
 		}
-		if detail.Material.FetchedAt == nil || detail.Material.FetchedAt.UnixMilli() != 1001 {
+		if detail.Material.RetrievedAt == nil || detail.Material.RetrievedAt.UnixMilli() != 1001 {
 			t.Fatal("wrong content retrieval time", detail.Material)
 		}
 		report, err := s.ReportDetail(ctx, "SRY1")
-		if err != nil || report.Status != "submitted" || report.FetchedAt == nil ||
-			report.FetchedAt.UnixMilli() != 1000 {
+		if err != nil || report.Status != "submitted" || report.RetrievedAt == nil ||
+			report.RetrievedAt.UnixMilli() != 1000 {
 			t.Fatal(report, err)
 		}
 	}
@@ -159,16 +161,16 @@ func TestArchiveSelectionUsesClockAndIDInsteadOfInsertionOrder(t *testing.T) {
 	}
 }
 
-func TestFindCourseUsesRetrievalClockAndID(t *testing.T) {
+func TestFindCourseUsesRetrievalTimestampAndID(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range []struct {
 		name             string
-		older, newer     retrievalClock
+		older, newer     retrievalTimestamp
 		oldSeed, newSeed int64
 	}{
-		{"millis", retrievalClock{1000, 1000, 99}, retrievalClock{999, 1001, 0}, 100, 99},
-		{"counter", retrievalClock{1000, 1000, 0}, retrievalClock{999, 1000, 1}, 100, 99},
-		{"id", retrievalClock{1000, 1000, 0}, retrievalClock{999, 1000, 0}, 100, 101},
+		{"millis", retrievalTimestamp{1000, 1000, 99}, retrievalTimestamp{999, 1001, 0}, 100, 99},
+		{"counter", retrievalTimestamp{1000, 1000, 0}, retrievalTimestamp{999, 1000, 1}, 100, 99},
+		{"id", retrievalTimestamp{1000, 1000, 0}, retrievalTimestamp{999, 1000, 0}, 100, 101},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			for _, reversed := range []bool{false, true} {
@@ -181,11 +183,11 @@ func TestFindCourseUsesRetrievalClockAndID(t *testing.T) {
 					snapshot := archiveSnapshot()
 					snapshot.Materials.CourseID = fmt.Sprintf("KOG%d", i+1)
 					snapshot.Courses, snapshot.Resources = nil, nil
-					clock, seed := test.older, test.oldSeed
+					timestamp, seed := test.older, test.oldSeed
 					if i == 1 {
-						clock, seed = test.newer, test.newSeed
+						timestamp, seed = test.newer, test.newSeed
 					}
-					insertRetrievalFixtures(t, s, seed, clock, snapshot)
+					insertRetrievalFixtures(t, s, seed, timestamp, snapshot)
 				}
 				if course, err := s.FindCourse(ctx, "SRY1"); err != nil || course != "KOG2" {
 					t.Fatal(course, err)
@@ -218,13 +220,13 @@ func TestArchiveClockAdvancesWithoutPackingItsComponents(t *testing.T) {
 }
 
 type storedRetrieval struct {
-	ID            string
-	FetchedAt     int64
-	ClockMillis   int64
-	ClockCounter  int64
-	AcademicYear  int64
-	LmsCourseID   string
-	LmsMaterialID string
+	ID               string
+	RetrievedAt      int64
+	TimestampMillis  int64
+	TimestampCounter int64
+	AcademicYear     int64
+	LmsCourseID      string
+	LmsMaterialID    string
 }
 
 func storedRetrievals(t *testing.T, s *Store) map[string][]storedRetrieval {
@@ -234,10 +236,10 @@ func storedRetrievals(t *testing.T, s *Store) map[string][]storedRetrieval {
 	r := table.MaterialResourceRetrievals.AS("stored_retrieval")
 	d := table.ReportDetailRetrievals.AS("stored_retrieval")
 	queries := map[string]sqlite.SelectStatement{
-		"courses":   c.SELECT(c.AllColumns).ORDER_BY(c.ClockCounter.ASC()),
-		"materials": m.SELECT(m.AllColumns).ORDER_BY(m.ClockCounter.ASC()),
-		"resources": r.SELECT(r.AllColumns).ORDER_BY(r.ClockCounter.ASC()),
-		"report":    d.SELECT(d.AllColumns).ORDER_BY(d.ClockCounter.ASC()),
+		"courses":   c.SELECT(c.AllColumns).ORDER_BY(c.TimestampCounter.ASC()),
+		"materials": m.SELECT(m.AllColumns).ORDER_BY(m.TimestampCounter.ASC()),
+		"resources": r.SELECT(r.AllColumns).ORDER_BY(r.TimestampCounter.ASC()),
+		"report":    d.SELECT(d.AllColumns).ORDER_BY(d.TimestampCounter.ASC()),
 	}
 	result := map[string][]storedRetrieval{}
 	for kind, query := range queries {
@@ -302,14 +304,14 @@ func TestRetrievalMetadataAndClockSurviveRestartAndRollbackTogether(t *testing.T
 			if id, err := uuid.Parse(row.ID); err != nil || id == uuid.Nil {
 				t.Fatal("invalid global identity", row.ID, err)
 			}
-			if row.FetchedAt <= 0 || row.FetchedAt >= future || row.ClockMillis != future ||
-				row.ClockCounter != int64(11+i) {
+			if row.RetrievedAt <= 0 || row.RetrievedAt >= future || row.TimestampMillis != future ||
+				row.TimestampCounter != int64(11+i) {
 				t.Fatal(kind, row)
 			}
-			if previous, ok := timestamps[i]; ok && previous != row.FetchedAt {
+			if previous, ok := timestamps[i]; ok && previous != row.RetrievedAt {
 				t.Fatal("one Append has inconsistent timestamps", kind, row)
 			}
-			timestamps[i] = row.FetchedAt
+			timestamps[i] = row.RetrievedAt
 			switch kind {
 			case "courses":
 				if row.AcademicYear != int64(snapshot.AcademicYear) {
@@ -363,8 +365,8 @@ func TestStandaloneRetrievalsHaveTheirOwnMetadata(t *testing.T) {
 					}
 					continue
 				}
-				if len(rows) != 1 || rows[0].FetchedAt <= 0 ||
-					rows[0].ClockMillis < rows[0].FetchedAt {
+				if len(rows) != 1 || rows[0].RetrievedAt <= 0 ||
+					rows[0].TimestampMillis < rows[0].RetrievedAt {
 					t.Fatal(kind, rows)
 				}
 			}

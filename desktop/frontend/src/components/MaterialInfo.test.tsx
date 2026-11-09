@@ -29,7 +29,7 @@ it("does not claim historical content for an unfetched private material", () => 
 
 it("shows the acquisition date when private material content was fetched", () => {
   dispose = render(
-    () => <MaterialInfo material={{ ...material, fetchedAt: "2026-10-01T01:00:00Z" }} />,
+    () => <MaterialInfo material={{ ...material, retrievedAt: "2026-10-01T01:00:00Z" }} />,
     document.body,
   );
   expect(document.body.textContent).toContain("過去の取得データ: 2026/10/01 10:00取得");
@@ -41,7 +41,7 @@ it.each(["report", "test", "questionnaire", "e-learning", "board", "feedback", "
     dispose = render(
       () => (
         <MaterialInfo
-          material={{ ...material, type, status: "unknown", fetchedAt: "2026-10-01T01:00:00Z" }}
+          material={{ ...material, type, status: "unknown", retrievedAt: "2026-10-01T01:00:00Z" }}
         />
       ),
       document.body,

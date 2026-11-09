@@ -10,12 +10,12 @@ VALUES (1, 0, 0) ON CONFLICT(singleton) DO NOTHING;
 CREATE TABLE IF NOT EXISTS course_retrievals (
     -- 年度ごとの講義一覧の取得履歴。取得ごとに追記し、過去の一覧を保持する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
-    fetched_at INTEGER NOT NULL CHECK (fetched_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
-    clock_millis INTEGER NOT NULL CHECK (clock_millis >= fetched_at), -- 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める
-    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める
+    retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
+    timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= retrieved_at), -- 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める
     academic_year INTEGER NOT NULL CHECK (academic_year BETWEEN 1 AND 9999) -- 対象の学年度（1〜9999）
 );
-CREATE INDEX IF NOT EXISTS course_retrievals_year ON course_retrievals(academic_year, clock_millis, clock_counter, id);
+CREATE INDEX IF NOT EXISTS course_retrievals_year ON course_retrievals(academic_year, timestamp_millis, timestamp_counter, id);
 CREATE TABLE IF NOT EXISTS courses (
     -- 講義一覧のスナップショット。LMSの講義IDがない行も表示順を含めて保持する
     retrieval_id TEXT NOT NULL REFERENCES course_retrievals(id), -- 講義一覧の取得ID
@@ -37,12 +37,12 @@ CREATE INDEX IF NOT EXISTS courses_course_retrieval ON courses(lms_course_id, re
 CREATE TABLE IF NOT EXISTS course_material_retrievals (
     -- 講義ごとの教材一覧の取得履歴。空の一覧を取得した場合も記録する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
-    fetched_at INTEGER NOT NULL CHECK (fetched_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
-    clock_millis INTEGER NOT NULL CHECK (clock_millis >= fetched_at), -- 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める
-    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める
+    retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
+    timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= retrieved_at), -- 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める
     lms_course_id TEXT NOT NULL -- 取得対象のLMS講義ID
 );
-CREATE INDEX IF NOT EXISTS material_retrievals_course ON course_material_retrievals(lms_course_id, clock_millis, clock_counter, id);
+CREATE INDEX IF NOT EXISTS material_retrievals_course ON course_material_retrievals(lms_course_id, timestamp_millis, timestamp_counter, id);
 CREATE TABLE IF NOT EXISTS course_material_folders (
     -- 教材一覧の取得時点における教材フォルダー。LMS上では「授業」と表示されるまとまり
     retrieval_id TEXT NOT NULL REFERENCES course_material_retrievals(id), -- 教材一覧の取得ID
@@ -84,13 +84,13 @@ CREATE INDEX IF NOT EXISTS materials_material_retrieval ON course_materials(lms_
 CREATE TABLE IF NOT EXISTS material_resource_retrievals (
     -- 教材ごとの資料一覧の取得履歴。未取得と、取得済みの空一覧を区別する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
-    fetched_at INTEGER NOT NULL CHECK (fetched_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
-    clock_millis INTEGER NOT NULL CHECK (clock_millis >= fetched_at), -- 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める
-    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める
+    retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
+    timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= retrieved_at), -- 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める
     lms_material_id TEXT NOT NULL, -- 取得対象のLMS教材ID
     UNIQUE (id, lms_material_id)
 );
-CREATE INDEX IF NOT EXISTS resource_retrievals_material ON material_resource_retrievals(lms_material_id, clock_millis, clock_counter, id);
+CREATE INDEX IF NOT EXISTS resource_retrievals_material ON material_resource_retrievals(lms_material_id, timestamp_millis, timestamp_counter, id);
 CREATE TABLE IF NOT EXISTS material_resources (
     -- 資料一覧のスナップショット。ファイルや外部リンクの情報を取得時点のまま保持する
     retrieval_id TEXT NOT NULL REFERENCES material_resource_retrievals(id), -- 資料一覧の取得ID
@@ -107,32 +107,32 @@ CREATE TABLE IF NOT EXISTS material_resources (
     UNIQUE (retrieval_id, lms_resource_id)
 );
 CREATE INDEX IF NOT EXISTS resources_resource_retrieval ON material_resources(lms_resource_id, retrieval_id);
-CREATE TABLE IF NOT EXISTS saved_resources (
+CREATE TABLE IF NOT EXISTS saved_files (
     -- 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
     lms_material_id TEXT NOT NULL, -- LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID
-    file_id TEXT NOT NULL CHECK (length(file_id) = 64 AND file_id NOT GLOB '*[^0-9a-f]*'), -- 原本のSHA-256。同じ内容を複数資料から参照できる
+    content_hash TEXT NOT NULL, -- 原本のSHA-256。同じ内容を複数資料から参照できる
     original_filename TEXT NOT NULL, -- 保存ファイルの元のファイル名
-    file_size INTEGER NOT NULL CHECK (file_size >= 0), -- 保存ファイルのサイズ（バイト）
+    original_size INTEGER NOT NULL CHECK (original_size >= 0), -- 保存時の圧縮を行う前の原本サイズ（バイト）
     resource_retrieval_id TEXT NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
-    clock_millis INTEGER NOT NULL CHECK (clock_millis >= 0), -- 保存ファイル情報の更新順序を決める論理時計の時刻部分（Unixミリ秒）。対応する取得履歴の時計とは独立
-    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合はfile_idと残りの共有フィールドで順序を決める
+    timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= 0), -- 保存ファイル情報の更新時の論理タイムスタンプのミリ秒部分。取得履歴とは独立
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合はcontent_hashと残りの共有フィールドで順序を決める
     PRIMARY KEY (lms_material_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources(retrieval_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)
 );
 
-CREATE INDEX IF NOT EXISTS saved_resources_file ON saved_resources(file_id);
+CREATE INDEX IF NOT EXISTS saved_files_content_hash ON saved_files(content_hash);
 
 CREATE TABLE IF NOT EXISTS report_detail_retrievals (
     -- レポート教材ごとの詳細の取得履歴。取得ごとに追記する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
-    fetched_at INTEGER NOT NULL CHECK (fetched_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
-    clock_millis INTEGER NOT NULL CHECK (clock_millis >= fetched_at), -- 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める
-    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める
+    retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
+    timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= retrieved_at), -- 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める
     lms_material_id TEXT NOT NULL -- 取得対象のLMS教材ID
 );
-CREATE INDEX IF NOT EXISTS report_retrievals_material ON report_detail_retrievals(lms_material_id, clock_millis, clock_counter, id);
+CREATE INDEX IF NOT EXISTS report_retrievals_material ON report_detail_retrievals(lms_material_id, timestamp_millis, timestamp_counter, id);
 CREATE TABLE IF NOT EXISTS report_details (
     -- レポート詳細のスナップショット。提出期間・修正条件・回答形式を保持する
     retrieval_id TEXT PRIMARY KEY NOT NULL REFERENCES report_detail_retrievals(id), -- レポート詳細の取得ID。1回の取得に1行が対応する

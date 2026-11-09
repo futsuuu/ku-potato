@@ -17,11 +17,11 @@ type materialResourceRetrievalsTable struct {
 	sqlite.Table
 
 	// Columns
-	ID            sqlite.ColumnString
-	FetchedAt     sqlite.ColumnInteger
-	ClockMillis   sqlite.ColumnInteger
-	ClockCounter  sqlite.ColumnInteger
-	LmsMaterialID sqlite.ColumnString
+	ID               sqlite.ColumnString
+	RetrievedAt      sqlite.ColumnInteger
+	TimestampMillis  sqlite.ColumnInteger
+	TimestampCounter sqlite.ColumnInteger
+	LmsMaterialID    sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -63,25 +63,25 @@ func newMaterialResourceRetrievalsTable(schemaName, tableName, alias string) *Ma
 
 func newMaterialResourceRetrievalsTableImpl(schemaName, tableName, alias string) materialResourceRetrievalsTable {
 	var (
-		IDColumn            = sqlite.StringColumn("id")
-		FetchedAtColumn     = sqlite.IntegerColumn("fetched_at")
-		ClockMillisColumn   = sqlite.IntegerColumn("clock_millis")
-		ClockCounterColumn  = sqlite.IntegerColumn("clock_counter")
-		LmsMaterialIDColumn = sqlite.StringColumn("lms_material_id")
-		allColumns          = sqlite.ColumnList{IDColumn, FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsMaterialIDColumn}
-		mutableColumns      = sqlite.ColumnList{FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsMaterialIDColumn}
-		defaultColumns      = sqlite.ColumnList{}
+		IDColumn               = sqlite.StringColumn("id")
+		RetrievedAtColumn      = sqlite.IntegerColumn("retrieved_at")
+		TimestampMillisColumn  = sqlite.IntegerColumn("timestamp_millis")
+		TimestampCounterColumn = sqlite.IntegerColumn("timestamp_counter")
+		LmsMaterialIDColumn    = sqlite.StringColumn("lms_material_id")
+		allColumns             = sqlite.ColumnList{IDColumn, RetrievedAtColumn, TimestampMillisColumn, TimestampCounterColumn, LmsMaterialIDColumn}
+		mutableColumns         = sqlite.ColumnList{RetrievedAtColumn, TimestampMillisColumn, TimestampCounterColumn, LmsMaterialIDColumn}
+		defaultColumns         = sqlite.ColumnList{}
 	)
 
 	return materialResourceRetrievalsTable{
 		Table: sqlite.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		ID:            IDColumn,
-		FetchedAt:     FetchedAtColumn,
-		ClockMillis:   ClockMillisColumn,
-		ClockCounter:  ClockCounterColumn,
-		LmsMaterialID: LmsMaterialIDColumn,
+		ID:               IDColumn,
+		RetrievedAt:      RetrievedAtColumn,
+		TimestampMillis:  TimestampMillisColumn,
+		TimestampCounter: TimestampCounterColumn,
+		LmsMaterialID:    LmsMaterialIDColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

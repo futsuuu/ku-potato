@@ -66,7 +66,7 @@ it("does not label an unfetched report as historical content", () => {
 
 it("shows the report's own acquisition date for archived content", () => {
   dispose = render(
-    () => <ReportContent report={{ ...report, fetchedAt: "2026-10-02T01:00:00Z" }} archived />,
+    () => <ReportContent report={{ ...report, retrievedAt: "2026-10-02T01:00:00Z" }} archived />,
     document.body,
   );
   expect(document.body.textContent).toContain("過去の取得データ: 2026/10/02 10:00取得");

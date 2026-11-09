@@ -87,7 +87,7 @@ func TestSpeculativeTransferOverlapsRefreshAndReusesMatchingFile(t *testing.T) {
 			return path, "old.pdf", os.WriteFile(path, []byte("file"), 0o600)
 		}},
 	)
-	got, err := app.fetchDownload(ctx, "SRY1", "SRS1", "KOG1", cachedDriveURL)
+	got, err := app.downloadFromSource(ctx, "SRY1", "SRS1", "KOG1", cachedDriveURL)
 	if err != nil || got.URL != "" || got.Filename != "old.pdf" ||
 		got.Snapshot.MaterialID != "SRY1" ||
 		calls.Load() != 1 {
@@ -128,7 +128,7 @@ func TestSpeculativeTransferDiscardsChangedURLAndFetchesLatest(t *testing.T) {
 					},
 				},
 			)
-			got, err := app.fetchDownload(ctx, "SRY1", "SRS1", "", cachedDriveURL)
+			got, err := app.downloadFromSource(ctx, "SRY1", "SRS1", "", cachedDriveURL)
 			if err != nil || got.URL != "" || got.Filename != "latest.pdf" {
 				t.Fatal(got, err)
 			}
@@ -172,7 +172,7 @@ func TestSpeculativeTransferDiscardsCompletedFileOnFailureOrTypeChange(t *testin
 					return path, "old.pdf", nil
 				}},
 			)
-			got, err := app.fetchDownload(ctx, "SRY1", "SRS1", "", cachedDriveURL)
+			got, err := app.downloadFromSource(ctx, "SRY1", "SRS1", "", cachedDriveURL)
 			if !errors.Is(err, test.err) || got.Path != test.current.Path ||
 				got.URL != test.current.URL {
 				t.Fatal(got, err)
@@ -206,7 +206,7 @@ func TestUnsupportedCachedURLUsesLatestExternalURL(t *testing.T) {
 					},
 				},
 			)
-			got, err := app.fetchDownload(ctx, "SRY1", "SRS1", "", cached)
+			got, err := app.downloadFromSource(ctx, "SRY1", "SRS1", "", cached)
 			if err != nil || got.URL != latestDriveURL || got.Path != "" {
 				t.Fatal(got, err)
 			}
@@ -238,7 +238,7 @@ func TestSpeculativeTransferCancellationCleansUp(t *testing.T) {
 			return path, "partial.pdf", ctx.Err()
 		}},
 	)
-	_, err := app.fetchDownload(ctx, "SRY1", "SRS1", "", cachedDriveURL)
+	_, err := app.downloadFromSource(ctx, "SRY1", "SRS1", "", cachedDriveURL)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}

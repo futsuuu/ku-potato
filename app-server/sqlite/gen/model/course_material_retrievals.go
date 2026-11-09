@@ -8,9 +8,9 @@
 package model
 
 type CourseMaterialRetrievals struct {
-	ID           string `sql:"primary_key"`
-	FetchedAt    int64
-	ClockMillis  int64
-	ClockCounter int64
-	LmsCourseID  string
+	ID               string `sql:"primary_key"`
+	RetrievedAt      int64
+	TimestampMillis  int64
+	TimestampCounter int64
+	LmsCourseID      string
 }

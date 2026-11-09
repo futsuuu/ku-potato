@@ -8,16 +8,15 @@ const { openExternal } = vi.hoisted(() => ({ openExternal: vi.fn() }));
 vi.mock("../native", () => ({ openExternal }));
 
 const savedFile: Schema["SavedFile"] = {
-  id: "saved",
+  contentHash: "a".repeat(64),
   originalFilename: "handout.pdf",
-  sha256: "hash",
-  size: 3,
+  originalSize: 3,
 };
 const base: Schema["Resource"] = {
   lmsResourceId: "SRS1",
   name: "Handout",
   type: "external",
-  availability: "current",
+  archived: false,
   url: "https://example.com/handout",
 };
 const api = {
@@ -105,14 +104,14 @@ it("shows download failures through the current operation without losing the sav
 });
 
 it("opens archived saved files without contacting the LMS", async () => {
-  mount({ ...base, type: "file", url: undefined, savedFile, availability: "archived" });
+  mount({ ...base, type: "file", url: undefined, savedFile, archived: true });
   click("Handout");
   await vi.waitFor(() => expect(api.openResource).toHaveBeenCalledWith("SRY1", "SRS1"));
   expect(api.download).not.toHaveBeenCalled();
 });
 
 it("opens an archived external link without attempting to download", async () => {
-  mount({ ...base, availability: "archived" });
+  mount({ ...base, archived: true });
   click("Handout");
   await vi.waitFor(() => expect(openExternal).toHaveBeenCalledWith(base.url));
   expect(api.download).not.toHaveBeenCalled();

@@ -11,9 +11,9 @@
 CREATE TABLE course_retrievals (
     -- 年度ごとの講義一覧の取得履歴。取得ごとに追記し、過去の一覧を保持する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
-    fetched_at INTEGER NOT NULL CHECK (fetched_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
-    clock_millis INTEGER NOT NULL CHECK (clock_millis >= fetched_at), -- 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める
-    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める
+    retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
+    timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= retrieved_at), -- 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める
     academic_year INTEGER NOT NULL CHECK (academic_year BETWEEN 1 AND 9999) -- 対象の学年度（1〜9999）
 )
 ```
@@ -25,9 +25,9 @@ CREATE TABLE course_retrievals (
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | id | TEXT |  | false | [courses](courses.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
-| fetched_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒）。表示用の日時 |
-| clock_millis | INTEGER |  | false |  |  | 論理時計の時刻部分（Unixミリ秒）。取得日時とは別に順序を決める |
-| clock_counter | INTEGER |  | false |  |  | 論理時計の同一時刻内の連番。同値の場合は取得IDで順序を決める |
+| retrieved_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒）。表示用の日時 |
+| timestamp_millis | INTEGER |  | false |  |  | 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する |
+| timestamp_counter | INTEGER |  | false |  |  | 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める |
 | academic_year | INTEGER |  | false |  |  | 対象の学年度（1〜9999） |
 
 ## Constraints
@@ -36,16 +36,16 @@ CREATE TABLE course_retrievals (
 | ---- | ---- | ---------- |
 | id | PRIMARY KEY | PRIMARY KEY (id) |
 | sqlite_autoindex_course_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
-| - | CHECK | CHECK (fetched_at >= 0) |
-| - | CHECK | CHECK (clock_millis >= fetched_at) |
-| - | CHECK | CHECK (clock_counter >= 0) |
+| - | CHECK | CHECK (retrieved_at >= 0) |
+| - | CHECK | CHECK (timestamp_millis >= retrieved_at) |
+| - | CHECK | CHECK (timestamp_counter >= 0) |
 | - | CHECK | CHECK (academic_year BETWEEN 1 AND 9999) |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
-| course_retrievals_year | CREATE INDEX course_retrievals_year ON course_retrievals(academic_year, clock_millis, clock_counter, id) |
+| course_retrievals_year | CREATE INDEX course_retrievals_year ON course_retrievals(academic_year, timestamp_millis, timestamp_counter, id) |
 | sqlite_autoindex_course_retrievals_1 | PRIMARY KEY (id) |
 
 ## Relations
@@ -57,9 +57,9 @@ erDiagram
 
 "course_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   INTEGER academic_year
 }
 "courses" {

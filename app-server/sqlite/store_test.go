@@ -76,7 +76,7 @@ func TestSnapshotsPreserveSavedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := &domain.SavedFile{ID: strings.Repeat("a", 64), SHA256: strings.Repeat("a", 64)}
+	file := &domain.SavedFile{ContentHash: strings.Repeat("a", 64)}
 	if _, err := s.ReplaceSavedFile(
 		ctx,
 		"SRY1",
@@ -96,8 +96,8 @@ func TestSnapshotsPreserveSavedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := detail.Resources[0]
-	if !detail.Material.Archived || r.Availability != "archived" || r.SavedFile == nil ||
-		r.SavedFile.ID != file.ID {
+	if !detail.Material.Archived || !r.Archived || r.SavedFile == nil ||
+		r.SavedFile.ContentHash != file.ContentHash {
 		t.Fatalf("lost archived state: %#v", detail)
 	}
 }
@@ -130,7 +130,7 @@ func TestRemovedCourseArchivesItsMaterialsAndResources(t *testing.T) {
 	}
 	detail, err := s.Detail(ctx, "SRY1")
 	if err != nil || !detail.Course.Archived || !detail.Material.Archived ||
-		detail.Resources[0].Availability != "archived" {
+		!detail.Resources[0].Archived {
 		t.Fatal(detail, err)
 	}
 }
@@ -173,10 +173,9 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 		t.Fatal(err)
 	}
 	file := &domain.SavedFile{
-		ID:               strings.Repeat("a", 64),
+		ContentHash:      strings.Repeat("a", 64),
 		OriginalFilename: "handout.pdf",
-		SHA256:           strings.Repeat("a", 64),
-		Size:             42,
+		OriginalSize:     42,
 	}
 	if _, err := s.ReplaceSavedFile(
 		ctx,
@@ -212,7 +211,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 	if !detail.Material.Archived || detail.Material.ResourceAvailability != "unavailable" ||
 		detail.Material.Name != "handout" ||
 		detail.Material.PublicationDeadline != before.Material.PublicationDeadline ||
-		!detail.Material.FetchedAt.Equal(*before.Material.FetchedAt) {
+		!detail.Material.RetrievedAt.Equal(*before.Material.RetrievedAt) {
 		t.Fatalf("lost last accessible metadata: %#v", detail.Material)
 	}
 	if len(detail.Resources) != 2 || detail.Resources[0].SavedFile == nil ||
@@ -221,7 +220,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 		t.Fatalf("lost past resources: %#v", detail.Resources)
 	}
 	for _, resource := range detail.Resources {
-		if resource.Availability != "archived" {
+		if !resource.Archived {
 			t.Fatal(resource)
 		}
 	}
@@ -235,17 +234,17 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 		t.Fatal(err)
 	}
 	detail, err = s.Detail(ctx, "SRY1")
-	if err != nil || detail.Material.Archived || detail.Resources[0].Availability != "current" ||
+	if err != nil || detail.Material.Archived || detail.Resources[0].Archived ||
 		detail.Resources[0].SavedFile == nil {
 		t.Fatal(detail, err)
 	}
-	// A fetched empty list is a new retrieval, but it retains past resource metadata.
+	// A retrieved empty list is a new retrieval, but it retains past resource metadata.
 	snapshot.Resources = []domain.RetrievedResource{}
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	detail, err = s.Detail(ctx, "SRY1")
-	if err != nil || len(detail.Resources) != 2 || detail.Resources[0].Availability != "archived" {
+	if err != nil || len(detail.Resources) != 2 || !detail.Resources[0].Archived {
 		t.Fatal(detail, err)
 	}
 	if err := s.db.QueryRow("SELECT count(*) FROM material_resource_retrievals").
@@ -275,7 +274,7 @@ func TestLatestRowsDoNotDuplicateRetainedHistory(t *testing.T) {
 	}
 	detail, err := s.Detail(ctx, "SRY1")
 	if err != nil || len(detail.Resources) != 2 || detail.Resources[0].Name != "updated" ||
-		detail.Resources[1].Availability != "archived" {
+		!detail.Resources[1].Archived {
 		t.Fatal(detail, err)
 	}
 	materials, err := s.Materials(ctx, "KOG1")
@@ -317,7 +316,7 @@ func TestSnapshotConstraintFailureRollsBackAllChanges(t *testing.T) {
 	}
 }
 
-func TestEmptyAndNeverFetchedListsRemainDistinct(t *testing.T) {
+func TestEmptyAndNeverRetrievedListsRemainDistinct(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	if _, err := s.Courses(ctx); !errors.Is(err, domain.ErrMissing) {
@@ -348,12 +347,12 @@ func TestEmptyAndNeverFetchedListsRemainDistinct(t *testing.T) {
 		ctx,
 		"SRY1",
 	); err != nil || len(detail.Resources) != 0 ||
-		detail.Material.FetchedAt != nil {
+		detail.Material.RetrievedAt != nil {
 		t.Fatal(detail, err)
 	}
 }
 
-func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T) {
+func TestMaterialRetrievedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	snapshot := archiveSnapshot()
@@ -368,11 +367,11 @@ func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T
 		t.Fatal(err)
 	}
 	for _, material := range listing.Folders[0].Materials {
-		if material.FetchedAt != nil {
+		if material.RetrievedAt != nil {
 			t.Fatalf("listing-only material has a content timestamp: %#v", material)
 		}
 	}
-	// Even an empty resource list is a successfully fetched material detail.
+	// Even an empty resource list is a successfully retrieved material detail.
 	if _, err := s.Append(
 		ctx,
 		domain.Snapshot{MaterialID: "SRY1", Resources: []domain.RetrievedResource{}},
@@ -386,12 +385,12 @@ func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := s.db.Exec(
-		"UPDATE material_resource_retrievals SET fetched_at=1000",
+		"UPDATE material_resource_retrievals SET retrieved_at=1000",
 	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.Exec(
-		"UPDATE report_detail_retrievals SET fetched_at=2000",
+		"UPDATE report_detail_retrievals SET retrieved_at=2000",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -410,13 +409,13 @@ func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T
 		}
 		for _, material := range listing.Folders[0].Materials {
 			if material.Type == "report" {
-				if material.FetchedAt != nil {
-					t.Fatalf("report claims fetched material contents: %#v", material)
+				if material.RetrievedAt != nil {
+					t.Fatalf("report claims retrieved material contents: %#v", material)
 				}
 				continue
 			}
 			want := time.UnixMilli(1000)
-			if material.FetchedAt == nil || !material.FetchedAt.Equal(want) ||
+			if material.RetrievedAt == nil || !material.RetrievedAt.Equal(want) ||
 				material.Archived != private {
 				t.Fatalf("listing replaced content acquisition state: %#v, want %v", material, want)
 			}
@@ -424,14 +423,14 @@ func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T
 	}
 }
 
-func TestUnsupportedMaterialTypesDoNotClaimFetchedContents(t *testing.T) {
+func TestUnsupportedMaterialTypesDoNotClaimRetrievedContents(t *testing.T) {
 	for _, kind := range []string{"report", "test", "questionnaire", "e-learning", "board", "feedback", "unknown"} {
 		t.Run(kind, func(t *testing.T) {
 			s := newStore(t)
 			ctx := context.Background()
 			snapshot := archiveSnapshot()
 			snapshot.Materials.Folders[0].Materials[0].Type = kind
-			// Legacy resource retrievals must not stand in for unsupported content.
+			// A resource retrieval must not stand in for unsupported content.
 			if _, err := s.Append(ctx, snapshot); err != nil {
 				t.Fatal(err)
 			}
@@ -445,8 +444,8 @@ func TestUnsupportedMaterialTypesDoNotClaimFetchedContents(t *testing.T) {
 				t.Fatal(err)
 			}
 			material := listing.Folders[0].Materials[0]
-			if !material.Archived || material.FetchedAt != nil {
-				t.Fatalf("unsupported material claims fetched contents: %#v", material)
+			if !material.Archived || material.RetrievedAt != nil {
+				t.Fatalf("unsupported material claims retrieved contents: %#v", material)
 			}
 		})
 	}

@@ -461,8 +461,6 @@ export interface components {
     Material:
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -473,6 +471,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status: "unviewed" | "viewed" | "partially-viewed" | "unknown";
           /** @enum {string} */
@@ -480,8 +480,6 @@ export interface components {
         }
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -492,6 +490,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status:
             | "unviewed"
@@ -505,8 +505,6 @@ export interface components {
         }
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -517,6 +515,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status: "not-started" | "in-progress" | "completed" | "unknown";
           /** @enum {string} */
@@ -524,8 +524,6 @@ export interface components {
         }
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -536,6 +534,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status: "unanswered" | "answered" | "unknown";
           /** @enum {string} */
@@ -543,8 +543,6 @@ export interface components {
         }
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -555,6 +553,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status: "not-started" | "in-progress" | "completed" | "unknown";
           /** @enum {string} */
@@ -562,8 +562,6 @@ export interface components {
         }
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -574,6 +572,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status: "unposted" | "evaluated" | "unknown";
           /** @enum {string} */
@@ -581,8 +581,6 @@ export interface components {
         }
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -593,6 +591,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status: "unevaluated" | "evaluated" | "unknown";
           /** @enum {string} */
@@ -600,8 +600,6 @@ export interface components {
         }
       | {
           archived?: boolean;
-          /** Format: date-time */
-          fetchedAt?: string;
           lmsMaterialId: string;
           materialLinkAvailable: boolean;
           name: string;
@@ -612,6 +610,8 @@ export interface components {
           publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
           /** @enum {string} */
           resourceAvailability?: "available" | "unavailable";
+          /** Format: date-time */
+          retrievedAt?: string;
           /** @enum {string} */
           status: "unknown";
           /** @enum {string} */
@@ -652,12 +652,12 @@ export interface components {
       correctionLimit?: number;
       /** @enum {string} */
       correctionMode: "unknown" | "not-allowed" | "unlimited" | "limited";
-      /** Format: date-time */
-      fetchedAt?: string;
       fileAnswerAllowed?: boolean;
       /** Format: int64 */
       maxTotalFileBytes?: number;
       promptHtml?: string;
+      /** Format: date-time */
+      retrievedAt?: string;
       /** @enum {string} */
       status:
         | "unviewed"
@@ -675,8 +675,7 @@ export interface components {
       textAnswerAllowed?: boolean;
     };
     Resource: {
-      /** @enum {string} */
-      availability: "current" | "archived";
+      archived?: boolean;
       description?: string;
       /** Format: date */
       firstViewedOn?: string;
@@ -696,11 +695,10 @@ export interface components {
       path: string;
     };
     SavedFile: {
-      id: string;
+      contentHash: string;
       originalFilename: string;
-      sha256: string;
       /** Format: int64 */
-      size: number;
+      originalSize: number;
     };
   };
   responses: never;

@@ -227,7 +227,7 @@ func (h *Handler) file(ctx context.Context, input *ResourceInput) (*huma.StreamR
 		w.Header().
 			Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("ETag", `"`+file.Metadata.SHA256+`"`)
+		w.Header().Set("ETag", `"`+file.Metadata.ContentHash+`"`)
 		http.ServeContent(w, r, filename, time.Time{}, file.Content)
 	}}, nil
 }

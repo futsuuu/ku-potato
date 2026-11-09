@@ -419,7 +419,7 @@ func TestHTTPStreamsArchiveAndFileDelivery(t *testing.T) {
 		privateDetail.Material.ResourceAvailability != "unavailable" ||
 		len(privateDetail.Resources) != 1 ||
 		privateDetail.Resources[0].SavedFile == nil ||
-		privateDetail.Resources[0].Availability != "archived" {
+		!privateDetail.Resources[0].Archived {
 		t.Fatal("private material lost its archive", private, privateDetail)
 	}
 	if res := request(

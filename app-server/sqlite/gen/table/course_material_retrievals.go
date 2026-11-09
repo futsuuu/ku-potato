@@ -17,11 +17,11 @@ type courseMaterialRetrievalsTable struct {
 	sqlite.Table
 
 	// Columns
-	ID           sqlite.ColumnString
-	FetchedAt    sqlite.ColumnInteger
-	ClockMillis  sqlite.ColumnInteger
-	ClockCounter sqlite.ColumnInteger
-	LmsCourseID  sqlite.ColumnString
+	ID               sqlite.ColumnString
+	RetrievedAt      sqlite.ColumnInteger
+	TimestampMillis  sqlite.ColumnInteger
+	TimestampCounter sqlite.ColumnInteger
+	LmsCourseID      sqlite.ColumnString
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -63,25 +63,25 @@ func newCourseMaterialRetrievalsTable(schemaName, tableName, alias string) *Cour
 
 func newCourseMaterialRetrievalsTableImpl(schemaName, tableName, alias string) courseMaterialRetrievalsTable {
 	var (
-		IDColumn           = sqlite.StringColumn("id")
-		FetchedAtColumn    = sqlite.IntegerColumn("fetched_at")
-		ClockMillisColumn  = sqlite.IntegerColumn("clock_millis")
-		ClockCounterColumn = sqlite.IntegerColumn("clock_counter")
-		LmsCourseIDColumn  = sqlite.StringColumn("lms_course_id")
-		allColumns         = sqlite.ColumnList{IDColumn, FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsCourseIDColumn}
-		mutableColumns     = sqlite.ColumnList{FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, LmsCourseIDColumn}
-		defaultColumns     = sqlite.ColumnList{}
+		IDColumn               = sqlite.StringColumn("id")
+		RetrievedAtColumn      = sqlite.IntegerColumn("retrieved_at")
+		TimestampMillisColumn  = sqlite.IntegerColumn("timestamp_millis")
+		TimestampCounterColumn = sqlite.IntegerColumn("timestamp_counter")
+		LmsCourseIDColumn      = sqlite.StringColumn("lms_course_id")
+		allColumns             = sqlite.ColumnList{IDColumn, RetrievedAtColumn, TimestampMillisColumn, TimestampCounterColumn, LmsCourseIDColumn}
+		mutableColumns         = sqlite.ColumnList{RetrievedAtColumn, TimestampMillisColumn, TimestampCounterColumn, LmsCourseIDColumn}
+		defaultColumns         = sqlite.ColumnList{}
 	)
 
 	return courseMaterialRetrievalsTable{
 		Table: sqlite.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		ID:           IDColumn,
-		FetchedAt:    FetchedAtColumn,
-		ClockMillis:  ClockMillisColumn,
-		ClockCounter: ClockCounterColumn,
-		LmsCourseID:  LmsCourseIDColumn,
+		ID:               IDColumn,
+		RetrievedAt:      RetrievedAtColumn,
+		TimestampMillis:  TimestampMillisColumn,
+		TimestampCounter: TimestampCounterColumn,
+		LmsCourseID:      LmsCourseIDColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

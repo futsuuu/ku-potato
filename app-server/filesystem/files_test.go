@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,11 +33,12 @@ func TestSaveKeepsCommonCompressedFormatsUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.HasSuffix(saved.ID, zstdSuffix) || saved.Size != int64(len(body)) ||
+			if strings.HasSuffix(saved.ContentHash, zstdSuffix) ||
+				saved.OriginalSize != int64(len(body)) ||
 				saved.OriginalFilename != filename {
 				t.Fatal(saved)
 			}
-			stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ID))
+			stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ContentHash))
 			if err != nil || !bytes.Equal(stored, body) {
 				t.Fatal("stored bytes changed", err)
 			}
@@ -49,7 +51,7 @@ func TestSaveKeepsCommonCompressedFormatsUnchanged(t *testing.T) {
 			if err != nil || !bytes.Equal(opened, body) {
 				t.Fatal("opened bytes changed", err)
 			}
-			if err := files.Remove(saved); err != nil {
+			if err := files.Remove(saved.ContentHash); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -70,11 +72,11 @@ func TestSaveUsesOriginalSHA256AsIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.ID != saved.SHA256 || saved.Size != 5 ||
-		saved.SHA256 != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
+	if saved.OriginalSize != 5 ||
+		saved.ContentHash != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
 		t.Fatal(saved)
 	}
-	stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ID+zstdSuffix))
+	stored, err := os.ReadFile(filepath.Join(dir, "resources", saved.ContentHash+zstdSuffix))
 	if err != nil || len(stored) < 4 || string(stored[:4]) != "\x28\xb5\x2f\xfd" {
 		t.Fatal("saved data is not a zstd frame", err)
 	}
@@ -87,10 +89,10 @@ func TestSaveUsesOriginalSHA256AsIdentity(t *testing.T) {
 	if err != nil || string(body) != "hello" {
 		t.Fatal(string(body), err)
 	}
-	if _, err = files.Open(domain.SavedFile{ID: strings.Repeat("../", 10)}); err == nil {
+	if _, err = files.Open(domain.SavedFile{ContentHash: strings.Repeat("../", 10)}); err == nil {
 		t.Fatal("accepted traversal")
 	}
-	if err = files.Remove(saved); err != nil {
+	if err = files.Remove(saved.ContentHash); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -110,8 +112,8 @@ func TestCompressedFileSupportsSeeking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stat, err := os.Stat(filepath.Join(dir, "resources", saved.ID+zstdSuffix))
-	if err != nil || stat.Size() >= saved.Size {
+	stat, err := os.Stat(filepath.Join(dir, "resources", saved.ContentHash+zstdSuffix))
+	if err != nil || stat.Size() >= saved.OriginalSize {
 		t.Fatal("repetitive data did not compress", stat, saved, err)
 	}
 	file, err := files.Open(saved)
@@ -157,29 +159,51 @@ func TestCompressedFileSupportsSeeking(t *testing.T) {
 	}
 }
 
-func TestUncompressedContentIDRemainsReadable(t *testing.T) {
+func TestOpenAndRemoveUncompressedContent(t *testing.T) {
 	dir := t.TempDir()
 	files, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy := domain.SavedFile{ID: strings.Repeat("a", 64), Size: 6}
-	if err := os.WriteFile(filepath.Join(dir, legacy.ID), []byte("legacy"), 0o600); err != nil {
+	saved := domain.SavedFile{ContentHash: "content-hash", OriginalSize: 6}
+	if err := os.WriteFile(
+		filepath.Join(dir, saved.ContentHash),
+		[]byte("stored"),
+		0o600,
+	); err != nil {
 		t.Fatal(err)
 	}
-	file, err := files.Open(legacy)
+	file, err := files.Open(saved)
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, err := io.ReadAll(file)
 	_ = file.Close()
-	if err != nil || string(body) != "legacy" {
+	if err != nil || string(body) != "stored" {
 		t.Fatal(string(body), err)
 	}
-	if err := files.Remove(legacy); err != nil {
+	if err := files.Remove(saved.ContentHash); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := files.Open(domain.SavedFile{ID: legacy.ID + ".zip"}); err == nil {
-		t.Fatal("accepted unsupported storage format")
+	if _, err := files.Open(saved); !errors.Is(err, domain.ErrMissing) {
+		t.Fatal("removed content is still available", err)
+	}
+}
+
+func TestContentNamesCannotEscapeStorage(t *testing.T) {
+	files, err := New(filepath.Join(t.TempDir(), "files"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"", ".", "..", "../outside", `..\outside`, "/outside", "nested/file", `nested\file`} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := files.Open(domain.SavedFile{ContentHash: name}); err == nil ||
+				errors.Is(err, domain.ErrMissing) {
+				t.Fatal("invalid content name was not rejected", name, err)
+			}
+			if err := files.Remove(name); err == nil {
+				t.Fatal("removed invalid content name", name)
+			}
+		})
 	}
 }

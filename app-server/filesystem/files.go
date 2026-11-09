@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -34,8 +33,6 @@ func New(root string) (*Files, error) {
 	return &Files{root: root}, nil
 }
 
-var blobID = regexp.MustCompile(`^[a-f0-9]{64}$`)
-
 const zstdSuffix = ".zst"
 
 func alreadyCompressed(filename string) bool {
@@ -49,14 +46,18 @@ func alreadyCompressed(filename string) bool {
 	}
 }
 
-// The identity is always the hash of original bytes. Encoding is local and
-// determined by the stored name, never by OriginalFilename or the shared ID.
-func (f *Files) path(file domain.SavedFile) (string, error) {
-	if !blobID.MatchString(file.ID) {
-		return "", domain.Fail("resource-storage", "invalid saved file identity")
+// Only enforce that a content name stays within the storage directory.
+func validContentName(name string) bool {
+	return filepath.IsLocal(name) && name != "." && !strings.ContainsAny(name, `/\`)
+}
+
+// Encoding is local: the hash identifies original bytes, not their storage format.
+func (f *Files) contentPath(contentHash string) (string, error) {
+	if !validContentName(contentHash) {
+		return "", domain.Fail("resource-storage", "invalid content name")
 	}
 	for _, suffix := range []string{"", zstdSuffix} {
-		path := filepath.Join(f.root, file.ID+suffix)
+		path := filepath.Join(f.root, contentHash+suffix)
 		if _, err := os.Stat(path); err == nil {
 			return path, nil
 		} else if !os.IsNotExist(err) {
@@ -92,7 +93,7 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 		writer = encoder
 	}
 	hash := sha256.New()
-	metadata.Size, err = io.Copy(io.MultiWriter(writer, hash), in)
+	metadata.OriginalSize, err = io.Copy(io.MultiWriter(writer, hash), in)
 	if encoder != nil {
 		closeErr := encoder.Close()
 		if err == nil {
@@ -102,16 +103,15 @@ func (f *Files) Save(source, filename string) (domain.SavedFile, error) {
 	if err != nil {
 		return metadata, err
 	}
-	metadata.ID = hex.EncodeToString(hash.Sum(nil))
-	metadata.SHA256 = metadata.ID
+	metadata.ContentHash = hex.EncodeToString(hash.Sum(nil))
 	if err := out.Sync(); err != nil {
 		return metadata, err
 	}
 	if err := out.Close(); err != nil {
 		return metadata, err
 	}
-	target := filepath.Join(f.root, metadata.ID+suffix)
-	path, err := f.path(metadata)
+	target := filepath.Join(f.root, metadata.ContentHash+suffix)
+	path, err := f.contentPath(metadata.ContentHash)
 	if err != nil && !errors.Is(err, domain.ErrMissing) {
 		return metadata, err
 	}
@@ -150,14 +150,15 @@ func storedContentMatches(path string, expected domain.SavedFile) bool {
 	hash := sha256.New()
 	// Read beyond the expected end to reject oversized content and validate
 	// the zstd trailer, without expanding an arbitrarily large corrupt file.
-	size, err := io.Copy(hash, io.LimitReader(reader, expected.Size+1))
-	return err == nil && size == expected.Size && hex.EncodeToString(hash.Sum(nil)) == expected.ID
+	size, err := io.Copy(hash, io.LimitReader(reader, expected.OriginalSize+1))
+	return err == nil && size == expected.OriginalSize &&
+		hex.EncodeToString(hash.Sum(nil)) == expected.ContentHash
 }
 
 func (f *Files) Open(file domain.SavedFile) (io.ReadSeekCloser, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	path, err := f.path(file)
+	path, err := f.contentPath(file.ContentHash)
 	if err != nil {
 		return nil, err
 	}
@@ -182,20 +183,20 @@ func (f *Files) Open(file domain.SavedFile) (io.ReadSeekCloser, error) {
 		source:         in,
 		decoder:        decoder,
 		compressedSize: stat.Size(),
-		size:           file.Size,
+		size:           file.OriginalSize,
 	}, nil
 }
 
-// Remove must only be called after the archive has no references to this ID.
-func (f *Files) Remove(file domain.SavedFile) error {
+// Remove must only be called after the archive has no references to this content.
+func (f *Files) Remove(contentHash string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if !blobID.MatchString(file.ID) {
-		return domain.Fail("resource-storage", "invalid saved file identity")
+	if !validContentName(contentHash) {
+		return domain.Fail("resource-storage", "invalid content name")
 	}
 	for _, suffix := range []string{"", zstdSuffix} {
 		if err := os.Remove(
-			filepath.Join(f.root, file.ID+suffix),
+			filepath.Join(f.root, contentHash+suffix),
 		); err != nil &&
 			!os.IsNotExist(err) {
 			return err

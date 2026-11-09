@@ -28,7 +28,7 @@ func TestSameContentReusesLocalEncodingRegardlessOfFilename(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			path, err := files.path(original)
+			path, err := files.contentPath(original.ContentHash)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +40,7 @@ func TestSameContentReusesLocalEncodingRegardlessOfFilename(t *testing.T) {
 			for _, filename := range []string{"renamed.txt", "renamed.zip", "renamed.pdf", "renamed.zst"} {
 				wg.Go(func() {
 					saved, err := files.Save(source, filename)
-					if err != nil || saved.ID != original.ID || saved.SHA256 != saved.ID ||
+					if err != nil || saved.ContentHash != original.ContentHash ||
 						saved.OriginalFilename != filename {
 						t.Error(saved, err)
 					}
@@ -74,7 +74,7 @@ func TestSameContentReusesLocalEncodingRegardlessOfFilename(t *testing.T) {
 			if err != nil || !bytes.Equal(actual, body) {
 				t.Fatal(string(actual), err)
 			}
-			if err := reopened.Remove(original); err != nil {
+			if err := reopened.Remove(original.ContentHash); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -92,10 +92,11 @@ func TestEmptyContentAndFailedSaveLeaveNoTemporaryFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved, err := files.Save(source, "empty.txt")
-	if err != nil || saved.ID != fmt.Sprintf("%x", sha256.Sum256(nil)) || saved.Size != 0 {
+	if err != nil || saved.ContentHash != fmt.Sprintf("%x", sha256.Sum256(nil)) ||
+		saved.OriginalSize != 0 {
 		t.Fatal(saved, err)
 	}
-	path, err := files.path(saved)
+	path, err := files.contentPath(saved.ContentHash)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,11 @@ func TestEmptyContentAndFailedSaveLeaveNoTemporaryFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again, err := files.Save(source, "empty.zip"); err != nil || again.ID != saved.ID {
+	if again, err := files.Save(
+		source,
+		"empty.zip",
+	); err != nil ||
+		again.ContentHash != saved.ContentHash {
 		t.Fatal(again, err)
 	}
 	after, err := os.Stat(path)

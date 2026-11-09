@@ -20,11 +20,11 @@ func (s *Store) Append(
 		return ids, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	clock, err := newRetrievalClock(ctx, tx)
+	timestamp, err := newRetrievalTimestamp(ctx, tx)
 	if err != nil {
 		return ids, err
 	}
-	if ids, err = insertSnapshot(ctx, tx, clock, snapshot); err != nil {
+	if ids, err = insertSnapshot(ctx, tx, timestamp, snapshot); err != nil {
 		return outport.RetrievalIDs{}, err
 	}
 	return ids, tx.Commit()
@@ -33,7 +33,7 @@ func (s *Store) Append(
 func insertSnapshot(
 	ctx context.Context,
 	tx *sql.Tx,
-	clock retrievalClock,
+	timestamp retrievalTimestamp,
 	snapshot domain.Snapshot,
 ) (ids outport.RetrievalIDs, err error) {
 	if snapshot.Courses != nil {
@@ -41,7 +41,7 @@ func insertSnapshot(
 			ctx,
 			tx,
 			uuid.NewString(),
-			clock,
+			timestamp,
 			snapshot.AcademicYear,
 			snapshot.Courses,
 		)
@@ -50,7 +50,13 @@ func insertSnapshot(
 		}
 	}
 	if snapshot.Materials != nil {
-		ids.Materials, err = insertMaterials(ctx, tx, uuid.NewString(), clock, *snapshot.Materials)
+		ids.Materials, err = insertMaterials(
+			ctx,
+			tx,
+			uuid.NewString(),
+			timestamp,
+			*snapshot.Materials,
+		)
 		if err != nil {
 			return ids, err
 		}
@@ -63,7 +69,7 @@ func insertSnapshot(
 			ctx,
 			tx,
 			uuid.NewString(),
-			clock,
+			timestamp,
 			snapshot.MaterialID,
 			snapshot.Resources,
 		)
@@ -79,7 +85,7 @@ func insertSnapshot(
 			ctx,
 			tx,
 			uuid.NewString(),
-			clock,
+			timestamp,
 			snapshot.MaterialID,
 			*snapshot.Report,
 		)
@@ -91,18 +97,18 @@ func insertCourses(
 	ctx context.Context,
 	tx *sql.Tx,
 	id string,
-	clock retrievalClock,
+	timestamp retrievalTimestamp,
 	year int,
 	courses []domain.Course,
 ) (string, error) {
 	r := table.CourseRetrievals
 	_, err := r.INSERT(r.AllColumns).
 		MODEL(model.CourseRetrievals{
-			ID:           id,
-			AcademicYear: int64(year),
-			FetchedAt:    clock.FetchedAt,
-			ClockMillis:  clock.ClockMillis,
-			ClockCounter: clock.ClockCounter,
+			ID:               id,
+			AcademicYear:     int64(year),
+			RetrievedAt:      timestamp.RetrievedAt,
+			TimestampMillis:  timestamp.TimestampMillis,
+			TimestampCounter: timestamp.TimestampCounter,
 		}).
 		ExecContext(ctx, tx)
 	if err != nil {
@@ -132,16 +138,16 @@ func insertMaterials(
 	ctx context.Context,
 	tx *sql.Tx,
 	id string,
-	clock retrievalClock,
+	timestamp retrievalTimestamp,
 	materials domain.CourseMaterials,
 ) (string, error) {
 	r := table.CourseMaterialRetrievals
 	_, err := r.INSERT(r.AllColumns).MODEL(model.CourseMaterialRetrievals{
-		ID:           id,
-		LmsCourseID:  materials.CourseID,
-		FetchedAt:    clock.FetchedAt,
-		ClockMillis:  clock.ClockMillis,
-		ClockCounter: clock.ClockCounter,
+		ID:               id,
+		LmsCourseID:      materials.CourseID,
+		RetrievedAt:      timestamp.RetrievedAt,
+		TimestampMillis:  timestamp.TimestampMillis,
+		TimestampCounter: timestamp.TimestampCounter,
 	}).ExecContext(ctx, tx)
 	if err != nil {
 		return "", err
@@ -197,17 +203,17 @@ func insertResources(
 	ctx context.Context,
 	tx *sql.Tx,
 	id string,
-	clock retrievalClock,
+	timestamp retrievalTimestamp,
 	material string,
 	resources []domain.RetrievedResource,
 ) (string, error) {
 	r := table.MaterialResourceRetrievals
 	_, err := r.INSERT(r.AllColumns).MODEL(model.MaterialResourceRetrievals{
-		ID:            id,
-		LmsMaterialID: material,
-		FetchedAt:     clock.FetchedAt,
-		ClockMillis:   clock.ClockMillis,
-		ClockCounter:  clock.ClockCounter,
+		ID:               id,
+		LmsMaterialID:    material,
+		RetrievedAt:      timestamp.RetrievedAt,
+		TimestampMillis:  timestamp.TimestampMillis,
+		TimestampCounter: timestamp.TimestampCounter,
 	}).ExecContext(ctx, tx)
 	if err != nil {
 		return "", err

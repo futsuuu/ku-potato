@@ -94,9 +94,9 @@ erDiagram
 }
 "report_detail_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   TEXT lms_material_id
 }
 ```

@@ -50,7 +50,7 @@ type Material struct {
 	Status                  string     `json:"status" enum:"unviewed,viewed,partially-viewed,unsubmitted,submitted,resubmission-required,evaluated,not-started,in-progress,completed,unanswered,answered,unposted,unevaluated,unknown"`
 	MaterialLinkAvailable   bool       `json:"materialLinkAvailable"`
 	ResourceAvailability    string     `json:"resourceAvailability,omitempty" enum:"available,unavailable"`
-	FetchedAt               *time.Time `json:"fetchedAt,omitempty"`
+	RetrievedAt             *time.Time `json:"retrievedAt,omitempty"`
 	Archived                bool       `json:"archived,omitempty"`
 }
 type Folder struct {
@@ -63,11 +63,12 @@ type CourseMaterials struct {
 	CourseID string   `json:"lmsCourseId"`
 	Folders  []Folder `json:"folders"`
 }
+
+// SavedFile describes original bytes, independently of their local encoding.
 type SavedFile struct {
-	ID               string `json:"id" pattern:"^[a-f0-9]{64}$"`
+	ContentHash      string `json:"contentHash"` // SHA-256 of the original bytes.
 	OriginalFilename string `json:"originalFilename"`
-	SHA256           string `json:"sha256" pattern:"^[a-f0-9]{64}$"`
-	Size             int64  `json:"size" minimum:"0"`
+	OriginalSize     int64  `json:"originalSize" minimum:"0"` // Bytes before storage compression.
 }
 
 // RetrievedResource contains LMS data to append to the resource retrieval history.
@@ -92,7 +93,7 @@ type Resource struct {
 	FirstViewedOn *string    `json:"firstViewedOn,omitempty" format:"date"`
 	Description   *string    `json:"description,omitempty"`
 	URL           string     `json:"url,omitempty" format:"uri" pattern:"^https?://"`
-	Availability  string     `json:"availability" enum:"current,archived"`
+	Archived      bool       `json:"archived,omitempty"`
 	SavedFile     *SavedFile `json:"savedFile,omitempty"`
 }
 type Detail struct {
@@ -113,7 +114,7 @@ type ReportDetail struct {
 	TextAnswerAllowed    *bool      `json:"textAnswerAllowed,omitempty"`
 	FileAnswerAllowed    *bool      `json:"fileAnswerAllowed,omitempty"`
 	MaxTotalFileBytes    *int64     `json:"maxTotalFileBytes,omitempty" minimum:"0"`
-	FetchedAt            *time.Time `json:"fetchedAt,omitempty"`
+	RetrievedAt          *time.Time `json:"retrievedAt,omitempty"`
 }
 
 type Snapshot struct {
@@ -121,7 +122,7 @@ type Snapshot struct {
 	Courses      []Course         `json:"courses"`
 	Materials    *CourseMaterials `json:"courseMaterials,omitempty"`
 	MaterialID   string           `json:"lmsMaterialId,omitempty"`
-	// nil Resources means the list was not fetched; an empty slice means a fetched empty list.
+	// nil Resources means the list was not retrieved; an empty slice means a retrieved empty list.
 	Resources []RetrievedResource `json:"resources,omitempty"`
 	Report    *ReportDetail       `json:"report,omitempty"`
 }

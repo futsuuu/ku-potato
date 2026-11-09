@@ -182,7 +182,7 @@ func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
 			wantBody := "previous"
 			if scenario == "success" || scenario == "shared previous" {
 				wantBody = "replacement"
-				if current.ID == old.ID {
+				if current.ContentHash == old.ContentHash {
 					t.Fatal("successful download did not replace file")
 				}
 				if scenario == "success" {
@@ -191,7 +191,7 @@ func TestDownloadReplacesOnlySuccessfullySavedFiles(t *testing.T) {
 					}
 				}
 			} else if scenario == "same content" {
-				if current.ID != old.ID {
+				if current.ContentHash != old.ContentHash {
 					t.Fatal("identical bytes got another identity")
 				}
 			} else if current != old {

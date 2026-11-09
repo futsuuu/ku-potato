@@ -57,7 +57,7 @@ export default function ResourceRow(props: {
     const saved = resource.savedFile;
     if (saved) {
       await operation.run(async () => api.openResource(materialId, resource.lmsResourceId));
-    } else if (resource.availability === "archived" || resource.type === "unknown") {
+    } else if (resource.archived || resource.type === "unknown") {
       await operation.run(async () => openExternal(resource.url!));
     } else {
       await download();
@@ -71,7 +71,7 @@ export default function ResourceRow(props: {
           disabled={
             operation.pending() ||
             (!props.resource.savedFile &&
-              (props.resource.availability === "archived" || props.resource.type === "unknown") &&
+              (props.resource.archived || props.resource.type === "unknown") &&
               !props.resource.url)
           }
           onClick={() => void open()}
@@ -86,7 +86,7 @@ export default function ResourceRow(props: {
               : "未対応"}
         </span>
       </div>
-      <Show when={props.resource.availability === "archived"}>
+      <Show when={props.resource.archived}>
         <small class="muted-note">過去の取得データ（現在は公開されていません）</small>
       </Show>
       <div class="resource-actions">
@@ -104,7 +104,7 @@ export default function ResourceRow(props: {
         </Show>
         <Show when={props.resource.type === "external" && props.resource.savedFile}>
           <ResourceActionButton
-            disabled={operation.pending() || props.resource.availability === "archived"}
+            disabled={operation.pending() || !!props.resource.archived}
             onClick={() => void download(false)}
           >
             <Download class="icon" aria-hidden="true" />

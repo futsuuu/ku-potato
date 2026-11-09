@@ -2,9 +2,7 @@ package sqlite
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/futsuuu/ku-potato/app-server/domain"
@@ -14,19 +12,18 @@ import (
 	"github.com/go-jet/jet/v2/sqlite"
 )
 
-func savedFile(row model.SavedResources) domain.SavedFile {
+func savedFile(row model.SavedFiles) domain.SavedFile {
 	return domain.SavedFile{
-		ID:               row.FileID,
+		ContentHash:      row.ContentHash,
 		OriginalFilename: row.OriginalFilename,
-		SHA256:           row.FileID,
-		Size:             row.FileSize,
+		OriginalSize:     row.OriginalSize,
 	}
 }
 
-func (s *Store) FileReferenced(ctx context.Context, id string) (bool, error) {
-	t := table.SavedResources
+func (s *Store) ReferencesContent(ctx context.Context, contentHash string) (bool, error) {
+	t := table.SavedFiles
 	var row struct{ Referenced bool }
-	err := sqlite.SELECT(sqlite.EXISTS(t.SELECT(t.FileID).WHERE(t.FileID.EQ(sqlite.String(id)))).AS("referenced")).
+	err := sqlite.SELECT(sqlite.EXISTS(t.SELECT(t.ContentHash).WHERE(t.ContentHash.EQ(sqlite.String(contentHash)))).AS("referenced")).
 		QueryContext(ctx, s.db, &row)
 	return row.Referenced, err
 }
@@ -43,8 +40,8 @@ func findSavedFile(
 	db qrm.DB,
 	material, resource string,
 ) (domain.SavedFile, error) {
-	t := table.SavedResources
-	var row model.SavedResources
+	t := table.SavedFiles
+	var row model.SavedFiles
 	err := t.SELECT(t.AllColumns).
 		WHERE(t.LmsMaterialID.EQ(sqlite.String(material)).
 			AND(t.LmsResourceID.EQ(sqlite.String(resource)))).
@@ -61,11 +58,8 @@ func (s *Store) ReplaceSavedFile(
 	retrievalID string,
 	file domain.SavedFile,
 ) (*domain.SavedFile, error) {
-	_, decodeErr := hex.DecodeString(file.ID)
-	if decodeErr != nil || len(file.ID) != 64 || file.ID != strings.ToLower(file.ID) ||
-		file.SHA256 != file.ID ||
-		file.Size < 0 {
-		return nil, domain.Fail("invalid-input", "saved file identity must be its SHA-256")
+	if file.OriginalSize < 0 {
+		return nil, domain.Fail("invalid-input", "invalid saved file metadata")
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -77,21 +71,21 @@ func (s *Store) ReplaceSavedFile(
 	if err != nil && !errors.Is(err, domain.ErrMissing) {
 		return nil, err
 	}
-	clock, err := newArchiveClock(ctx, tx, time.Now().UnixMilli())
+	timestamp, err := nextArchiveTimestamp(ctx, tx, time.Now().UnixMilli())
 	if err != nil {
 		return nil, err
 	}
-	row := model.SavedResources{
+	row := model.SavedFiles{
 		LmsMaterialID:       material,
 		LmsResourceID:       resource,
-		FileID:              file.ID,
+		ContentHash:         file.ContentHash,
 		OriginalFilename:    file.OriginalFilename,
-		FileSize:            file.Size,
+		OriginalSize:        file.OriginalSize,
 		ResourceRetrievalID: retrievalID,
-		ClockMillis:         clock.ClockMillis,
-		ClockCounter:        clock.ClockCounter,
+		TimestampMillis:     timestamp.Millis,
+		TimestampCounter:    timestamp.Counter,
 	}
-	t := table.SavedResources
+	t := table.SavedFiles
 	if exists {
 		_, err = t.UPDATE(t.MutableColumns).MODEL(row).
 			WHERE(t.LmsMaterialID.EQ(sqlite.String(material)).

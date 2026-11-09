@@ -63,9 +63,9 @@ erDiagram
 }
 "course_material_retrievals" {
   TEXT id PK
-  INTEGER fetched_at
-  INTEGER clock_millis
-  INTEGER clock_counter
+  INTEGER retrieved_at
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
   TEXT lms_course_id
 }
 "course_materials" {

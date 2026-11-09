@@ -95,7 +95,7 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 	request, stop := context.WithTimeout(ctx, 5*time.Second)
 	defer stop()
 	result, err := app.Download(request, "SRY1", "SRS1", nil)
-	if err != nil || result.Type != "file" || result.File == nil || result.File.Size != 12 {
+	if err != nil || result.Type != "file" || result.File == nil || result.File.OriginalSize != 12 {
 		t.Fatal("external resource was not saved as file", result, err)
 	}
 	prepared, err := app.PrepareResource(request, "SRY1", "SRS1")

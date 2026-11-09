@@ -17,11 +17,11 @@ type courseRetrievalsTable struct {
 	sqlite.Table
 
 	// Columns
-	ID           sqlite.ColumnString
-	FetchedAt    sqlite.ColumnInteger
-	ClockMillis  sqlite.ColumnInteger
-	ClockCounter sqlite.ColumnInteger
-	AcademicYear sqlite.ColumnInteger
+	ID               sqlite.ColumnString
+	RetrievedAt      sqlite.ColumnInteger
+	TimestampMillis  sqlite.ColumnInteger
+	TimestampCounter sqlite.ColumnInteger
+	AcademicYear     sqlite.ColumnInteger
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -63,25 +63,25 @@ func newCourseRetrievalsTable(schemaName, tableName, alias string) *CourseRetrie
 
 func newCourseRetrievalsTableImpl(schemaName, tableName, alias string) courseRetrievalsTable {
 	var (
-		IDColumn           = sqlite.StringColumn("id")
-		FetchedAtColumn    = sqlite.IntegerColumn("fetched_at")
-		ClockMillisColumn  = sqlite.IntegerColumn("clock_millis")
-		ClockCounterColumn = sqlite.IntegerColumn("clock_counter")
-		AcademicYearColumn = sqlite.IntegerColumn("academic_year")
-		allColumns         = sqlite.ColumnList{IDColumn, FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, AcademicYearColumn}
-		mutableColumns     = sqlite.ColumnList{FetchedAtColumn, ClockMillisColumn, ClockCounterColumn, AcademicYearColumn}
-		defaultColumns     = sqlite.ColumnList{}
+		IDColumn               = sqlite.StringColumn("id")
+		RetrievedAtColumn      = sqlite.IntegerColumn("retrieved_at")
+		TimestampMillisColumn  = sqlite.IntegerColumn("timestamp_millis")
+		TimestampCounterColumn = sqlite.IntegerColumn("timestamp_counter")
+		AcademicYearColumn     = sqlite.IntegerColumn("academic_year")
+		allColumns             = sqlite.ColumnList{IDColumn, RetrievedAtColumn, TimestampMillisColumn, TimestampCounterColumn, AcademicYearColumn}
+		mutableColumns         = sqlite.ColumnList{RetrievedAtColumn, TimestampMillisColumn, TimestampCounterColumn, AcademicYearColumn}
+		defaultColumns         = sqlite.ColumnList{}
 	)
 
 	return courseRetrievalsTable{
 		Table: sqlite.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		ID:           IDColumn,
-		FetchedAt:    FetchedAtColumn,
-		ClockMillis:  ClockMillisColumn,
-		ClockCounter: ClockCounterColumn,
-		AcademicYear: AcademicYearColumn,
+		ID:               IDColumn,
+		RetrievedAt:      RetrievedAtColumn,
+		TimestampMillis:  TimestampMillisColumn,
+		TimestampCounter: TimestampCounterColumn,
+		AcademicYear:     AcademicYearColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

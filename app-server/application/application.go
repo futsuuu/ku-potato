@@ -25,7 +25,7 @@ type Application struct {
 	background context.Context
 	stop       context.CancelFunc
 	// Protect saving, reference replacement/cleanup and metadata-to-open lookup.
-	// Content IDs may be shared by downloads of different resources.
+	// Content hashes may be shared by downloads of different resources.
 	filesMu      sync.Mutex
 	files        outport.Files
 	materializer outport.ResourceMaterializer

@@ -14,17 +14,17 @@ import (
 	"github.com/go-jet/jet/v2/sqlite"
 )
 
-func storedSavedFile(t *testing.T, s *Store) model.SavedResources {
+func storedSavedFile(t *testing.T, s *Store) model.SavedFiles {
 	t.Helper()
-	var row model.SavedResources
-	r := table.SavedResources
+	var row model.SavedFiles
+	r := table.SavedFiles
 	if err := r.SELECT(r.AllColumns).QueryContext(context.Background(), s.db, &row); err != nil {
 		t.Fatal(err)
 	}
 	return row
 }
 
-func TestSavedFileUpdateClockSurvivesRestartAndIsIndependentOfRetrieval(t *testing.T) {
+func TestSavedFileTimestampSurvivesRestartAndIsIndependentOfRetrieval(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "archive.sqlite")
 	s, err := Open(path)
@@ -44,19 +44,19 @@ func TestSavedFileUpdateClockSurvivesRestartAndIsIndependentOfRetrieval(t *testi
 		t.Fatal(err)
 	}
 	file := domain.SavedFile{
-		ID: strings.Repeat("a", 64), SHA256: strings.Repeat("a", 64),
-		OriginalFilename: "first.pdf", Size: 1,
+		ContentHash:      strings.Repeat("a", 64),
+		OriginalFilename: "first.pdf", OriginalSize: 1,
 	}
 	for i := int64(11); i <= 12; i++ {
 		if _, err := s.ReplaceSavedFile(ctx, "SRY1", "SRS1", ids.Resources, file); err != nil {
 			t.Fatal(err)
 		}
 		row := storedSavedFile(t, s)
-		if row.ClockMillis != future || row.ClockCounter != i ||
+		if row.TimestampMillis != future || row.TimestampCounter != i ||
 			row.ResourceRetrievalID != ids.Resources || savedFile(row) != file {
-			t.Fatal("saved-file update did not advance its own clock", row)
+			t.Fatal("saved-file update did not receive a new timestamp", row)
 		}
-		// Updating metadata for the same content must also advance the clock.
+		// Updating metadata for the same content must also receive a new timestamp.
 		file.OriginalFilename = "renamed.pdf"
 	}
 	before := storedSavedFile(t, s)
@@ -77,17 +77,17 @@ func TestSavedFileUpdateClockSurvivesRestartAndIsIndependentOfRetrieval(t *testi
 	if err != nil || state.ClockMillis != future || state.ClockCounter != 13 {
 		t.Fatal("retrieval did not use the shared archive clock", state, err)
 	}
-	// A later save may still refer to an older retrieval, without using its clock.
+	// A later save may still refer to an older retrieval, without reusing its timestamp.
 	if _, err := s.ReplaceSavedFile(ctx, "SRY1", "SRS1", ids.Resources, file); err != nil {
 		t.Fatal(err)
 	}
 	row := storedSavedFile(t, s)
-	if row.ClockMillis != future || row.ClockCounter != 14 ||
+	if row.TimestampMillis != future || row.TimestampCounter != 14 ||
 		row.ResourceRetrievalID != ids.Resources {
 		t.Fatal(row)
 	}
 	var count int
-	if err := s.db.QueryRow("SELECT count(*) FROM saved_resources").
+	if err := s.db.QueryRow("SELECT count(*) FROM saved_files").
 		Scan(&count); err != nil ||
 		count != 1 {
 		t.Fatal("update retained saved-file history", count, err)
@@ -102,8 +102,8 @@ func TestFailedSavedFileUpdateRollsBackClockAndCurrentFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	file := domain.SavedFile{
-		ID: strings.Repeat("a", 64), SHA256: strings.Repeat("a", 64),
-		OriginalFilename: "file.pdf", Size: 1,
+		ContentHash:      strings.Repeat("a", 64),
+		OriginalFilename: "file.pdf", OriginalSize: 1,
 	}
 	if _, err := s.ReplaceSavedFile(ctx, "SRY1", "SRS1", ids.Resources, file); err != nil {
 		t.Fatal(err)
@@ -145,11 +145,11 @@ func TestFailedSavedFileUpdateRollsBackClockAndCurrentFile(t *testing.T) {
 	if after := storedSavedFile(t, s); before != after {
 		t.Fatal("clock exhaustion changed current file", before, after)
 	}
-	for _, column := range []sqlite.ColumnInteger{table.SavedResources.ClockMillis, table.SavedResources.ClockCounter} {
-		r := table.SavedResources
+	for _, column := range []sqlite.ColumnInteger{table.SavedFiles.TimestampMillis, table.SavedFiles.TimestampCounter} {
+		r := table.SavedFiles
 		if _, err := r.UPDATE(column).SET(int64(-1)).
 			WHERE(r.LmsMaterialID.EQ(sqlite.String("SRY1"))).ExecContext(ctx, s.db); err == nil {
-			t.Fatal("accepted negative update clock", column)
+			t.Fatal("accepted negative update timestamp", column)
 		}
 	}
 }

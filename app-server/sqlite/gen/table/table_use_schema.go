@@ -20,5 +20,5 @@ func UseSchema(schema string) {
 	MaterialResources = MaterialResources.FromSchema(schema)
 	ReportDetailRetrievals = ReportDetailRetrievals.FromSchema(schema)
 	ReportDetails = ReportDetails.FromSchema(schema)
-	SavedResources = SavedResources.FromSchema(schema)
+	SavedFiles = SavedFiles.FromSchema(schema)
 }

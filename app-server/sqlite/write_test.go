@@ -25,10 +25,9 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 		t.Fatal(err)
 	}
 	file := domain.SavedFile{
-		ID:               strings.Repeat("a", 64),
+		ContentHash:      strings.Repeat("a", 64),
 		OriginalFilename: "file",
-		SHA256:           strings.Repeat("a", 64),
-		Size:             1,
+		OriginalSize:     1,
 	}
 	if previous, err := s.ReplaceSavedFile(
 		ctx,
@@ -46,7 +45,7 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 		t.Fatal(detail, err)
 	}
 	var retrievalID string
-	if err := s.db.QueryRow("SELECT resource_retrieval_id FROM saved_resources").
+	if err := s.db.QueryRow("SELECT resource_retrieval_id FROM saved_files").
 		Scan(&retrievalID); err != nil || retrievalID != first.Resources || retrievalID == second.Resources {
 		t.Fatal(retrievalID, err)
 	}
@@ -63,13 +62,12 @@ func TestSavedFileKeepsItsExactResourceRetrieval(t *testing.T) {
 		}
 	}
 	// Use valid content metadata so only the resource foreign key can reject this.
-	missingResourceFile := file
 	if _, err := s.ReplaceSavedFile(
 		ctx,
 		"SRY1",
 		"SRS3",
 		first.Resources,
-		missingResourceFile,
+		file,
 	); err == nil {
 		t.Fatal("accepted resource absent from retrieval")
 	}
@@ -87,7 +85,7 @@ func TestSavedFilesOnlyKeepCurrentFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	if err := s.db.QueryRow("SELECT count(*) FROM saved_resources").
+	if err := s.db.QueryRow("SELECT count(*) FROM saved_files").
 		Scan(&count); err != nil ||
 		count != 0 {
 		t.Fatal("retrieval created empty saved file rows", count, err)
@@ -96,16 +94,14 @@ func TestSavedFilesOnlyKeepCurrentFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := domain.SavedFile{
-		ID:               strings.Repeat("a", 64),
+		ContentHash:      "first-content",
 		OriginalFilename: "first.pdf",
-		SHA256:           strings.Repeat("a", 64),
-		Size:             1,
+		OriginalSize:     1,
 	}
 	second := domain.SavedFile{
-		ID:               strings.Repeat("b", 64),
+		ContentHash:      "second-content",
 		OriginalFilename: "second.pdf",
-		SHA256:           strings.Repeat("b", 64),
-		Size:             2,
+		OriginalSize:     2,
 	}
 	if _, err := s.ReplaceSavedFile(ctx, "SRY1", "SRS1", ids.Resources, first); err != nil {
 		t.Fatal(err)
@@ -118,7 +114,7 @@ func TestSavedFilesOnlyKeepCurrentFile(t *testing.T) {
 	if err != nil || got != second {
 		t.Fatal(got, err)
 	}
-	if err := s.db.QueryRow("SELECT count(*) FROM saved_resources").
+	if err := s.db.QueryRow("SELECT count(*) FROM saved_files").
 		Scan(&count); err != nil ||
 		count != 1 {
 		t.Fatal("replacement kept file history", count, err)
@@ -151,7 +147,7 @@ func TestRetrievedResourceMetadataIsPreserved(t *testing.T) {
 	want := domain.Resource{
 		ID: retrieved.ID, Name: retrieved.Name, Type: retrieved.Type, Status: retrieved.Status,
 		RegisteredOn: &registered, FirstViewedOn: &viewed, Description: &description,
-		URL: retrieved.URL, Availability: "current",
+		URL: retrieved.URL, Archived: false,
 	}
 	if !reflect.DeepEqual(detail.Resources[0], want) {
 		t.Fatalf("resource = %+v, want %+v", detail.Resources[0], want)

@@ -43,7 +43,7 @@ func (s *Store) Courses(ctx context.Context) ([]domain.Course, error) {
 func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 	r := table.CourseRetrievals
 	_, err := latestID(ctx, db, r.SELECT(r.ID.AS("id")).
-		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).LIMIT(1))
+		ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID)...).LIMIT(1))
 	if err != nil {
 		return nil, err
 	}
@@ -51,11 +51,11 @@ func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 	hr := r.AS("history_retrieval")
 	latestPerYear := hr.SELECT(hr.ID).
 		WHERE(hr.AcademicYear.EQ(r.AcademicYear)).
-		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
+		ORDER_BY(retrievalOrder(hr.TimestampMillis, hr.TimestampCounter, hr.ID)...).LIMIT(1)
 	latestPerCourse := history.SELECT(history.RetrievalID).
 		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
 		WHERE(hr.AcademicYear.EQ(r.AcademicYear).AND(history.LmsCourseID.EQ(t.LmsCourseID))).
-		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
+		ORDER_BY(retrievalOrder(hr.TimestampMillis, hr.TimestampCounter, hr.ID)...).LIMIT(1)
 	currentYear := r.ID.EQ(sqlite.StringExp(latestPerYear))
 	var rows []struct {
 		model.Courses
@@ -65,7 +65,7 @@ func courses(ctx context.Context, db qrm.DB) ([]domain.Course, error) {
 		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
 		WHERE(currentYear.OR(
 			t.LmsCourseID.IS_NOT_NULL().AND(t.RetrievalID.EQ(sqlite.StringExp(latestPerCourse))))).
-		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID, t.Position.ASC())...).
+		ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID, t.Position.ASC())...).
 		QueryContext(ctx, db, &rows)
 	if err != nil {
 		return nil, err
@@ -129,18 +129,18 @@ func materialHistory(
 	latest := history.SELECT(history.RetrievalID).
 		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
 		WHERE(condition).
-		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
+		ORDER_BY(retrievalOrder(hr.TimestampMillis, hr.TimestampCounter, hr.ID)...).LIMIT(1)
 	var rows []materialRow
 	err := t.SELECT(t.AllColumns, f.AllColumns, r.AllColumns).
 		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID)).
 			INNER_JOIN(f, t.RetrievalID.EQ(f.RetrievalID).AND(t.FolderPosition.EQ(f.Position)))).
 		WHERE(r.LmsCourseID.EQ(sqlite.String(course)).AND(t.RetrievalID.EQ(sqlite.StringExp(latest)))).
-		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID, t.Position.ASC())...).
+		ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID, t.Position.ASC())...).
 		QueryContext(ctx, db, &rows)
 	return rows, err
 }
 
-// Listing retrievals do not mean a material's contents have been fetched.
+// Listing retrievals do not mean a material's contents have been retrieved.
 func materialContentTimes(
 	ctx context.Context,
 	db qrm.DB,
@@ -153,12 +153,12 @@ func materialContentTimes(
 	hr := r.AS("history_retrieval")
 	latest := hr.SELECT(hr.ID).
 		WHERE(hr.LmsMaterialID.EQ(r.LmsMaterialID)).
-		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
+		ORDER_BY(retrievalOrder(hr.TimestampMillis, hr.TimestampCounter, hr.ID)...).LIMIT(1)
 	var rows []struct {
-		MaterialID string
-		FetchedAt  int64
+		MaterialID  string
+		RetrievedAt int64
 	}
-	err := r.SELECT(r.LmsMaterialID.AS("material_id"), r.FetchedAt.AS("fetched_at")).
+	err := r.SELECT(r.LmsMaterialID.AS("material_id"), r.RetrievedAt.AS("retrieved_at")).
 		WHERE(r.LmsMaterialID.IN(ids).AND(r.ID.EQ(sqlite.StringExp(latest)))).
 		QueryContext(ctx, db, &rows)
 	if err != nil {
@@ -166,7 +166,7 @@ func materialContentTimes(
 	}
 	result := map[string]*time.Time{}
 	for _, row := range rows {
-		result[row.MaterialID] = millisTime(&row.FetchedAt)
+		result[row.MaterialID] = millisTime(&row.RetrievedAt)
 	}
 	return result, nil
 }
@@ -179,7 +179,7 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 		db,
 		r.SELECT(r.ID.AS("id")).
 			WHERE(r.LmsCourseID.EQ(sqlite.String(id))).
-			ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
+			ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID)...).
 			LIMIT(1),
 	)
 	if err != nil {
@@ -244,9 +244,9 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 				content = prior.CourseMaterials
 			}
 		}
-		var fetchedAt *time.Time
+		var retrievedAt *time.Time
 		if content.Type == "material" {
-			fetchedAt = contentTimes[content.LmsMaterialID]
+			retrievedAt = contentTimes[content.LmsMaterialID]
 		}
 		material := domain.Material{
 			ID:   content.LmsMaterialID,
@@ -261,7 +261,7 @@ func materials(ctx context.Context, db qrm.DB, id string) (domain.CourseMaterial
 			PublicationDeadlineAt:   millisTime(content.PublicationDeadlineAt),
 			Status:                  retrieval.Status,
 			MaterialLinkAvailable:   retrieval.MaterialLinkAvailable != 0,
-			FetchedAt:               fetchedAt,
+			RetrievedAt:             retrievedAt,
 			Archived:                courseArchived || retrieval.RetrievalID != latest || private,
 		}
 		index, current := currentFolders[retrieval.FolderPosition]
@@ -306,7 +306,7 @@ func findCourse(ctx context.Context, db qrm.DB, material string) (string, error)
 	err := r.SELECT(r.AllColumns).
 		FROM(r.INNER_JOIN(t, r.ID.EQ(t.RetrievalID))).
 		WHERE(t.LmsMaterialID.EQ(sqlite.String(material))).
-		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
+		ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID)...).
 		LIMIT(1).
 		QueryContext(ctx, db, &row)
 	if errors.Is(err, qrm.ErrNoRows) {
@@ -388,7 +388,7 @@ func resources(
 		db,
 		r.SELECT(r.ID.AS("id")).
 			WHERE(r.LmsMaterialID.EQ(sqlite.String(material))).
-			ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID)...).
+			ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID)...).
 			LIMIT(1),
 	)
 	if errors.Is(err, domain.ErrMissing) && archived {
@@ -397,29 +397,29 @@ func resources(
 	if err != nil {
 		return nil, err
 	}
-	t, state := table.MaterialResources, table.SavedResources
+	t, saved := table.MaterialResources, table.SavedFiles
 	history, hr := t.AS("history"), r.AS("history_retrieval")
 	latestPerResource := history.SELECT(history.RetrievalID).
 		FROM(history.INNER_JOIN(hr, history.RetrievalID.EQ(hr.ID))).
 		WHERE(hr.LmsMaterialID.EQ(r.LmsMaterialID).AND(history.LmsResourceID.EQ(t.LmsResourceID))).
-		ORDER_BY(retrievalOrder(hr.ClockMillis, hr.ClockCounter, hr.ID)...).LIMIT(1)
+		ORDER_BY(retrievalOrder(hr.TimestampMillis, hr.TimestampCounter, hr.ID)...).LIMIT(1)
 	var rows []model.MaterialResources
 	err = t.SELECT(t.AllColumns).
 		FROM(t.INNER_JOIN(r, t.RetrievalID.EQ(r.ID))).
 		WHERE(r.LmsMaterialID.EQ(sqlite.String(material)).AND(t.RetrievalID.EQ(sqlite.StringExp(latestPerResource)))).
-		ORDER_BY(retrievalOrder(r.ClockMillis, r.ClockCounter, r.ID, t.Position.ASC())...).
+		ORDER_BY(retrievalOrder(r.TimestampMillis, r.TimestampCounter, r.ID, t.Position.ASC())...).
 		QueryContext(ctx, db, &rows)
 	if err != nil {
 		return nil, err
 	}
-	var savedResources []model.SavedResources
-	if err := state.SELECT(state.AllColumns).
-		WHERE(state.LmsMaterialID.EQ(sqlite.String(material))).
-		QueryContext(ctx, db, &savedResources); err != nil {
+	var savedFiles []model.SavedFiles
+	if err := saved.SELECT(saved.AllColumns).
+		WHERE(saved.LmsMaterialID.EQ(sqlite.String(material))).
+		QueryContext(ctx, db, &savedFiles); err != nil {
 		return nil, err
 	}
-	byID := map[string]model.SavedResources{}
-	for _, row := range savedResources {
+	byID := map[string]model.SavedFiles{}
+	for _, row := range savedFiles {
 		byID[row.LmsResourceID] = row
 	}
 	result := []domain.Resource{}
@@ -429,14 +429,11 @@ func resources(
 			Name:          row.Name,
 			Type:          row.Type,
 			URL:           row.URL,
-			Availability:  "current",
+			Archived:      archived || row.RetrievalID != latest,
 			Status:        row.Status,
 			RegisteredOn:  row.RegisteredOn,
 			FirstViewedOn: row.FirstViewedOn,
 			Description:   row.Description,
-		}
-		if archived || row.RetrievalID != latest {
-			resource.Availability = "archived"
 		}
 		if saved, ok := byID[row.LmsResourceID]; ok {
 			file := savedFile(saved)

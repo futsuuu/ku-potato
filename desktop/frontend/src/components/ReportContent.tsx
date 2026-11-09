@@ -36,9 +36,9 @@ export default function ReportContent(props: {
               : "不明"}
         </dd>
       </dl>
-      <Show when={props.archived && props.report.fetchedAt}>
+      <Show when={props.archived && props.report.retrievedAt}>
         <small class="muted-note">
-          過去の取得データ: <span class="tnum">{formatDate(props.report.fetchedAt!)}</span>取得
+          過去の取得データ: <span class="tnum">{formatDate(props.report.retrievedAt!)}</span>取得
         </small>
       </Show>
     </section>

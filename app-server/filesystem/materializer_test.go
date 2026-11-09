@@ -22,9 +22,9 @@ func TestMaterializerReusesAndRefreshesCopies(t *testing.T) {
 		t.Fatal("prepared files are not in temp", materializer.root)
 	}
 	saved := domain.SavedFile{
-		ID:               "first",
+		ContentHash:      strings.Repeat("a", 64),
 		OriginalFilename: `../資料.pdf`,
-		Size:             int64(len("saved bytes")),
+		OriginalSize:     int64(len("saved bytes")),
 	}
 	prepare := func(content string) string {
 		t.Helper()
@@ -55,7 +55,7 @@ func TestMaterializerReusesAndRefreshesCopies(t *testing.T) {
 	if replaced == first {
 		t.Fatal("truncated file was reused")
 	}
-	saved.ID = "redownloaded"
+	saved.ContentHash = strings.Repeat("b", 64)
 	latest := prepare("saved bytes")
 	if latest == replaced {
 		t.Fatal("redownload reused the old file")
@@ -73,7 +73,11 @@ func TestMaterializerRejectsIncompleteAndCanceledCopies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved := domain.SavedFile{ID: "first", OriginalFilename: "file.txt", Size: 4}
+	saved := domain.SavedFile{
+		ContentHash:      strings.Repeat("a", 64),
+		OriginalFilename: "file.txt",
+		OriginalSize:     4,
+	}
 	failed := errors.New("copy failed")
 	if path, err := materializer.Prepare(
 		context.Background(),
@@ -119,7 +123,11 @@ func TestMaterializerConcurrentRequestsUseOneCopy(t *testing.T) {
 			path, err := materializer.Prepare(
 				context.Background(),
 				strings.NewReader("body"),
-				domain.SavedFile{ID: "first", OriginalFilename: "file.txt", Size: 4},
+				domain.SavedFile{
+					ContentHash:      strings.Repeat("a", 64),
+					OriginalFilename: "file.txt",
+					OriginalSize:     4,
+				},
 			)
 			if err != nil {
 				t.Error(err)

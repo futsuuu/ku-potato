@@ -27,7 +27,7 @@ func (a *Application) download(ctx context.Context, r operation.Request) (any, e
 		}
 	}
 	report(ctx, operation.Progress{Stage: "downloading"})
-	download, err := a.fetchDownload(ctx, r.MaterialID, r.ResourceID, preferred, cachedURL)
+	download, err := a.downloadFromSource(ctx, r.MaterialID, r.ResourceID, preferred, cachedURL)
 	if download.Path != "" {
 		defer func() {
 			if e := a.files.Discard(download.Path); e != nil {
@@ -64,26 +64,26 @@ func (a *Application) download(ctx context.Context, r operation.Request) (any, e
 		file,
 	)
 	if err != nil {
-		a.removeUnreferencedFile(ctx, file)
+		a.removeUnreferencedContent(ctx, file.ContentHash)
 		return nil, err
 	}
-	if previous != nil && previous.ID != file.ID {
-		a.removeUnreferencedFile(ctx, *previous)
+	if previous != nil && previous.ContentHash != file.ContentHash {
+		a.removeUnreferencedContent(ctx, previous.ContentHash)
 	}
 	return domain.DownloadResult{Type: "file", File: &file}, nil
 }
 
 // Caller holds filesMu so another download cannot acquire a reference between
 // the check and removal. On uncertainty, leave an orphan rather than lose data.
-func (a *Application) removeUnreferencedFile(ctx context.Context, file domain.SavedFile) {
-	referenced, err := a.archive.FileReferenced(context.WithoutCancel(ctx), file.ID)
+func (a *Application) removeUnreferencedContent(ctx context.Context, contentHash string) {
+	referenced, err := a.archive.ReferencesContent(context.WithoutCancel(ctx), contentHash)
 	if err != nil {
 		slog.Error("check saved file references", "error", err)
 		return
 	}
 	if !referenced {
-		if err := a.files.Remove(file); err != nil {
-			slog.Error("remove unreferenced resource", "error", err)
+		if err := a.files.Remove(contentHash); err != nil {
+			slog.Error("remove unreferenced content", "error", err)
 		}
 	}
 }
@@ -129,7 +129,7 @@ func (a *Application) discardTransfer(pending *pendingTransfer) {
 	}
 }
 
-func (a *Application) fetchDownload(
+func (a *Application) downloadFromSource(
 	ctx context.Context,
 	material, resource, preferred, cachedURL string,
 ) (outport.Download, error) {
