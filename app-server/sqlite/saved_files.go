@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/futsuuu/ku-potato/app-server/domain"
 	"github.com/futsuuu/ku-potato/app-server/sqlite/gen/model"
@@ -76,6 +77,10 @@ func (s *Store) ReplaceSavedFile(
 	if err != nil && !errors.Is(err, domain.ErrMissing) {
 		return nil, err
 	}
+	clock, err := newArchiveClock(ctx, tx, time.Now().UnixMilli())
+	if err != nil {
+		return nil, err
+	}
 	row := model.SavedResources{
 		LmsMaterialID:       material,
 		LmsResourceID:       resource,
@@ -83,6 +88,8 @@ func (s *Store) ReplaceSavedFile(
 		OriginalFilename:    file.OriginalFilename,
 		FileSize:            file.Size,
 		ResourceRetrievalID: retrievalID,
+		ClockMillis:         clock.ClockMillis,
+		ClockCounter:        clock.ClockCounter,
 	}
 	t := table.SavedResources
 	if exists {

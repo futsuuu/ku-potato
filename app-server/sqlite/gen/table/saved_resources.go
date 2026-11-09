@@ -23,6 +23,8 @@ type savedResourcesTable struct {
 	OriginalFilename    sqlite.ColumnString
 	FileSize            sqlite.ColumnInteger
 	ResourceRetrievalID sqlite.ColumnString
+	ClockMillis         sqlite.ColumnInteger
+	ClockCounter        sqlite.ColumnInteger
 
 	AllColumns     sqlite.ColumnList
 	MutableColumns sqlite.ColumnList
@@ -70,8 +72,10 @@ func newSavedResourcesTableImpl(schemaName, tableName, alias string) savedResour
 		OriginalFilenameColumn    = sqlite.StringColumn("original_filename")
 		FileSizeColumn            = sqlite.IntegerColumn("file_size")
 		ResourceRetrievalIDColumn = sqlite.StringColumn("resource_retrieval_id")
-		allColumns                = sqlite.ColumnList{LmsMaterialIDColumn, LmsResourceIDColumn, FileIDColumn, OriginalFilenameColumn, FileSizeColumn, ResourceRetrievalIDColumn}
-		mutableColumns            = sqlite.ColumnList{FileIDColumn, OriginalFilenameColumn, FileSizeColumn, ResourceRetrievalIDColumn}
+		ClockMillisColumn         = sqlite.IntegerColumn("clock_millis")
+		ClockCounterColumn        = sqlite.IntegerColumn("clock_counter")
+		allColumns                = sqlite.ColumnList{LmsMaterialIDColumn, LmsResourceIDColumn, FileIDColumn, OriginalFilenameColumn, FileSizeColumn, ResourceRetrievalIDColumn, ClockMillisColumn, ClockCounterColumn}
+		mutableColumns            = sqlite.ColumnList{FileIDColumn, OriginalFilenameColumn, FileSizeColumn, ResourceRetrievalIDColumn, ClockMillisColumn, ClockCounterColumn}
 		defaultColumns            = sqlite.ColumnList{}
 	)
 
@@ -85,6 +89,8 @@ func newSavedResourcesTableImpl(schemaName, tableName, alias string) savedResour
 		OriginalFilename:    OriginalFilenameColumn,
 		FileSize:            FileSizeColumn,
 		ResourceRetrievalID: ResourceRetrievalIDColumn,
+		ClockMillis:         ClockMillisColumn,
+		ClockCounter:        ClockCounterColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

@@ -2,14 +2,14 @@
 
 ## Description
 
-取得順序を採番する論理時計。端末間で共有しないローカル状態
+取得履歴と保存ファイル情報の更新順序を採番する論理時計。端末間で共有しないローカル状態
 
 <details>
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
 CREATE TABLE archive_state (
-    -- 取得順序を採番する論理時計。端末間で共有しないローカル状態
+    -- 取得履歴と保存ファイル情報の更新順序を採番する論理時計。端末間で共有しないローカル状態
     singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1), -- 常に1。DBごとに1行だけ保持する
     clock_millis INTEGER NOT NULL CHECK (clock_millis >= 0), -- 最後に採番した論理時計の時刻部分（Unixミリ秒）。実時計が戻っても減らさない
     clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0) -- 論理時計の同一時刻内の連番。時刻部分を更新したら0に戻す

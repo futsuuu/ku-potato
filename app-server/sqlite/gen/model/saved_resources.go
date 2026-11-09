@@ -14,4 +14,6 @@ type SavedResources struct {
 	OriginalFilename    string
 	FileSize            int64
 	ResourceRetrievalID string
+	ClockMillis         int64
+	ClockCounter        int64
 }

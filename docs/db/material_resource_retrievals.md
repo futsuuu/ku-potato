@@ -84,6 +84,8 @@ erDiagram
   TEXT original_filename
   INTEGER file_size
   TEXT resource_retrieval_id FK
+  INTEGER clock_millis
+  INTEGER clock_counter
 }
 ```
 

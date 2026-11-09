@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS archive_state (
-    -- 取得順序を採番する論理時計。端末間で共有しないローカル状態
+    -- 取得履歴と保存ファイル情報の更新順序を採番する論理時計。端末間で共有しないローカル状態
     singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1), -- 常に1。DBごとに1行だけ保持する
     clock_millis INTEGER NOT NULL CHECK (clock_millis >= 0), -- 最後に採番した論理時計の時刻部分（Unixミリ秒）。実時計が戻っても減らさない
     clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0) -- 論理時計の同一時刻内の連番。時刻部分を更新したら0に戻す
@@ -115,6 +115,8 @@ CREATE TABLE IF NOT EXISTS saved_resources (
     original_filename TEXT NOT NULL, -- 保存ファイルの元のファイル名
     file_size INTEGER NOT NULL CHECK (file_size >= 0), -- 保存ファイルのサイズ（バイト）
     resource_retrieval_id TEXT NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
+    clock_millis INTEGER NOT NULL CHECK (clock_millis >= 0), -- 保存ファイル情報の更新順序を決める論理時計の時刻部分（Unixミリ秒）。対応する取得履歴の時計とは独立
+    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合はfile_idと残りの共有フィールドで順序を決める
     PRIMARY KEY (lms_material_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources(retrieval_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)

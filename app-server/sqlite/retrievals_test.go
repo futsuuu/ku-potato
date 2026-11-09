@@ -195,7 +195,7 @@ func TestFindCourseUsesRetrievalClockAndID(t *testing.T) {
 	}
 }
 
-func TestRetrievalClockAdvancesWithoutPackingItsComponents(t *testing.T) {
+func TestArchiveClockAdvancesWithoutPackingItsComponents(t *testing.T) {
 	state := model.ArchiveState{
 		ClockMillis:  1000,
 		ClockCounter: 5,
@@ -203,17 +203,16 @@ func TestRetrievalClockAdvancesWithoutPackingItsComponents(t *testing.T) {
 	for _, test := range []struct{ now, millis, counter int64 }{
 		{1001, 1001, 0}, {1000, 1000, 6}, {999, 1000, 6},
 	} {
-		entry, err := advanceRetrievalClock(state, test.now)
-		if err != nil || entry.ClockMillis != test.millis || entry.ClockCounter != test.counter ||
-			entry.FetchedAt != test.now {
+		entry, err := advanceArchiveClock(state, test.now)
+		if err != nil || entry.ClockMillis != test.millis || entry.ClockCounter != test.counter {
 			t.Fatal(entry, err)
 		}
 	}
-	if _, err := advanceRetrievalClock(state, -1); err == nil {
+	if _, err := advanceArchiveClock(state, -1); err == nil {
 		t.Fatal("accepted negative timestamp")
 	}
 	state.ClockCounter = math.MaxInt64
-	if _, err := advanceRetrievalClock(state, 1000); err == nil {
+	if _, err := advanceArchiveClock(state, 1000); err == nil {
 		t.Fatal("clock counter overflowed")
 	}
 }

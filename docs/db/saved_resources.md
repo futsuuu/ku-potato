@@ -16,6 +16,8 @@ CREATE TABLE saved_resources (
     original_filename TEXT NOT NULL, -- 保存ファイルの元のファイル名
     file_size INTEGER NOT NULL CHECK (file_size >= 0), -- 保存ファイルのサイズ（バイト）
     resource_retrieval_id TEXT NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
+    clock_millis INTEGER NOT NULL CHECK (clock_millis >= 0), -- 保存ファイル情報の更新順序を決める論理時計の時刻部分（Unixミリ秒）。対応する取得履歴の時計とは独立
+    clock_counter INTEGER NOT NULL CHECK (clock_counter >= 0), -- 論理時計の同一時刻内の連番。同値の場合はfile_idと残りの共有フィールドで順序を決める
     PRIMARY KEY (lms_material_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources(retrieval_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)
@@ -34,6 +36,8 @@ CREATE TABLE saved_resources (
 | original_filename | TEXT |  | false |  |  | 保存ファイルの元のファイル名 |
 | file_size | INTEGER |  | false |  |  | 保存ファイルのサイズ（バイト） |
 | resource_retrieval_id | TEXT |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) [material_resources](material_resources.md) | 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する |
+| clock_millis | INTEGER |  | false |  |  | 保存ファイル情報の更新順序を決める論理時計の時刻部分（Unixミリ秒）。対応する取得履歴の時計とは独立 |
+| clock_counter | INTEGER |  | false |  |  | 論理時計の同一時刻内の連番。同値の場合はfile_idと残りの共有フィールドで順序を決める |
 
 ## Constraints
 
@@ -46,6 +50,8 @@ CREATE TABLE saved_resources (
 | sqlite_autoindex_saved_resources_1 | PRIMARY KEY | PRIMARY KEY (lms_material_id, lms_resource_id) |
 | - | CHECK | CHECK (length(file_id) = 64 AND file_id NOT GLOB '*[^0-9a-f]*') |
 | - | CHECK | CHECK (file_size >= 0) |
+| - | CHECK | CHECK (clock_millis >= 0) |
+| - | CHECK | CHECK (clock_counter >= 0) |
 
 ## Indexes
 
@@ -69,6 +75,8 @@ erDiagram
   TEXT original_filename
   INTEGER file_size
   TEXT resource_retrieval_id FK
+  INTEGER clock_millis
+  INTEGER clock_counter
 }
 "material_resource_retrievals" {
   TEXT id PK
