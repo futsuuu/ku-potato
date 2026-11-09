@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/futsuuu/ku-potato/app-server/domain"
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -232,11 +233,15 @@ func TestMalformedWireValuesAreRejected(t *testing.T) {
 
 func TestDecodeDatesAndResourceContents(t *testing.T) {
 	date := &workerproto.CalendarDate{Year: 2026, Month: 10, Day: 28}
+	description := "resource description"
 	resources := []*workerproto.Resource{
 		{
-			Id:           &workerproto.ResourceId{Value: "SRS1"},
-			Status:       workerproto.ResourceStatus_RESOURCE_STATUS_UNVIEWED,
-			RegisteredOn: date,
+			Id:            &workerproto.ResourceId{Value: "SRS1"},
+			Name:          "handout.pdf",
+			Status:        workerproto.ResourceStatus_RESOURCE_STATUS_UNVIEWED,
+			RegisteredOn:  date,
+			FirstViewedOn: date,
+			Description:   &description,
 			Content: &workerproto.Resource_File{
 				File: &workerproto.ResourceFile{Url: "https://example.com/file"},
 			},
@@ -261,6 +266,15 @@ func TestDecodeDatesAndResourceContents(t *testing.T) {
 		got.Resources[1].Type != "external" ||
 		got.Resources[2].Type != "unknown" {
 		t.Fatalf("resource metadata changed: %+v (%v)", got.Resources, err)
+	}
+	dateText := "2026-10-28"
+	want := domain.RetrievedResource{
+		ID: "SRS1", Name: "handout.pdf", Type: "file", Status: "unviewed",
+		RegisteredOn: &dateText, FirstViewedOn: &dateText, Description: &description,
+		URL: "https://example.com/file",
+	}
+	if !reflect.DeepEqual(got.Resources[0], want) {
+		t.Fatalf("retrieved resource = %+v, want %+v", got.Resources[0], want)
 	}
 	start := time.Date(2026, 10, 28, 15, 30, 0, 0, time.UTC)
 	gotTime, err := fromTimestamp(timestamppb.New(start))

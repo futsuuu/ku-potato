@@ -33,7 +33,7 @@ func (s providerDownloadSource) Download(
 	return outport.Download{
 		Snapshot: domain.Snapshot{
 			MaterialID: "SRY1",
-			Resources:  []domain.Resource{{ID: "SRS1", Type: "external"}},
+			Resources:  []domain.RetrievedResource{{ID: "SRS1", Type: "external"}},
 		},
 	}, s.err
 }

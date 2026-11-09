@@ -352,54 +352,53 @@ func fromDateValue(value *workerproto.CalendarDate) (*string, error) {
 	return &date, nil
 }
 
-func fromResource(value *workerproto.Resource) (domain.Resource, error) {
+func fromResource(value *workerproto.Resource) (domain.RetrievedResource, error) {
 	if value == nil {
-		return domain.Resource{}, malformed()
+		return domain.RetrievedResource{}, malformed()
 	}
 	id, err := parsedResourceID(value.GetId())
 	if err != nil {
-		return domain.Resource{}, err
+		return domain.RetrievedResource{}, err
 	}
 	status, err := fromEnum(value.GetStatus(), "RESOURCE_STATUS_", workerproto.ResourceStatus_name)
 	if err != nil {
-		return domain.Resource{}, err
+		return domain.RetrievedResource{}, err
 	}
 	registered, err := fromDateValue(value.GetRegisteredOn())
 	if err != nil {
-		return domain.Resource{}, err
+		return domain.RetrievedResource{}, err
 	}
 	viewed, err := fromDateValue(value.GetFirstViewedOn())
 	if err != nil {
-		return domain.Resource{}, err
+		return domain.RetrievedResource{}, err
 	}
-	result := domain.Resource{
+	result := domain.RetrievedResource{
 		ID:            id,
 		Name:          value.GetName(),
 		Status:        status,
 		RegisteredOn:  registered,
 		FirstViewedOn: viewed,
 		Description:   value.Description,
-		Availability:  "current",
 	}
 	switch content := value.GetContent().(type) {
 	case *workerproto.Resource_File:
 		if content.File == nil {
-			return domain.Resource{}, malformed()
+			return domain.RetrievedResource{}, malformed()
 		}
 		result.Type, result.URL = "file", content.File.GetUrl()
 	case *workerproto.Resource_ExternalUrl:
 		url, err := externalURL(content.ExternalUrl)
 		if err != nil {
-			return domain.Resource{}, err
+			return domain.RetrievedResource{}, err
 		}
 		result.Type, result.URL = "external", url
 	case *workerproto.Resource_Unknown:
 		if content.Unknown == nil {
-			return domain.Resource{}, malformed()
+			return domain.RetrievedResource{}, malformed()
 		}
 		result.Type, result.URL = "unknown", content.Unknown.GetUrl()
 	default:
-		return domain.Resource{}, malformed()
+		return domain.RetrievedResource{}, malformed()
 	}
 	return result, nil
 }
@@ -534,7 +533,7 @@ func decodeSnapshot(value *workerproto.Snapshot) (domain.Snapshot, error) {
 		result.Courses = append(result.Courses, item)
 	}
 	if value.GetResourceList() != nil {
-		result.Resources = []domain.Resource{}
+		result.Resources = []domain.RetrievedResource{}
 		for _, resource := range value.GetResourceList().GetResources() {
 			item, err := fromResource(resource)
 			if err != nil {

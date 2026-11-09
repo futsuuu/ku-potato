@@ -78,6 +78,20 @@ type Acquisition struct {
 	LastSucceededAt *time.Time `json:"lastSucceededAt,omitempty"`
 	LastAttempt     Attempt    `json:"lastAttempt"`
 }
+
+// RetrievedResource contains LMS data to append to the resource retrieval history.
+type RetrievedResource struct {
+	ID            string  `json:"lmsResourceId"`
+	Name          string  `json:"name"`
+	Type          string  `json:"type" enum:"file,external,unknown"`
+	Status        string  `json:"status,omitempty" enum:"unviewed,viewed,unknown"`
+	RegisteredOn  *string `json:"registeredOn,omitempty" format:"date"`
+	FirstViewedOn *string `json:"firstViewedOn,omitempty" format:"date"`
+	Description   *string `json:"description,omitempty"`
+	URL           string  `json:"url,omitempty" format:"uri" pattern:"^https?://"`
+}
+
+// Resource is assembled from retrieval history and the currently saved file.
 type Resource struct {
 	ID                       string       `json:"lmsResourceId"`
 	Name                     string       `json:"name"`
@@ -120,8 +134,8 @@ type Snapshot struct {
 	Materials    *CourseMaterials `json:"courseMaterials,omitempty"`
 	MaterialID   string           `json:"lmsMaterialId,omitempty"`
 	// nil Resources means the list was not fetched; an empty slice means a fetched empty list.
-	Resources []Resource    `json:"resources,omitempty"`
-	Report    *ReportDetail `json:"report,omitempty"`
+	Resources []RetrievedResource `json:"resources,omitempty"`
+	Report    *ReportDetail       `json:"report,omitempty"`
 }
 
 type CourseFailure struct {

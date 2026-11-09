@@ -115,7 +115,7 @@ func (s *source) Resources(ctx context.Context, id, _ string) (domain.Snapshot, 
 		material.PublicationDeadline = "unavailable"
 		return snapshot, err
 	}
-	snapshot.Resources = []domain.Resource{{ID: "SRS1", Name: "file.txt", Type: "file"}}
+	snapshot.Resources = []domain.RetrievedResource{{ID: "SRS1", Name: "file.txt", Type: "file"}}
 	return snapshot, err
 }
 

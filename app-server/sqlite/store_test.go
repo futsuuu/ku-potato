@@ -69,7 +69,7 @@ func TestSnapshotsPreserveFilesAndFailedAcquisition(t *testing.T) {
 			Folders:  []domain.Folder{{Name: "week", Materials: []domain.Material{{ID: "SRY1"}}}},
 		},
 		MaterialID: "SRY1",
-		Resources:  []domain.Resource{{ID: "SRS1", Name: "file", Type: "file"}},
+		Resources:  []domain.RetrievedResource{{ID: "SRS1", Name: "file", Type: "file"}},
 	}
 	observations, err := s.Append(ctx, snapshot)
 	if err != nil {
@@ -80,7 +80,7 @@ func TestSnapshotsPreserveFilesAndFailedAcquisition(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot.Materials.Folders = []domain.Folder{}
-	snapshot.Resources = []domain.Resource{}
+	snapshot.Resources = []domain.RetrievedResource{}
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestRemovedCourseArchivesItsMaterialsAndResources(t *testing.T) {
 				},
 			},
 			MaterialID: "SRY1",
-			Resources:  []domain.Resource{{ID: "SRS1"}},
+			Resources:  []domain.RetrievedResource{{ID: "SRS1"}},
 		},
 	); err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func archiveSnapshot() domain.Snapshot {
 			}}},
 		},
 		MaterialID: "SRY1",
-		Resources: []domain.Resource{
+		Resources: []domain.RetrievedResource{
 			{ID: "SRS1", Name: "file", Type: "file"},
 			{ID: "SRS2", Name: "not downloaded", Type: "file"},
 		},
@@ -231,7 +231,7 @@ func TestPrivateMaterialPreservesPastDataAcrossRestartAndRepublication(t *testin
 		t.Fatal(detail, err)
 	}
 	// A fetched empty list is a new observation, but it retains past resource metadata.
-	snapshot.Resources = []domain.Resource{}
+	snapshot.Resources = []domain.RetrievedResource{}
 	if _, err := s.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +366,7 @@ func TestMaterialFetchedAtRequiresContentsAndSurvivesListingUpdates(t *testing.T
 	// Even an empty resource list is a successfully fetched material detail.
 	if _, err := s.Append(
 		ctx,
-		domain.Snapshot{MaterialID: "SRY1", Resources: []domain.Resource{}},
+		domain.Snapshot{MaterialID: "SRY1", Resources: []domain.RetrievedResource{}},
 	); err != nil {
 		t.Fatal(err)
 	}

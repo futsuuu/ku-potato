@@ -49,7 +49,7 @@ func TestExternalDownloadIsArchivedAndDeliveredAsFile(t *testing.T) {
 			},
 		},
 		MaterialID: "SRY1",
-		Resources: []domain.Resource{
+		Resources: []domain.RetrievedResource{
 			{
 				ID:   "SRS1",
 				Name: "external",

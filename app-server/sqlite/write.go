@@ -174,7 +174,7 @@ func insertResources(
 	ctx context.Context,
 	tx *sql.Tx,
 	material string,
-	resources []domain.Resource,
+	resources []domain.RetrievedResource,
 ) (int64, error) {
 	r := table.MaterialResourceRetrievals
 	result, err := r.INSERT(r.LmsMaterialID, r.FetchedAt).MODEL(model.MaterialResourceRetrievals{

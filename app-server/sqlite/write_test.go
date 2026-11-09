@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/futsuuu/ku-potato/app-server/domain"
@@ -28,7 +29,7 @@ func TestSavedFileKeepsItsExactResourceObservation(t *testing.T) {
 		ctx,
 		domain.Snapshot{
 			MaterialID: "SRY2",
-			Resources:  []domain.Resource{{ID: "SRS1", Type: "file"}},
+			Resources:  []domain.RetrievedResource{{ID: "SRS1", Type: "file"}},
 		},
 	)
 	if err != nil {
@@ -66,5 +67,35 @@ func TestSavedFileKeepsItsExactResourceObservation(t *testing.T) {
 		first.Resources,
 	); err == nil {
 		t.Fatal("accepted observation without a saved file")
+	}
+}
+
+func TestRetrievedResourceMetadataIsPreserved(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	snapshot := archiveSnapshot()
+	registered, viewed, description := "2026-10-28", "2026-10-29", "handout description"
+	retrieved := domain.RetrievedResource{
+		ID: "SRS1", Name: "handout.pdf", Type: "file", Status: "viewed",
+		RegisteredOn: &registered, FirstViewedOn: &viewed, Description: &description,
+		URL: "https://example.com/file",
+	}
+	snapshot.Resources = []domain.RetrievedResource{retrieved}
+	ids, err := s.Append(ctx, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail, err := s.Detail(ctx, "SRY1")
+	if err != nil || len(detail.Resources) != 1 {
+		t.Fatal(detail, err)
+	}
+	want := domain.Resource{
+		ID: retrieved.ID, Name: retrieved.Name, Type: retrieved.Type, Status: retrieved.Status,
+		RegisteredOn: &registered, FirstViewedOn: &viewed, Description: &description,
+		URL: retrieved.URL, Availability: "current",
+	}
+	want.RetrievalID = ids.Resources
+	if !reflect.DeepEqual(detail.Resources[0], want) {
+		t.Fatalf("resource = %+v, want %+v", detail.Resources[0], want)
 	}
 }
