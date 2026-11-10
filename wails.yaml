@@ -8,7 +8,7 @@ project:
 frontend:
   directory: desktop/frontend
   install: [vp, install, --frozen-lockfile]
-  build: [vp, run, -w, frontend:build]
+  build: [vp, run, -w, desktop:frontend:build]
   dev: [vp, dev]
   output: dist/client
   bindings:

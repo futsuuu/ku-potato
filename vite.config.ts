@@ -4,37 +4,24 @@ import solidLint from "eslint-plugin-solid/configs/v2";
 export default defineConfig({
   run: {
     tasks: {
-      "proto:generate": {
-        command: "go run ./tools/proto-codegen",
+      "app-server:api:docs": {
+        command:
+          "node tools/openapi-docs/generate.ts tools/api-codegen/openapi.generated.json docs/app-server-api",
+        dependsOn: ["app-server:api:generate"],
         cache: false,
       },
-      "proto:check": {
-        command: "clang-format --dry-run --Werror browser-worker/protocol/worker.proto",
-        cache: false,
-      },
-      "worker:build": {
-        command: "go build -o ./desktop/build/bin/ ./browser-worker/cmd/ku-potato-browser-worker",
+      "app-server:api:generate": {
+        command:
+          "go run ./app-server/cmd/ku-potato-server openapi -out tools/api-codegen/openapi.generated.json",
         cache: {
-          input: ["browser-worker/**/*", "internal/**/*", "go.mod", "go.sum"],
-          output: ["desktop/build/bin/ku-potato-browser-worker*"],
+          input: ["app-server/**/*", "internal/**/*", "go.mod", "go.sum", "mise.toml"],
+          output: ["tools/api-codegen/openapi.generated.json"],
           env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
         },
       },
-      "server:docs": {
-        command:
-          "node tools/openapi-docs/generate.ts tools/api-codegen/openapi.generated.json docs/app-server-api",
-        dependsOn: ["frontend:install", "openapi:generate"],
-        cache: false,
-      },
-      "server:dev": {
-        command:
-          "go run ./app-server/cmd/ku-potato-server -worker ./desktop/build/bin/ku-potato-browser-worker",
-        dependsOn: ["worker:build"],
-        cache: false,
-      },
-      "server:build": {
+      "app-server:build": {
         command: "go build -o ./desktop/build/bin/ ./app-server/cmd/ku-potato-server",
-        dependsOn: ["worker:build"],
+        dependsOn: ["browser-worker:build"],
         cache: {
           input: [
             "app-server/**/*",
@@ -48,39 +35,7 @@ export default defineConfig({
           env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
         },
       },
-      "frontend:install": {
-        command: "vp install --frozen-lockfile",
-        cache: false,
-      },
-      "openapi:generate": {
-        command:
-          "go run ./app-server/cmd/ku-potato-server openapi -out tools/api-codegen/openapi.generated.json",
-        cache: {
-          input: ["app-server/**/*", "internal/**/*", "go.mod", "go.sum", "mise.toml"],
-          output: ["tools/api-codegen/openapi.generated.json"],
-          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
-        },
-      },
-      "api:generate": {
-        command: "node generate.mjs openapi.generated.json",
-        cwd: "tools/api-codegen",
-        dependsOn: ["frontend:install", "openapi:generate"],
-      },
-      "openapi-docs:test": {
-        command: "vp test run",
-        cwd: "tools/openapi-docs",
-        dependsOn: ["frontend:install"],
-        cache: false,
-      },
-      "db:generate": {
-        command: "go run ./tools/db-codegen",
-        cache: false,
-      },
-      "db:docs": {
-        command: "go run ./tools/db-docs",
-        cache: false,
-      },
-      "db:check": {
+      "app-server:db:check": {
         command: "go run ./tools/db-codegen -check",
         cache: {
           input: [
@@ -95,29 +50,73 @@ export default defineConfig({
           env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
         },
       },
-      dev: {
-        command: "node tools/wails.mjs dev",
-        dependsOn: ["server:build", "frontend:install"],
+      "app-server:db:docs": {
+        command: "go run ./tools/db-docs",
+        cache: false,
+      },
+      "app-server:db:generate": {
+        command: "go run ./tools/db-codegen",
+        cache: false,
+      },
+      "app-server:dev": {
+        command:
+          "go run ./app-server/cmd/ku-potato-server -worker ./desktop/build/bin/ku-potato-browser-worker",
+        dependsOn: ["browser-worker:build"],
+        cache: false,
+      },
+      "browser-worker:browser:test": {
+        command: "go test ./browser-worker/browser/tests -count=1 -v",
+        cache: false,
+      },
+      "browser-worker:build": {
+        command: "go build -o ./desktop/build/bin/ ./browser-worker/cmd/ku-potato-browser-worker",
+        cache: {
+          input: ["browser-worker/**/*", "internal/**/*", "go.mod", "go.sum"],
+          output: ["desktop/build/bin/ku-potato-browser-worker*"],
+          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+        },
+      },
+      "browser-worker:proto:check": {
+        command: "clang-format --dry-run --Werror browser-worker/protocol/worker.proto",
+        cache: false,
+      },
+      "browser-worker:proto:generate": {
+        command: "go run ./tools/proto-codegen",
         cache: false,
       },
       build: {
         command: "node tools/wails.mjs build",
-        dependsOn: ["server:build"],
-        cache: false,
-      },
-      test: {
-        command:
-          "go test -count=1 ./app-server/... ./browser-worker/... ./internal/... ./desktop/...",
-        dependsOn: ["frontend:build", "frontend:test", "openapi-docs:test"],
-        cache: false,
-      },
-      "server:browser-test": {
-        command: "go test ./browser-worker/browser/tests -count=1 -v",
+        dependsOn: ["app-server:build"],
         cache: false,
       },
       check: {
         command: ["vp check", "golangci-lint fmt --diff", "golangci-lint run ./..."],
-        dependsOn: ["frontend:build", "db:check", "proto:check"],
+        dependsOn: ["desktop:frontend:build", "app-server:db:check", "browser-worker:proto:check"],
+        cache: false,
+      },
+      "desktop:bindings:generate": {
+        command: "go tool wails3 generate bindings -ts -d frontend/bindings .",
+        cwd: "desktop",
+        cache: false,
+      },
+      "desktop:frontend:api:generate": {
+        command: "node generate.mjs openapi.generated.json",
+        cwd: "tools/api-codegen",
+        dependsOn: ["app-server:api:generate"],
+      },
+      "desktop:frontend:build": {
+        command: "vp build",
+        cwd: "desktop/frontend",
+        dependsOn: ["desktop:frontend:api:generate", "desktop:bindings:generate"],
+      },
+      "desktop:frontend:test": {
+        command: "vp test run",
+        cwd: "desktop/frontend",
+        dependsOn: ["desktop:bindings:generate"],
+      },
+      dev: {
+        command: "node tools/wails.mjs dev",
+        dependsOn: ["app-server:build"],
         cache: false,
       },
       format: {
@@ -128,20 +127,16 @@ export default defineConfig({
         ],
         cache: false,
       },
-      "desktop:bindings": {
-        command: "go tool wails3 generate bindings -ts -d frontend/bindings .",
-        cwd: "desktop",
+      test: {
+        command:
+          "go test -count=1 ./app-server/... ./browser-worker/... ./internal/... ./desktop/...",
+        dependsOn: ["desktop:frontend:build", "desktop:frontend:test", "tools:openapi-docs:test"],
         cache: false,
       },
-      "frontend:build": {
-        command: "vp build",
-        cwd: "desktop/frontend",
-        dependsOn: ["api:generate", "desktop:bindings"],
-      },
-      "frontend:test": {
+      "tools:openapi-docs:test": {
         command: "vp test run",
-        cwd: "desktop/frontend",
-        dependsOn: ["desktop:bindings"],
+        cwd: "tools/openapi-docs",
+        cache: false,
       },
     },
   },

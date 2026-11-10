@@ -76,7 +76,7 @@ func compare(source, destination string) error {
 		actual, err := os.ReadFile(filepath.Join(destination, relative))
 		if err != nil || !bytes.Equal(expected, actual) {
 			return fmt.Errorf(
-				"generated database types are stale (%s); run vp run db:generate",
+				"generated database types are stale (%s); run vp run app-server:db:generate",
 				relative,
 			)
 		}
