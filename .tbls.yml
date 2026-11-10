@@ -1,4 +1,4 @@
 name: ku-potato
-docPath: docs/db
+docPath: docs/app-server-db
 er:
   format: mermaid
