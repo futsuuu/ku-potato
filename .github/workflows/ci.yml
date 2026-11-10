@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
@@ -18,8 +22,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
+        id: go
         with:
           go-version-file: go.mod
+          cache: false
+      - name: Locate Go caches
+        id: go-cache
+        shell: bash
+        run: |
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+      # Refresh compiled packages per commit and reuse them across dependency updates.
+      # Keep test and check separate so the faster job cannot freeze a partial cache.
+      - uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.mod }}
+            ${{ steps.go-cache.outputs.build }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.sum') }}-
+            go-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ steps.go.outputs.go-version }}-
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
@@ -27,7 +50,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
       - run: vp run build
       - run: vp run test
 
@@ -36,8 +59,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
+        id: go
         with:
           go-version-file: go.mod
+          cache: false
+      - name: Locate Go caches
+        id: go-cache
+        shell: bash
+        run: |
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.mod }}
+            ${{ steps.go-cache.outputs.build }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.sum') }}-
+            go-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ steps.go.outputs.go-version }}-
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
@@ -48,5 +88,5 @@ jobs:
       - name: Install check dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
+          sudo apt-get install -y --no-install-recommends clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
       - run: vp run check
