@@ -1,0 +1,11 @@
+{
+  "name": "@ku-potato/openapi-docs",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@scalar/openapi-to-markdown": "1.7.3"
+  },
+  "devDependencies": {
+    "@scalar/openapi-types": "0.9.8"
+  }
+}

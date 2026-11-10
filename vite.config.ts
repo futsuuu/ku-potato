@@ -60,6 +60,12 @@ export default defineConfig({
         cwd: "tools/api-codegen",
         dependsOn: ["frontend:install", "openapi:generate"],
       },
+      "openapi-docs:test": {
+        command: "vp test run",
+        cwd: "tools/openapi-docs",
+        dependsOn: ["frontend:install"],
+        cache: false,
+      },
       "db:generate": {
         command: "go run ./tools/db-codegen",
         cache: false,
@@ -96,7 +102,7 @@ export default defineConfig({
       test: {
         command:
           "go test -count=1 ./app-server/... ./browser-worker/... ./internal/... ./desktop/...",
-        dependsOn: ["frontend:build", "frontend:test"],
+        dependsOn: ["frontend:build", "frontend:test", "openapi-docs:test"],
         cache: false,
       },
       "server:browser-test": {
