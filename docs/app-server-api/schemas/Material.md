@@ -1,0 +1,102 @@
+# Material
+
+**One of:**
+
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"unviewed", "viewed", "partially-viewed", "unknown"`
+  - **`type` (required)**: `string`, possible values: `"material"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"unviewed", "unsubmitted", "submitted", "resubmission-required", "evaluated", "unknown"`
+  - **`type` (required)**: `string`, possible values: `"report"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"not-started", "in-progress", "completed", "unknown"`
+  - **`type` (required)**: `string`, possible values: `"test"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"unanswered", "answered", "unknown"`
+  - **`type` (required)**: `string`, possible values: `"questionnaire"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"not-started", "in-progress", "completed", "unknown"`
+  - **`type` (required)**: `string`, possible values: `"e-learning"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"unposted", "evaluated", "unknown"`
+  - **`type` (required)**: `string`, possible values: `"board"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"unevaluated", "evaluated", "unknown"`
+  - **`type` (required)**: `string`, possible values: `"feedback"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+- `object`, no additional properties
+  - **`lmsMaterialId` (required)**: `string`
+  - **`materialLinkAvailable` (required)**: `boolean`
+  - **`name` (required)**: `string`
+  - **`publicationDeadline` (required)**: `string`
+  - **`status` (required)**: `string`, possible values: `"unknown"`
+  - **`type` (required)**: `string`, possible values: `"unknown"`
+  - **`archived`**: `boolean`
+  - **`publicationDeadlineAt`**: `string`, format: `date-time`
+  - **`publicationDeadlineKind`**: `string`, possible values: `"at", "unlisted", "closed", "unknown"`
+  - **`resourceAvailability`**: `string`, possible values: `"available", "unavailable"`
+  - **`retrievedAt`**: `string`, format: `date-time`
+
+[API index](../README.md)

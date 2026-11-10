@@ -20,6 +20,12 @@ export default defineConfig({
           env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
         },
       },
+      "server:docs": {
+        command:
+          "node tools/openapi-docs/generate.ts tools/api-codegen/openapi.generated.json docs/app-server-api",
+        dependsOn: ["frontend:install", "openapi:generate"],
+        cache: false,
+      },
       "server:dev": {
         command:
           "go run ./app-server/cmd/ku-potato-server -worker ./desktop/build/bin/ku-potato-browser-worker",
