@@ -1,10 +1,10 @@
-package browserworker
+package grpcprocess
 
 import (
 	"os/exec"
 	"syscall"
 )
 
-func configureWorkerProcess(command *exec.Cmd) {
+func configureProcess(command *exec.Cmd) {
 	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000}
 }
