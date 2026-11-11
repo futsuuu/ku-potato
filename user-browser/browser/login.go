@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func js(value any) string { body, _ := json.Marshal(value); return string(body) }
@@ -109,7 +108,7 @@ func (b *Browser) authenticate(ctx context.Context, interactive bool, stored *cr
 			return err
 		}
 		if notLogin {
-			return domain.Fail("source", "KU-LMS のログイン画面を開けません。")
+			return Fail("source", "KU-LMS のログイン画面を開けません。")
 		}
 	}
 	var home bool
@@ -146,7 +145,7 @@ func (b *Browser) authenticate(ctx context.Context, interactive bool, stored *cr
 		}
 	}
 	if !interactive {
-		return domain.Fail(
+		return Fail(
 			"authentication-required",
 			"再ログインが必要です。interactive=true の login ジョブを実行してください。",
 		)
@@ -281,7 +280,7 @@ func (b *Browser) Login(ctx context.Context, interactive bool) error {
 
 func (b *Browser) Status(ctx context.Context) (bool, error) {
 	err := b.Login(ctx, false)
-	var failure *domain.Error
+	var failure *Error
 	if errors.As(err, &failure) && failure.Reason == "authentication-required" {
 		return false, nil
 	}

@@ -17,12 +17,12 @@ import (
 
 	"github.com/futsuuu/ku-potato/app-server/application"
 	"github.com/futsuuu/ku-potato/app-server/authstate"
-	chromedp "github.com/futsuuu/ku-potato/app-server/browserauth"
 	"github.com/futsuuu/ku-potato/app-server/browserworker"
 	"github.com/futsuuu/ku-potato/app-server/filesystem"
 	"github.com/futsuuu/ku-potato/app-server/googledrive"
 	"github.com/futsuuu/ku-potato/app-server/httpapi"
 	"github.com/futsuuu/ku-potato/app-server/sqlite"
+	"github.com/futsuuu/ku-potato/app-server/userbrowser"
 	"github.com/futsuuu/ku-potato/internal/appdirs"
 )
 
@@ -60,6 +60,11 @@ func run() error {
 		"worker",
 		"",
 		"browser worker executable (defaults to adjacent binary)",
+	)
+	userBrowserBinary := flag.String(
+		"user-browser",
+		"",
+		"user browser executable (defaults to adjacent binary)",
 	)
 	timeout := flag.Duration("job-timeout", 2*time.Minute, "non-interactive job timeout")
 	flag.Parse()
@@ -108,23 +113,25 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	authBrowser, err := chromedp.New(chromedp.Options{
-		StateDir: *state, ProfileDir: filepath.Join(*state, "user-profile"),
-		CacheDir:   filepath.Join(*cache, "user-browser"),
-		Executable: *executable,
-	})
-	if err != nil {
-		return err
-	}
-	defer func() { _ = authBrowser.Close() }()
-	lmsAuth := chromedp.NewLMSAuthenticator(authBrowser)
-	google := chromedp.NewGoogle(authBrowser)
 	materializer, err := filesystem.NewMaterializer(tempRoot)
 	if err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	userBrowserProcess, err := userbrowser.Start(
+		ctx,
+		*userBrowserBinary,
+		*state,
+		filepath.Join(*cache, "user-browser"),
+		*executable,
+	)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = userBrowserProcess.Close() }()
+	lmsAuth := userbrowser.NewLMS(userBrowserProcess.Client)
+	google := userbrowser.NewGoogle(userBrowserProcess.Client)
 	workerProcess, err := browserworker.Start(
 		ctx,
 		*workerBinary,
@@ -189,6 +196,10 @@ func run() error {
 	case result = <-serverDone:
 		if errors.Is(result, http.ErrServerClosed) {
 			result = nil
+		}
+	case result = <-userBrowserProcess.Done:
+		if result == nil {
+			result = errors.New("user browser exited")
 		}
 	case result = <-workerProcess.Done:
 		if result == nil {

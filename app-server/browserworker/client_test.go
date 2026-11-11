@@ -12,11 +12,13 @@ import (
 
 	"github.com/futsuuu/ku-potato/app-server/domain"
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
+	userproto "github.com/futsuuu/ku-potato/user-browser/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type fileWorker struct {
@@ -45,6 +47,43 @@ func (w fileWorker) Download(
 	return stream.Send(
 		&workerproto.DownloadPart{Part: &workerproto.DownloadPart_Chunk{Chunk: []byte("content")}},
 	)
+}
+
+func TestCookieBridgePreservesAttributes(t *testing.T) {
+	expires := &timestamppb.Timestamp{Seconds: 1800000000}
+	cookie := &userproto.Cookie{
+		Name:         "sso",
+		Value:        "session",
+		Domain:       ".example.org",
+		Path:         "/sso",
+		Secure:       true,
+		HttpOnly:     true,
+		SameSite:     userproto.CookieSameSite_COOKIE_SAME_SITE_NONE,
+		Priority:     userproto.CookiePriority_COOKIE_PRIORITY_HIGH,
+		SourceScheme: userproto.CookieSourceScheme_COOKIE_SOURCE_SCHEME_SECURE,
+		SourcePort:   443,
+		Expires:      expires,
+		PartitionKey: &userproto.PartitionKey{
+			TopLevelSite:         "https://example.org",
+			HasCrossSiteAncestor: true,
+		},
+	}
+	got, err := encodeCookie(cookie)
+	if err != nil || got.GetName() != "sso" || got.GetValue() != "session" ||
+		got.GetDomain() != ".example.org" || got.GetPath() != "/sso" || !got.GetSecure() || !got.GetHttpOnly() ||
+		got.GetSameSite() != workerproto.CookieSameSite_COOKIE_SAME_SITE_NONE ||
+		got.GetPriority() != workerproto.CookiePriority_COOKIE_PRIORITY_HIGH ||
+		got.GetSourceScheme() != workerproto.CookieSourceScheme_COOKIE_SOURCE_SCHEME_SECURE ||
+		got.GetSourcePort() != 443 || got.GetExpires() != expires ||
+		got.GetPartitionKey().
+			GetTopLevelSite() !=
+			"https://example.org" || !got.GetPartitionKey().GetHasCrossSiteAncestor() {
+		t.Fatal("cookie bridge lost attributes", got, err)
+	}
+	cookie.SameSite = userproto.CookieSameSite(100)
+	if _, err := encodeCookie(cookie); err == nil {
+		t.Fatal("unknown cookie enum accepted")
+	}
 }
 
 func TestStructuredFailureDoesNotDependOnMessageText(t *testing.T) {

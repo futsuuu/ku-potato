@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/chromedp/cdproto/webauthn"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type credentials struct {
@@ -22,14 +21,14 @@ func (b *Browser) credentialPath() string {
 
 func (b *Browser) WebAuthnRegistrationStatus(
 	ctx context.Context,
-) (domain.RegistrationResult, error) {
+) (RegistrationResult, error) {
 	b.authMu.Lock()
 	defer b.authMu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return domain.RegistrationResult{}, err
+		return RegistrationResult{}, err
 	}
 	stored, err := b.loadCredentials()
-	return domain.RegistrationResult{Registered: stored != nil}, err
+	return RegistrationResult{Registered: stored != nil}, err
 }
 
 func (b *Browser) DeleteWebAuthn(ctx context.Context) error {
@@ -39,7 +38,7 @@ func (b *Browser) DeleteWebAuthn(ctx context.Context) error {
 		return err
 	}
 	if err := os.Remove(b.credentialPath()); err != nil && !os.IsNotExist(err) {
-		return domain.Fail("authentication-storage", "WebAuthn認証情報を削除できません。")
+		return Fail("authentication-storage", "WebAuthn認証情報を削除できません。")
 	}
 	return nil
 }
@@ -50,16 +49,16 @@ func (b *Browser) loadCredentials() (*credentials, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, domain.Fail("authentication-storage", "認証情報を読み込めません。")
+		return nil, Fail("authentication-storage", "認証情報を読み込めません。")
 	}
 	var stored credentials
 	if json.Unmarshal(body, &stored) != nil || stored.Version != 1 || stored.Username == "" ||
 		len(stored.Credentials) == 0 {
-		return nil, domain.Fail("authentication-storage", "保存済みのWebAuthn認証情報が不正です。")
+		return nil, Fail("authentication-storage", "保存済みのWebAuthn認証情報が不正です。")
 	}
 	for _, c := range stored.Credentials {
 		if c == nil || len(c.CredentialID) == 0 || len(c.PrivateKey) == 0 || c.RpID == "" {
-			return nil, domain.Fail("authentication-storage", "保存済みのWebAuthn認証情報が不正です。")
+			return nil, Fail("authentication-storage", "保存済みのWebAuthn認証情報が不正です。")
 		}
 	}
 	return &stored, nil
@@ -123,19 +122,19 @@ func (b *Browser) saveCredentials(
 ) error {
 	items, err := webauthn.GetCredentials(id).Do(ctx)
 	if err != nil {
-		return domain.Fail("authentication-storage", "WebAuthn認証情報を取得できません。")
+		return Fail("authentication-storage", "WebAuthn認証情報を取得できません。")
 	}
 	if len(items) == 0 {
-		return domain.Fail("authentication-storage", "WebAuthn認証情報が生成されていません。")
+		return Fail("authentication-storage", "WebAuthn認証情報が生成されていません。")
 	}
 	if err = os.MkdirAll(filepath.Dir(b.credentialPath()), 0o700); err != nil {
-		return domain.Fail("authentication-storage", "WebAuthn認証情報を保存できません。")
+		return Fail("authentication-storage", "WebAuthn認証情報を保存できません。")
 	}
 	if err = atomicJSON(
 		b.credentialPath(),
 		credentials{Version: 1, Username: username, Credentials: items},
 	); err != nil {
-		return domain.Fail("authentication-storage", "WebAuthn認証情報を保存できません。")
+		return Fail("authentication-storage", "WebAuthn認証情報を保存できません。")
 	}
 	return nil
 }

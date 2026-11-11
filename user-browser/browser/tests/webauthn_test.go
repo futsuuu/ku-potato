@@ -14,8 +14,7 @@ import (
 	"testing"
 	"time"
 
-	adapter "github.com/futsuuu/ku-potato/app-server/browserauth"
-	"github.com/futsuuu/ku-potato/app-server/domain"
+	adapter "github.com/futsuuu/ku-potato/user-browser/browser"
 )
 
 func TestVirtualWebAuthnKeyIsSavedBeforeRegistration(t *testing.T) {
@@ -178,7 +177,7 @@ document.querySelector('#datatable tbody').innerHTML='<tr><td><input id="id_1" v
 		t.Fatal("assertion counter was not persisted", err)
 	}
 	err = browser.RegisterWebAuthn(ctx, false)
-	var failure *domain.Error
+	var failure *adapter.Error
 	if !errors.As(err, &failure) || failure.Reason != "conflict" {
 		t.Fatal("duplicate registration accepted", err)
 	}

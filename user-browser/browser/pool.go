@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 	"github.com/futsuuu/ku-potato/internal/processlifetime"
 )
 
@@ -98,7 +97,7 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return domain.Fail(
+		return Fail(
 			"browser-start",
 			"Chrome を起動できません。KU-POTATO 用の Chrome が残っていないか、Chrome のパスと認証プロファイルの使用状況を確認してください。",
 		)
@@ -110,7 +109,7 @@ func (b *Browser) start(ctx context.Context, interactive bool) error {
 			"error", err,
 		)
 		b.stopRuntime()
-		return domain.Fail("browser-start", "Chrome のプロセス管理を設定できません。")
+		return Fail("browser-start", "Chrome のプロセス管理を設定できません。")
 	}
 	b.closeProcess = closeProcess
 	return nil

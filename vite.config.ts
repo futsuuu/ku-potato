@@ -21,11 +21,12 @@ export default defineConfig({
       },
       "app-server:build": {
         command: "go build -o ./desktop/build/bin/ ./app-server/cmd/ku-potato-server",
-        dependsOn: ["browser-worker:build"],
+        dependsOn: ["browser-worker:build", "user-browser:build"],
         cache: {
           input: [
             "app-server/**/*",
             "browser-worker/**/*",
+            "user-browser/**/*",
             "internal/**/*",
             "go.mod",
             "go.sum",
@@ -60,8 +61,8 @@ export default defineConfig({
       },
       "app-server:dev": {
         command:
-          "go run ./app-server/cmd/ku-potato-server -worker ./desktop/build/bin/ku-potato-browser-worker",
-        dependsOn: ["browser-worker:build"],
+          "go run ./app-server/cmd/ku-potato-server -worker ./desktop/build/bin/ku-potato-browser-worker -user-browser ./desktop/build/bin/ku-potato-user-browser",
+        dependsOn: ["browser-worker:build", "user-browser:build"],
         cache: false,
       },
       "browser-worker:browser:test": {
@@ -91,7 +92,12 @@ export default defineConfig({
       },
       check: {
         command: ["vp check", "golangci-lint fmt --diff", "golangci-lint run ./..."],
-        dependsOn: ["desktop:frontend:build", "app-server:db:check", "browser-worker:proto:check"],
+        dependsOn: [
+          "desktop:frontend:build",
+          "app-server:db:check",
+          "browser-worker:proto:check",
+          "user-browser:proto:check",
+        ],
         cache: false,
       },
       "desktop:bindings:generate": {
@@ -123,19 +129,39 @@ export default defineConfig({
         command: [
           "vp fmt",
           "golangci-lint fmt",
-          "clang-format -i browser-worker/protocol/worker.proto",
+          "clang-format -i browser-worker/protocol/worker.proto user-browser/protocol/user_browser.proto",
         ],
         cache: false,
       },
       test: {
         command:
-          "go test -count=1 ./app-server/... ./browser-worker/... ./internal/... ./desktop/...",
+          "go test -count=1 ./app-server/... ./browser-worker/... ./user-browser/... ./internal/... ./desktop/...",
         dependsOn: ["desktop:frontend:build", "desktop:frontend:test", "tools:openapi-docs:test"],
         cache: false,
       },
       "tools:openapi-docs:test": {
         command: "vp test run",
         cwd: "tools/openapi-docs",
+        cache: false,
+      },
+      "user-browser:browser:test": {
+        command: "go test ./user-browser/browser/... -count=1 -v",
+        cache: false,
+      },
+      "user-browser:build": {
+        command: "go build -o ./desktop/build/bin/ ./user-browser/cmd/ku-potato-user-browser",
+        cache: {
+          input: ["user-browser/**/*", "internal/**/*", "go.mod", "go.sum"],
+          output: ["desktop/build/bin/ku-potato-user-browser*"],
+          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+        },
+      },
+      "user-browser:proto:check": {
+        command: "clang-format --dry-run --Werror user-browser/protocol/user_browser.proto",
+        cache: false,
+      },
+      "user-browser:proto:generate": {
+        command: "go run ./tools/proto-codegen",
         cache: false,
       },
     },

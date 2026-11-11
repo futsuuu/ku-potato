@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"context"
@@ -216,12 +216,12 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 		t.Fatal("session lost after restart", ok, err)
 	}
 	t.Log("session restored from the browser profile")
-	jar, err := g.CookieJar(ctx)
+	cookies, err := g.Cookies(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	parsed, _ := url.Parse(server.URL)
-	if cookies := jar.Cookies(parsed); len(cookies) != 1 || cookies[0].Name != "session" {
+	if len(cookies) != 1 || cookies[0].Name != "session" {
 		t.Fatal("HTTP session was not restored")
 	}
 	snapshotPath := filepath.Join(opts.StateDir, "auth", "google", "cookies.json")
@@ -234,18 +234,18 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 			Do(exec); err != nil {
 			t.Fatal(err)
 		}
-		fresh, err := g.CookieJar(ctx)
+		fresh, err := g.Cookies(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		found := false
-		for _, cookie := range fresh.Cookies(parsed) {
+		for _, cookie := range fresh {
 			if cookie.Name == "rotating" {
 				found = cookie.Value == value
 			}
 		}
 		if !found {
-			t.Fatal("CookieJar did not read the current profile cookie")
+			t.Fatal("Cookies did not read the current profile cookie")
 		}
 	}
 	if _, err := os.Stat(snapshotPath); !os.IsNotExist(err) {
@@ -305,14 +305,14 @@ func TestGoogleRequiresActiveUniversityAccount(t *testing.T) {
 		})
 	}
 	response.Store(googleProfile("student@gmail.com"))
-	if _, err := g.CookieJar(ctx); err == nil {
-		t.Fatal("CookieJar accepted a personal account")
+	if _, err := g.Cookies(ctx); err == nil {
+		t.Fatal("Cookies accepted a personal account")
 	}
 }
 
-func TestGoogleCookieJarPreservesCookieScope(t *testing.T) {
+func TestGoogleExportsOnlyUsableSessionCookies(t *testing.T) {
 	g := newGoogle(t, googleOptions(t))
-	if _, err := g.cookieJar(nil); err == nil {
+	if _, err := g.cookieParams(nil); err == nil {
 		t.Fatal("empty session accepted")
 	}
 	expires := float64(time.Now().Add(-time.Hour).Unix())
@@ -353,28 +353,27 @@ func TestGoogleCookieJarPreservesCookieScope(t *testing.T) {
 		},
 		{Name: "school", Value: "test", Domain: "slink.secioss.com", Path: "/", Session: true},
 	}
-	jar, err := g.cookieJar(cookies)
+	params, err := g.cookieParams(cookies)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for address, expected := range map[string][]string{
-		"https://drive.google.com/":                     {"host", "shared"},
-		"https://drive.google.com/download/file":        {"host", "path", "shared"},
-		"https://sub.drive.google.com/":                 {"shared"},
-		"https://drive.usercontent.google.com/download": {"shared", "usercontent"},
-		"http://drive.google.com/":                      {},
-		"https://google.com.evil.test/":                 {},
-		"https://slink.secioss.com/":                    {},
-		"https://example.com/":                          {},
-	} {
-		parsed, _ := url.Parse(address)
-		names := []string{}
-		for _, cookie := range jar.Cookies(parsed) {
-			names = append(names, cookie.Name)
+	names := []string{}
+	for _, cookie := range params {
+		names = append(names, cookie.Name)
+	}
+	slices.Sort(names)
+	if !reflect.DeepEqual(names, []string{"host", "path", "shared", "usercontent"}) {
+		t.Fatal("export included a school, expired, or partitioned cookie", names)
+	}
+	for _, cookie := range params {
+		if cookie.Name == "host" && cookie.Domain != "drive.google.com" {
+			t.Fatal("host-only scope lost", cookie)
 		}
-		slices.Sort(names)
-		if !reflect.DeepEqual(names, expected) {
-			t.Fatal(address, names, expected)
+		if cookie.Name == "path" && cookie.Path != "/download" {
+			t.Fatal("path scope lost", cookie)
+		}
+		if cookie.Name == "shared" && (!cookie.Secure || cookie.Domain != ".google.com") {
+			t.Fatal("domain scope lost", cookie)
 		}
 	}
 }

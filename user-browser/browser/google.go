@@ -1,10 +1,8 @@
-package browserauth
+package browser
 
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"time"
@@ -13,8 +11,6 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/storage"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/app-server/domain"
-	"golang.org/x/net/publicsuffix"
 )
 
 type Google struct {
@@ -108,7 +104,7 @@ func (g *Google) verify(tab context.Context, interactive bool) error {
 		return err
 	}
 	if !strings.HasSuffix(email, "@g.kogakuin.jp") {
-		return domain.Fail("authentication-required", "@g.kogakuin.jp のGoogleアカウントでログインしてください。")
+		return Fail("authentication-required", "@g.kogakuin.jp のGoogleアカウントでログインしてください。")
 	}
 	return nil
 }
@@ -138,16 +134,15 @@ func (g *Google) clearCookies(tab context.Context) error {
 
 func (g *Google) Status(ctx context.Context) (bool, error) {
 	err := g.Login(ctx, false)
-	var failure *domain.Error
+	var failure *Error
 	if errors.As(err, &failure) && failure.Reason == "authentication-required" {
 		return false, nil
 	}
 	return err == nil, err
 }
 
-// CookieJar reads current cookies from the authentication profile for Drive HTTP requests.
-// Domain, path, expiry and Secure rules also apply to redirected requests.
-func (g *Google) CookieJar(ctx context.Context) (http.CookieJar, error) {
+// Read current cookies only after verifying the active university account.
+func (g *Google) sessionCookies(ctx context.Context) ([]*network.Cookie, error) {
 	var cookies []*network.Cookie
 	err := g.browser.withProviderAuth(ctx, false, false, true, func(tab context.Context) error {
 		if err := g.verify(tab, false); err != nil {
@@ -160,45 +155,30 @@ func (g *Google) CookieJar(ctx context.Context) (http.CookieJar, error) {
 	if err != nil {
 		return nil, err
 	}
-	return g.cookieJar(cookies)
+	return cookies, nil
 }
 
-func (g *Google) cookieJar(cookies []*network.Cookie) (http.CookieJar, error) {
-	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+// Cookies exports only usable Google session cookies, never the SSO session.
+func (g *Google) Cookies(ctx context.Context) ([]*network.CookieParam, error) {
+	cookies, err := g.sessionCookies(ctx)
 	if err != nil {
 		return nil, err
 	}
-	usable := 0
-	for _, stored := range cookies {
-		if stored == nil || !g.cookieDomain(stored.Domain) {
+	return g.cookieParams(cookies)
+}
+
+func (g *Google) cookieParams(cookies []*network.Cookie) ([]*network.CookieParam, error) {
+	var result []*network.CookieParam
+	for _, cookie := range cookies {
+		if cookie == nil || !g.cookieDomain(cookie.Domain) ||
+			cookie.PartitionKey != nil || cookie.PartitionKeyOpaque ||
+			(!cookie.Session && cookie.Expires <= float64(time.Now().Unix())) {
 			continue
 		}
-		// A standard HTTP jar cannot represent partitioned cookies.
-		if stored.PartitionKey != nil || stored.PartitionKeyOpaque {
-			continue
-		}
-		if !stored.Session && stored.Expires <= float64(time.Now().Unix()) {
-			continue
-		}
-		cookie := &http.Cookie{
-			Name:     stored.Name,
-			Value:    stored.Value,
-			Path:     stored.Path,
-			Secure:   stored.Secure,
-			HttpOnly: stored.HTTPOnly,
-		}
-		if strings.HasPrefix(stored.Domain, ".") {
-			cookie.Domain = stored.Domain
-		}
-		if !stored.Session {
-			cookie.Expires = time.Unix(0, int64(stored.Expires*float64(time.Second)))
-		}
-		origin := &url.URL{Scheme: "https", Host: strings.TrimPrefix(stored.Domain, "."), Path: "/"}
-		jar.SetCookies(origin, []*http.Cookie{cookie})
-		usable++
+		result = append(result, cookieParam(cookie))
 	}
-	if usable == 0 {
-		return nil, domain.Fail("authentication-required", "GoogleのセッションCookieを取得できません。")
+	if len(result) == 0 {
+		return nil, Fail("authentication-required", "GoogleのセッションCookieを取得できません。")
 	}
-	return jar, nil
+	return result, nil
 }

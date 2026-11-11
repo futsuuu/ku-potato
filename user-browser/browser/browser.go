@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/chromedp/cdproto/cdp"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 type Options struct {
@@ -74,14 +73,14 @@ func sourceError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
-	if _, ok := errors.AsType[*domain.Error](err); ok {
+	if _, ok := errors.AsType[*Error](err); ok {
 		return err
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	// CDP diagnostics can include page contents or credential material.
-	return domain.Fail("source", "ブラウザ操作に失敗しました。ページ構造、Chrome の起動設定、通信状態を確認してください。")
+	return Fail("source", "ブラウザ操作に失敗しました。ページ構造、Chrome の起動設定、通信状態を確認してください。")
 }
 
 func executor(ctx context.Context) context.Context {

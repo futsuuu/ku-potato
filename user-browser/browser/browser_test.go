@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"os"

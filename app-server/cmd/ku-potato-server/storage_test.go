@@ -31,6 +31,8 @@ func TestServerRejectsSecondProcessWithDifferentDataAndPort(t *testing.T) {
 			"127.0.0.1:0",
 			"-worker",
 			os.Getenv("KU_POTATO_TEST_WORKER"),
+			"-user-browser",
+			os.Getenv("KU_POTATO_TEST_USER_BROWSER"),
 		}
 		if err := run(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -57,6 +59,22 @@ func TestServerRejectsSecondProcessWithDifferentDataAndPort(t *testing.T) {
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build worker: %v\n%s", err, output)
 	}
+	userBrowser := filepath.Join(base, "ku-potato-user-browser")
+	if runtime.GOOS == "windows" {
+		userBrowser += ".exe"
+	}
+	build = exec.CommandContext(
+		ctx,
+		"go",
+		"build",
+		"-o",
+		userBrowser,
+		"./user-browser/cmd/ku-potato-user-browser",
+	)
+	build.Dir = "../../.."
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build user browser: %v\n%s", err, output)
+	}
 	newCommand := func(data string) *exec.Cmd {
 		cmd := exec.CommandContext(
 			ctx,
@@ -67,6 +85,7 @@ func TestServerRejectsSecondProcessWithDifferentDataAndPort(t *testing.T) {
 			os.Environ(),
 			"KU_POTATO_SERVER_TEST_DATA="+data,
 			"KU_POTATO_TEST_WORKER="+worker,
+			"KU_POTATO_TEST_USER_BROWSER="+userBrowser,
 			"LOCALAPPDATA="+base,
 			"XDG_DATA_HOME="+base,
 			"XDG_STATE_HOME="+base,
