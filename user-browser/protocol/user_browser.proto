@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package kupotato.userbrowser.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/futsuuu/ku-potato/user-browser/protocol;userproto";
+
+service UserBrowser {
+  rpc Login(LoginRequest) returns (google.protobuf.Empty);
+  rpc Status(ProviderRequest) returns (AuthenticationStatus);
+  rpc RegisterWebAuthn(InteractiveRequest) returns (google.protobuf.Empty);
+  rpc WebAuthnRegistrationStatus(google.protobuf.Empty) returns (RegistrationStatus);
+  rpc DeleteWebAuthn(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Snapshots are short-lived session data, never persisted by the client.
+  rpc SSOCookies(SSOCookiesRequest) returns (Cookies);
+  rpc GoogleCookies(google.protobuf.Empty) returns (Cookies);
+}
+
+enum Provider {
+  PROVIDER_UNSPECIFIED = 0;
+  PROVIDER_LMS = 1;
+  PROVIDER_GOOGLE = 2;
+}
+message LoginRequest {
+  Provider provider = 1;
+  bool interactive = 2;
+}
+message ProviderRequest {
+  Provider provider = 1;
+}
+message InteractiveRequest {
+  bool interactive = 1;
+}
+message AuthenticationStatus {
+  bool authenticated = 1;
+}
+message RegistrationStatus {
+  bool registered = 1;
+}
+message SSOCookiesRequest {
+  bool renew = 1;
+}
+
+message PartitionKey {
+  string top_level_site = 1;
+  bool has_cross_site_ancestor = 2;
+}
+enum CookieSameSite {
+  COOKIE_SAME_SITE_UNSPECIFIED = 0;
+  COOKIE_SAME_SITE_STRICT = 1;
+  COOKIE_SAME_SITE_LAX = 2;
+  COOKIE_SAME_SITE_NONE = 3;
+}
+enum CookiePriority {
+  COOKIE_PRIORITY_UNSPECIFIED = 0;
+  COOKIE_PRIORITY_LOW = 1;
+  COOKIE_PRIORITY_MEDIUM = 2;
+  COOKIE_PRIORITY_HIGH = 3;
+}
+enum CookieSourceScheme {
+  COOKIE_SOURCE_SCHEME_UNSPECIFIED = 0;
+  COOKIE_SOURCE_SCHEME_UNSET = 1;
+  COOKIE_SOURCE_SCHEME_NON_SECURE = 2;
+  COOKIE_SOURCE_SCHEME_SECURE = 3;
+}
+message Cookie {
+  string name = 1;
+  string value = 2;
+  string domain = 3;
+  string path = 4;
+  bool secure = 5;
+  bool http_only = 6;
+  CookieSameSite same_site = 7;
+  google.protobuf.Timestamp expires = 8;
+  CookiePriority priority = 9;
+  CookieSourceScheme source_scheme = 10;
+  int64 source_port = 11;
+  PartitionKey partition_key = 12;
+}
+message Cookies {
+  repeated Cookie cookies = 1;
+}
+
+enum FailureReason {
+  FAILURE_REASON_UNSPECIFIED = 0;
+  FAILURE_REASON_AUTHENTICATION_REQUIRED = 1;
+  FAILURE_REASON_AUTHENTICATION_STORAGE = 2;
+  FAILURE_REASON_BROWSER_START = 3;
+  FAILURE_REASON_SOURCE = 4;
+  FAILURE_REASON_CONFLICT = 5;
+}
+message Failure {
+  FailureReason reason = 1;
+  string message = 2;
+}

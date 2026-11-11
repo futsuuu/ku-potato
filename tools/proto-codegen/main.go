@@ -9,17 +9,22 @@ import (
 func main() {
 	goPlugin := tool("protoc-gen-go")
 	grpcPlugin := tool("protoc-gen-go-grpc")
+	generate(goPlugin, grpcPlugin, "browser-worker/protocol", "worker.proto")
+	generate(goPlugin, grpcPlugin, "user-browser/protocol", "user_browser.proto")
+}
+
+func generate(goPlugin, grpcPlugin, directory, source string) {
 	command := exec.Command(
 		"protoc",
 		"-I",
-		"browser-worker/protocol",
+		directory,
 		"--plugin=protoc-gen-go="+goPlugin,
 		"--plugin=protoc-gen-go-grpc="+grpcPlugin,
-		"--go_out=browser-worker/protocol",
+		"--go_out="+directory,
 		"--go_opt=paths=source_relative",
-		"--go-grpc_out=browser-worker/protocol",
+		"--go-grpc_out="+directory,
 		"--go-grpc_opt=paths=source_relative",
-		"worker.proto",
+		source,
 	)
 	command.Stdout, command.Stderr = os.Stdout, os.Stderr
 	if err := command.Run(); err != nil {
