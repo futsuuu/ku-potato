@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/chromedp/cdproto/storage"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 // LMSAuthenticator uses only the authentication profile. The content browser never
@@ -43,7 +42,7 @@ func (i *LMSAuthenticator) Login(ctx context.Context, interactive bool) error {
 
 func (i *LMSAuthenticator) Status(ctx context.Context) (bool, error) {
 	err := i.Login(ctx, false)
-	var failure *domain.Error
+	var failure *Error
 	if errors.As(err, &failure) && failure.Reason == "authentication-required" {
 		return false, nil
 	}
@@ -121,7 +120,7 @@ func (i *LMSAuthenticator) ssoCookies(
 			// The LMS session may survive SSO logout. Without a saved credential,
 			// do not destroy that still-valid session just to attempt a refresh.
 			if stored == nil {
-				return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
+				return Fail("authentication-required", "統合認証システムに再ログインしてください。")
 			}
 			if err := i.clearLMSCookies(tab); err != nil {
 				return err
@@ -133,7 +132,7 @@ func (i *LMSAuthenticator) ssoCookies(
 				return err
 			}
 			if len(result) == 0 {
-				return domain.Fail("authentication-required", "統合認証システムに再ログインしてください。")
+				return Fail("authentication-required", "統合認証システムに再ログインしてください。")
 			}
 			return nil
 		},

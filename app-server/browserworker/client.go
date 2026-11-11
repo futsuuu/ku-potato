@@ -7,20 +7,22 @@ import (
 	"os"
 	"sync"
 
-	"github.com/chromedp/cdproto/network"
 	"github.com/futsuuu/ku-potato/app-server/application/outport"
-	chromedp "github.com/futsuuu/ku-potato/app-server/browserauth"
 	"github.com/futsuuu/ku-potato/app-server/domain"
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
+	userproto "github.com/futsuuu/ku-potato/user-browser/protocol"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+type CookieSource interface {
+	SSOCookies(context.Context, bool) (*userproto.Cookies, error)
+}
 
 type Client struct {
 	worker    workerproto.BrowserWorkerClient
-	auth      *chromedp.LMSAuthenticator
+	auth      CookieSource
 	directory string
 	mu        sync.Mutex
 }
@@ -29,7 +31,7 @@ var _ outport.ContentSource = (*Client)(nil)
 
 func New(
 	worker workerproto.BrowserWorkerClient,
-	auth *chromedp.LMSAuthenticator,
+	auth CookieSource,
 	directory string,
 ) *Client {
 	return &Client{worker: worker, auth: auth, directory: directory}
@@ -56,60 +58,39 @@ func translate(err error) error {
 	return domain.Fail("source", "ブラウザワーカーに接続できません。")
 }
 
-func encodeCookie(cookie *network.CookieParam) (*workerproto.Cookie, error) {
+func encodeCookie(cookie *userproto.Cookie) (*workerproto.Cookie, error) {
+	// These are separate wire contracts; reject unknown values rather than
+	// silently dropping attributes when forwarding the session.
+	if _, ok := userproto.CookieSameSite_name[int32(cookie.GetSameSite())]; !ok {
+		return nil, domain.Fail("source", "認証Cookieが不正です。")
+	}
+	if _, ok := userproto.CookiePriority_name[int32(cookie.GetPriority())]; !ok {
+		return nil, domain.Fail("source", "認証Cookieが不正です。")
+	}
+	if _, ok := userproto.CookieSourceScheme_name[int32(cookie.GetSourceScheme())]; !ok {
+		return nil, domain.Fail("source", "認証Cookieが不正です。")
+	}
+	if expires := cookie.GetExpires(); expires != nil && expires.CheckValid() != nil {
+		return nil, domain.Fail("source", "認証Cookieが不正です。")
+	}
 	part := &workerproto.Cookie{
-		Name:       cookie.Name,
-		Value:      cookie.Value,
-		Domain:     cookie.Domain,
-		Path:       cookie.Path,
-		Secure:     cookie.Secure,
-		HttpOnly:   cookie.HTTPOnly,
-		SourcePort: cookie.SourcePort,
+		Name:         cookie.GetName(),
+		Value:        cookie.GetValue(),
+		Domain:       cookie.GetDomain(),
+		Path:         cookie.GetPath(),
+		Secure:       cookie.GetSecure(),
+		HttpOnly:     cookie.GetHttpOnly(),
+		Expires:      cookie.GetExpires(),
+		SameSite:     workerproto.CookieSameSite(cookie.GetSameSite()),
+		Priority:     workerproto.CookiePriority(cookie.GetPriority()),
+		SourceScheme: workerproto.CookieSourceScheme(cookie.GetSourceScheme()),
+		SourcePort:   cookie.GetSourcePort(),
 	}
-	switch cookie.SameSite {
-	case "":
-		part.SameSite = workerproto.CookieSameSite_COOKIE_SAME_SITE_UNSPECIFIED
-	case network.CookieSameSiteStrict:
-		part.SameSite = workerproto.CookieSameSite_COOKIE_SAME_SITE_STRICT
-	case network.CookieSameSiteLax:
-		part.SameSite = workerproto.CookieSameSite_COOKIE_SAME_SITE_LAX
-	case network.CookieSameSiteNone:
-		part.SameSite = workerproto.CookieSameSite_COOKIE_SAME_SITE_NONE
-	default:
-		return nil, domain.Fail("source", "認証Cookieが不正です。")
-	}
-	switch cookie.Priority {
-	case "":
-		part.Priority = workerproto.CookiePriority_COOKIE_PRIORITY_UNSPECIFIED
-	case network.CookiePriorityLow:
-		part.Priority = workerproto.CookiePriority_COOKIE_PRIORITY_LOW
-	case network.CookiePriorityMedium:
-		part.Priority = workerproto.CookiePriority_COOKIE_PRIORITY_MEDIUM
-	case network.CookiePriorityHigh:
-		part.Priority = workerproto.CookiePriority_COOKIE_PRIORITY_HIGH
-	default:
-		return nil, domain.Fail("source", "認証Cookieが不正です。")
-	}
-	switch cookie.SourceScheme {
-	case "":
-		part.SourceScheme = workerproto.CookieSourceScheme_COOKIE_SOURCE_SCHEME_UNSPECIFIED
-	case network.CookieSourceSchemeUnset:
-		part.SourceScheme = workerproto.CookieSourceScheme_COOKIE_SOURCE_SCHEME_UNSET
-	case network.CookieSourceSchemeNonSecure:
-		part.SourceScheme = workerproto.CookieSourceScheme_COOKIE_SOURCE_SCHEME_NON_SECURE
-	case network.CookieSourceSchemeSecure:
-		part.SourceScheme = workerproto.CookieSourceScheme_COOKIE_SOURCE_SCHEME_SECURE
-	default:
-		return nil, domain.Fail("source", "認証Cookieが不正です。")
-	}
-	if cookie.PartitionKey != nil {
+	if key := cookie.GetPartitionKey(); key != nil {
 		part.PartitionKey = &workerproto.PartitionKey{
-			TopLevelSite:         cookie.PartitionKey.TopLevelSite,
-			HasCrossSiteAncestor: cookie.PartitionKey.HasCrossSiteAncestor,
+			TopLevelSite:         key.GetTopLevelSite(),
+			HasCrossSiteAncestor: key.GetHasCrossSiteAncestor(),
 		}
-	}
-	if cookie.Expires != nil {
-		part.Expires = timestamppb.New(cookie.Expires.Time())
 	}
 	return part, nil
 }
@@ -117,18 +98,12 @@ func encodeCookie(cookie *network.CookieParam) (*workerproto.Cookie, error) {
 func (c *Client) refresh(ctx context.Context, renew bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var cookies []*network.CookieParam
-	var err error
-	if renew {
-		cookies, err = c.auth.RenewSSOCookies(ctx)
-	} else {
-		cookies, err = c.auth.SSOCookies(ctx)
-	}
+	cookies, err := c.auth.SSOCookies(ctx, renew)
 	if err != nil {
 		return err
 	}
 	request := &workerproto.SSOCookies{}
-	for _, cookie := range cookies {
+	for _, cookie := range cookies.GetCookies() {
 		if cookie == nil {
 			continue
 		}

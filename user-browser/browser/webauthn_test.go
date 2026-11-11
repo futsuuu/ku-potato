@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"encoding/base64"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/chromedp/cdproto/network"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 func TestRegistrationFormRejectsUninspectableRequests(t *testing.T) {
@@ -22,7 +21,7 @@ func TestRegistrationFormRejectsUninspectableRequests(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := registrationForm(request)
-			var failure *domain.Error
+			var failure *Error
 			if !errors.As(err, &failure) || failure.Reason != "source" {
 				t.Fatal("uninspectable registration accepted", err)
 			}

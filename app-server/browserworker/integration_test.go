@@ -3,7 +3,6 @@ package browserworker
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	chromedp "github.com/futsuuu/ku-potato/app-server/browserauth"
+	"github.com/futsuuu/ku-potato/app-server/userbrowser"
 )
 
 func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T) {
@@ -23,7 +22,10 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	if err != nil {
 		chrome, err = exec.LookPath("chromium")
 		if err != nil {
-			t.Skip("Chrome unavailable")
+			chrome = `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`
+			if _, err := os.Stat(chrome); err != nil {
+				t.Skip("Chrome unavailable")
+			}
 		}
 	}
 	root := t.TempDir()
@@ -41,6 +43,21 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	build.Dir = "../.."
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build worker: %v\n%s", err, output)
+	}
+	authBinary := filepath.Join(root, "ku-potato-user-browser")
+	if runtime.GOOS == "windows" {
+		authBinary += ".exe"
+	}
+	build = exec.Command(
+		"go",
+		"build",
+		"-o",
+		authBinary,
+		"./user-browser/cmd/ku-potato-user-browser",
+	)
+	build.Dir = "../.."
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build user browser: %v\n%s", err, output)
 	}
 	var lmsAddress atomic.Value
 	var grant atomic.Bool
@@ -105,19 +122,29 @@ func TestIndependentWorkerReceivesSSOCookiesAndCreatesLMSOwnSession(t *testing.T
 	lmsAddress.Store(lms.URL)
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer cancel()
-	authBrowser, err := chromedp.New(chromedp.Options{
-		StateDir: filepath.Join(root, "state"), ProfileDir: filepath.Join(root, "auth-profile"),
-		CacheDir: filepath.Join(root, "auth-cache"), Executable: chrome,
-		LMSURL: lms.URL, SSOURL: ssoURL,
-		Logger: slog.New(slog.NewTextHandler(t.Output(), nil)),
-	})
+	authBrowser, err := userbrowser.Start(ctx, authBinary,
+		filepath.Join(root, "state"), filepath.Join(root, "auth-cache"), chrome, lms.URL, ssoURL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = authBrowser.Close() }()
-	auth := chromedp.NewLMSAuthenticator(authBrowser)
+	defer func(process *userbrowser.Process) { _ = process.Close() }(authBrowser)
+	auth := userbrowser.NewLMS(authBrowser.Client)
 	if err = auth.Login(ctx, false); err != nil {
 		t.Fatal("authenticate original profile", err)
+	}
+	// A clean subprocess shutdown must flush the same persistent profile.
+	if err := authBrowser.Close(); err != nil {
+		t.Fatal(err)
+	}
+	authBrowser, err = userbrowser.Start(ctx, authBinary,
+		filepath.Join(root, "state"), filepath.Join(root, "auth-cache"), chrome, lms.URL, ssoURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func(process *userbrowser.Process) { _ = process.Close() }(authBrowser)
+	auth = userbrowser.NewLMS(authBrowser.Client)
+	if ok, err := auth.Status(ctx); err != nil || !ok {
+		t.Fatal("authentication lost after restart", ok, err)
 	}
 	worker, err := Start(ctx, binary, root, chrome, 1, lms.URL, ssoURL)
 	if err != nil {

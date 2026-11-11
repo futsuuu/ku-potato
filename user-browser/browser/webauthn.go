@@ -1,4 +1,4 @@
-package browserauth
+package browser
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
-	"github.com/futsuuu/ku-potato/app-server/domain"
 )
 
 var loginID = regexp.MustCompile(`ログインID:\s*([^\s]+)`)
@@ -22,22 +21,22 @@ func registrationForm(request *network.Request) (url.Values, error) {
 	// Fetch already includes its body as base64-encoded entries; inspect those
 	// before allowing the request to reach the server.
 	if request.HasPostData && len(request.PostDataEntries) == 0 {
-		return nil, domain.Fail("source", "登録リクエストの本文を確認できません。")
+		return nil, Fail("source", "登録リクエストの本文を確認できません。")
 	}
 	var body []byte
 	for _, entry := range request.PostDataEntries {
 		if entry == nil {
-			return nil, domain.Fail("source", "登録リクエストの本文が不正です。")
+			return nil, Fail("source", "登録リクエストの本文が不正です。")
 		}
 		part, err := base64.StdEncoding.DecodeString(entry.Bytes)
 		if err != nil {
-			return nil, domain.Fail("source", "登録リクエストの本文が不正です。")
+			return nil, Fail("source", "登録リクエストの本文が不正です。")
 		}
 		body = append(body, part...)
 	}
 	values, err := url.ParseQuery(string(body))
 	if err != nil {
-		return nil, domain.Fail("source", "登録リクエストの本文が不正です。")
+		return nil, Fail("source", "登録リクエストの本文が不正です。")
 	}
 	return values, nil
 }
@@ -59,7 +58,7 @@ func (b *Browser) registerWebAuthn(
 	stored *credentials,
 ) error {
 	if stored != nil {
-		return domain.Fail("conflict", "WebAuthn認証情報は保存済みです。")
+		return Fail("conflict", "WebAuthn認証情報は保存済みです。")
 	}
 	if err := b.session(tab, interactive, nil); err != nil {
 		return err
@@ -84,7 +83,7 @@ func (b *Browser) registerWebAuthn(
 	}
 	username := loginID.FindStringSubmatch(text)
 	if username == nil {
-		return domain.Fail("source", "FIDO設定画面のログインIDが見つかりません。")
+		return Fail("source", "FIDO設定画面のログインIDが見つかりません。")
 	}
 	var existing []string
 	if err = cd.Run(

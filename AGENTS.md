@@ -1,8 +1,9 @@
 ## Repository layout
 
-- `app-server/`: HTTP application server, authentication, archives, and browser worker client in `browserworker/`
+- `app-server/`: HTTP application server, archives, and gRPC clients in `browserworker/` and `userbrowser/`
 - `browser-worker/`: gRPC browser service, scheduler, and protobuf contract in `protocol/`
-- `internal/`: Go code shared by the server and worker, including browser primitives and models
+- `user-browser/`: gRPC authentication service, persistent Chrome profile, and WebAuthn credentials
+- `internal/`: Go code shared by the server and browser services
 - `internal/appdirs/`: OS-specific directory defaults shared with desktop
 - `desktop/`: Wails app, server launcher, and frontend
 - `tools/`: API, database, and protobuf code generation
