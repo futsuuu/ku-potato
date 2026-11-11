@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 func TestBindToParentStopsChildOnRelease(t *testing.T) {
@@ -27,6 +29,11 @@ func TestBindToParentStopsChildOnRelease(t *testing.T) {
 		_ = child.Wait()
 		t.Fatal(err)
 	}
+	handle, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(child.Process.Pid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = windows.CloseHandle(handle) }()
 	done := make(chan error, 1)
 	go func() { done <- child.Wait() }()
 	select {
@@ -37,6 +44,14 @@ func TestBindToParentStopsChildOnRelease(t *testing.T) {
 	}
 
 	release()
+	release() // Releasing the lifetime handle is idempotent.
+	if state, err := windows.WaitForSingleObject(
+		handle,
+		0,
+	); err != nil ||
+		state != windows.WAIT_OBJECT_0 {
+		t.Fatalf("release returned before the child exited: state=%d err=%v", state, err)
+	}
 	select {
 	case <-done:
 		// Windows may report exit code 0 when a job closes and kills its processes.
