@@ -125,7 +125,11 @@ func (b *Browser) openCourse(ctx context.Context, id string) error {
 		return err
 	}
 	if !clicked {
-		return Fail(workerproto.FailureReason_FAILURE_REASON_COURSE_NOT_FOUND, "講義が現在のLMS一覧にありません。")
+		return &Failure{
+			Reason:  workerproto.FailureReason_FAILURE_REASON_COURSE_NOT_FOUND,
+			Message: "The course is not in the current LMS listing.",
+			Target:  &workerproto.Failure_CourseId{CourseId: &workerproto.CourseId{Value: id}},
+		}
 	}
 	return poll(
 		ctx,
@@ -434,10 +438,13 @@ func (b *Browser) materialSnapshot(
 	if preferred != "" {
 		return missing, nil
 	}
-	return nil, Fail(
-		workerproto.FailureReason_FAILURE_REASON_MATERIAL_NOT_FOUND,
-		"教材が現在のLMS一覧にありません。保存済みデータを参照してください。",
-	)
+	return nil, &Failure{
+		Reason:  workerproto.FailureReason_FAILURE_REASON_MATERIAL_NOT_FOUND,
+		Message: "The material is not in the current LMS listing. Refer to saved data.",
+		Target: &workerproto.Failure_MaterialId{
+			MaterialId: &workerproto.MaterialId{Value: material},
+		},
+	}
 }
 
 func (b *Browser) Courses(ctx context.Context) (courses *workerproto.CourseListing, err error) {

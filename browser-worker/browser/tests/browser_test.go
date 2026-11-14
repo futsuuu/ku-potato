@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -259,5 +260,25 @@ func TestBrowserAgainstLocalLMS(t *testing.T) {
 	stop()
 	if err == nil {
 		t.Fatal("accepted malformed page as empty")
+	}
+	materialMalformed.Store(false)
+	allowed.Store(true)
+	_, err = browser.Materials(ctx, "missing-course")
+	failure, ok := errors.AsType[*adapter.Failure](err)
+	if !ok || failure.Reason != workerproto.FailureReason_FAILURE_REASON_COURSE_NOT_FOUND ||
+		(*workerproto.Failure)(failure).GetCourseId().GetValue() != "missing-course" {
+		t.Fatalf("missing course lost its ID: %v", err)
+	}
+	_, err = browser.Resources(ctx, "SRY2", "")
+	failure, ok = errors.AsType[*adapter.Failure](err)
+	if !ok || failure.Reason != workerproto.FailureReason_FAILURE_REASON_MATERIAL_NOT_FOUND ||
+		(*workerproto.Failure)(failure).GetMaterialId().GetValue() != "SRY2" {
+		t.Fatalf("missing material lost its ID: %v", err)
+	}
+	_, err = browser.Download(ctx, "SRY1", "SRS3", "KOG1")
+	failure, ok = errors.AsType[*adapter.Failure](err)
+	if !ok || failure.Reason != workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND ||
+		(*workerproto.Failure)(failure).GetResourceId().GetValue() != "SRS3" {
+		t.Fatalf("missing resource lost its ID: %v", err)
 	}
 }

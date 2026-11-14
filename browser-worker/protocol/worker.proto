@@ -93,6 +93,11 @@ enum FailureReason {
 message Failure {
   FailureReason reason = 1;
   string message = 2;
+  oneof target {
+    CourseId course_id = 3;
+    MaterialId material_id = 4;
+    ResourceId resource_id = 5;
+  }
 }
 
 message Schedule {

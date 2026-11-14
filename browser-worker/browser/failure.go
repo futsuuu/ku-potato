@@ -2,10 +2,7 @@ package browser
 
 import workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
 
-type Failure struct {
-	Reason  workerproto.FailureReason
-	Message string
-}
+type Failure workerproto.Failure
 
 func (f *Failure) Error() string { return f.Message }
 

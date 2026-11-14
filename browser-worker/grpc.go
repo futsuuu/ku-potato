@@ -156,7 +156,7 @@ func browserError(err error) error {
 			return status.Error(codes.Internal, "unrecognized browser failure")
 		}
 		withDetails, detailErr := status.New(codes.FailedPrecondition, failure.Message).
-			WithDetails(&workerproto.Failure{Reason: failure.Reason, Message: failure.Message})
+			WithDetails((*workerproto.Failure)(failure))
 		if detailErr != nil {
 			return status.Error(codes.Internal, "browser failure encoding failed")
 		}
@@ -301,7 +301,7 @@ func (s *Server) Download(
 			return browserError(err)
 		}
 		header.Outcome = &workerproto.DownloadHeader_Failure{
-			Failure: &workerproto.Failure{Reason: failure.Reason, Message: failure.Message},
+			Failure: (*workerproto.Failure)(failure),
 		}
 	} else if result.URL != "" && result.Path == "" {
 		header.Outcome = &workerproto.DownloadHeader_ExternalUrl{ExternalUrl: result.URL}

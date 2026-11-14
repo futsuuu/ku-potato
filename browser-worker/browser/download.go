@@ -32,20 +32,26 @@ func (b *Browser) Download(
 			}
 		}
 		if position < 0 {
-			return Fail(
-				workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND,
-				"資料が現在の一覧にありません。保存済み内容を参照してください。",
-			)
+			return &Failure{
+				Reason:  workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND,
+				Message: "The resource is not in the current listing. Refer to saved content.",
+				Target: &workerproto.Failure_ResourceId{
+					ResourceId: &workerproto.ResourceId{Value: resource},
+				},
+			}
 		}
 		if selected.GetExternalUrl() != "" {
 			download.URL = selected.GetExternalUrl()
 			return nil
 		}
 		if selected.GetFile() == nil {
-			return Fail(
-				workerproto.FailureReason_FAILURE_REASON_UNSUPPORTED_RESOURCE,
-				"この資料種別はダウンロードに対応していません。",
-			)
+			return &Failure{
+				Reason:  workerproto.FailureReason_FAILURE_REASON_UNSUPPORTED_RESOURCE,
+				Message: "This resource type does not support downloads.",
+				Target: &workerproto.Failure_ResourceId{
+					ResourceId: &workerproto.ResourceId{Value: resource},
+				},
+			}
 		}
 		directory := b.opts.DownloadDir
 		if err = os.MkdirAll(directory, 0o700); err != nil {
