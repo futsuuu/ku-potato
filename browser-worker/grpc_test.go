@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -104,6 +105,40 @@ func TestBrowserFailureUsesTypedDetails(t *testing.T) {
 	}
 }
 
+func TestBrowserFailurePreservesTargets(t *testing.T) {
+	for _, input := range []*browser.Failure{
+		{
+			Reason:  workerproto.FailureReason_FAILURE_REASON_COURSE_NOT_FOUND,
+			Message: "Missing course",
+			Target:  &workerproto.Failure_CourseId{CourseId: &workerproto.CourseId{Value: "KOG2"}},
+		},
+		{
+			Reason:  workerproto.FailureReason_FAILURE_REASON_MATERIAL_NOT_FOUND,
+			Message: "Missing material",
+			Target:  &workerproto.Failure_MaterialId{MaterialId: &workerproto.MaterialId{Value: "SRY2"}},
+		},
+		{
+			Reason:  workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND,
+			Message: "Missing resource",
+			Target:  &workerproto.Failure_ResourceId{ResourceId: &workerproto.ResourceId{Value: "SRS2"}},
+		},
+		{
+			Reason:  workerproto.FailureReason_FAILURE_REASON_UNSUPPORTED_RESOURCE,
+			Message: "Unsupported resource",
+			Target:  &workerproto.Failure_ResourceId{ResourceId: &workerproto.ResourceId{Value: "SRS2"}},
+		},
+	} {
+		st := status.Convert(browserError(input))
+		if st.Code() != codes.FailedPrecondition || len(st.Details()) != 1 {
+			t.Fatalf("unstructured failure: %v", st)
+		}
+		failure, ok := st.Details()[0].(*workerproto.Failure)
+		if !ok || !proto.Equal(failure, (*workerproto.Failure)(input)) {
+			t.Fatalf("failure lost its target: %v", st.Details())
+		}
+	}
+}
+
 func TestGRPCContractsAndTransfer(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
@@ -168,10 +203,13 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("worker retained downloaded file: %v", err)
 	}
-	source.fail = browser.Fail(
-		workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND,
-		"missing",
-	)
+	source.fail = &browser.Failure{
+		Reason:  workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND,
+		Message: "missing",
+		Target: &workerproto.Failure_ResourceId{
+			ResourceId: &workerproto.ResourceId{Value: "SRS1"},
+		},
+	}
 	failureStream, err := client.Download(
 		ctx,
 		&workerproto.DownloadRequest{
@@ -189,6 +227,9 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 			GetReason() !=
 			workerproto.FailureReason_FAILURE_REASON_RESOURCE_NOT_FOUND {
 		t.Fatalf("partial download failure lost its snapshot or reason: %v %v", failurePart, err)
+	}
+	if failurePart.GetHeader().GetFailure().GetResourceId().GetValue() != "SRS1" {
+		t.Fatalf("partial download failure lost its resource ID: %v", failurePart)
 	}
 	if _, err := client.SetSSOCookies(
 		ctx,
