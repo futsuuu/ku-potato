@@ -11,8 +11,6 @@ export const materialTypes: Record<Schema["Material"]["type"], string> = {
   unknown: "不明",
 };
 export function formatDate(value: string) {
-  if (value === "no-deadline") return "期限なし";
-  if (value === "unavailable") return "公開終了";
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? "不明"
@@ -22,20 +20,31 @@ export function formatDate(value: string) {
         ...(/^\d{4}-\d{2}-\d{2}$/.test(value) ? {} : { timeStyle: "short" as const }),
       }).format(date);
 }
+export function formatDeadline(material: Schema["Material"]) {
+  switch (material.publicationDeadlineKind) {
+    case "at":
+      return formatDate(material.publicationDeadlineAt);
+    case "unlisted":
+      return "期限なし";
+    case "closed":
+      return "公開終了";
+    case "unknown":
+      return "不明";
+  }
+}
+function deadlineTimestamp(material: Schema["Material"]) {
+  return material.publicationDeadlineKind === "at"
+    ? Date.parse(material.publicationDeadlineAt)
+    : Number.NaN;
+}
 export function upcoming(assignments: Schema["Assignment"][], now: number) {
   return assignments
-    .filter(
-      (value) => !value.material.archived && Date.parse(value.material.publicationDeadline) > now,
-    )
-    .sort(
-      (a, b) =>
-        Date.parse(a.material.publicationDeadline) - Date.parse(b.material.publicationDeadline),
-    );
+    .filter((value) => !value.material.archived && deadlineTimestamp(value.material) > now)
+    .sort((a, b) => deadlineTimestamp(a.material) - deadlineTimestamp(b.material));
 }
 export const stages: Record<Schema["Progress"]["stage"], string> = {
   waiting: "処理待ち",
   authenticating: "認証中",
-  "logging-out": "ログアウト中",
   registering: "認証デバイスを登録中",
   "fetching-courses": "講義を取得中",
   "fetching-materials": "教材を取得中",

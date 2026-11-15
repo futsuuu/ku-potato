@@ -5,8 +5,10 @@ import type { Schema } from "./api";
 it("groups weekdays from Monday to Sunday and puts unscheduled courses last", () => {
   const course = (name: string, weekday?: number): Schema["Course"] => ({
     name,
-    weekday,
+    lmsCourseId: name,
+    academicYear: 2026,
     availability: "available",
+    ...(weekday === undefined ? { type: "other" } : { type: "scheduled", weekday, period: 1 }),
   });
   expect(
     groupCourses([

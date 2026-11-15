@@ -1,11 +1,11 @@
 # Detail
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
 - **`course` (required)**: [Course](Course.md)
 - **`material` (required)**: [Material](Material.md)
-- **`resources` (required)**: array of [Resource](Resource.md) | `null`
-- **`report`**: [ReportDetail](ReportDetail.md)
+- **`resources` (required)**: array of [Resource](Resource.md)
+- **`report`**: [Report](Report.md) | `null`
 
 **Example:**
 

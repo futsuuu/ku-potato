@@ -16,14 +16,14 @@ function CourseInfo(props: { course: Schema["Course"] }) {
       </span>
       <Show
         when={
-          props.course.period ||
+          props.course.type === "scheduled" ||
           props.course.archived ||
           props.course.availability === "unavailable"
         }
       >
         <small class="muted-note tnum">
           {[
-            props.course.period ? `${props.course.period}限` : "",
+            props.course.type === "scheduled" ? `${props.course.period}限` : "",
             props.course.archived ? "保存済み講義" : "",
             props.course.availability === "unavailable" ? "利用不可" : "",
           ]
@@ -39,7 +39,7 @@ function CourseRow(props: { course: Schema["Course"] }) {
   return (
     <li>
       <Show
-        when={props.course.lmsCourseId}
+        when={props.course.availability === "available" && props.course.lmsCourseId}
         fallback={
           <div class="course-link">
             <CourseInfo course={props.course} />

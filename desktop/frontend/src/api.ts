@@ -5,7 +5,9 @@ import { openResource } from "./native";
 
 export type Schema = components["schemas"];
 export type Status = Schema["OperationStatus"];
-export type Sync = "auto" | "true" | "false";
+export type Sync = NonNullable<
+  NonNullable<operations["listCourses"]["parameters"]["query"]>["sync"]
+>;
 type StreamEvent<K extends keyof operations> = operations[K] extends {
   responses: { 200: { content: { "text/event-stream": (infer E)[] } } };
 }

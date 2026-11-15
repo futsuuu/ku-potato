@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from "vite-plus/test";
 import type { Schema } from "../api";
 import ReportContent from "./ReportContent";
 
-const report: Schema["ReportDetail"] = {
+const report: Schema["Report"] = {
   status: "unsubmitted",
   submissionPeriodKind: "at",
   submissionStartsAt: "2026-10-01T01:00:00Z",

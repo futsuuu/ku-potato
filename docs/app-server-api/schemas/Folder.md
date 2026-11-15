@@ -1,18 +1,18 @@
 # Folder
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
-- **`materials` (required)**: array of [Material](Material.md) | `null`
+- **`materials` (required)**: array of [Material](Material.md)
 - **`name` (required)**: `string`
-- **`classDate`**: `string`, format: `date`
-- **`descriptionHtml`**: `string`
+- **`classDate`**: `string | null`, format: `date`
+- **`descriptionHtml`**: `string | null`
 
 **Example:**
 
 ```json
 {
-  "classDate": "",
-  "descriptionHtml": "",
+  "classDate": null,
+  "descriptionHtml": null,
   "materials": [
     {}
   ],

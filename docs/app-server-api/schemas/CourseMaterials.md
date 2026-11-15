@@ -1,9 +1,9 @@
 # CourseMaterials
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
-- **`folders` (required)**: array of [Folder](Folder.md) | `null`
-- **`lmsCourseId` (required)**: `string`
+- **`folders` (required)**: array of [Folder](Folder.md)
+- **`lmsCourseId` (required)**: `string`, minLength: `1`, maxLength: `200`
 
 **Example:**
 

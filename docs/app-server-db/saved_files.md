@@ -17,7 +17,7 @@ CREATE TABLE saved_files (
     original_size INTEGER NOT NULL CHECK (original_size >= 0), -- 保存時の圧縮を行う前の原本サイズ（バイト）
     resource_retrieval_id TEXT NOT NULL, -- 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する
     timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= 0), -- 保存ファイル情報の更新時の論理タイムスタンプのミリ秒部分。取得履歴とは独立
-    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合はcontent_hashと残りの共有フィールドで順序を決める
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番
     PRIMARY KEY (lms_material_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources(retrieval_id, lms_resource_id),
     FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)
@@ -37,7 +37,7 @@ CREATE TABLE saved_files (
 | original_size | INTEGER |  | false |  |  | 保存時の圧縮を行う前の原本サイズ（バイト） |
 | resource_retrieval_id | TEXT |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) [material_resources](material_resources.md) | 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する |
 | timestamp_millis | INTEGER |  | false |  |  | 保存ファイル情報の更新時の論理タイムスタンプのミリ秒部分。取得履歴とは独立 |
-| timestamp_counter | INTEGER |  | false |  |  | 論理タイムスタンプの同一ミリ秒内の連番。同値の場合はcontent_hashと残りの共有フィールドで順序を決める |
+| timestamp_counter | INTEGER |  | false |  |  | 論理タイムスタンプの同一ミリ秒内の連番 |
 
 ## Constraints
 

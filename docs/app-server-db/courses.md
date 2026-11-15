@@ -14,7 +14,11 @@ CREATE TABLE courses (
     position INTEGER NOT NULL, -- 取得した一覧内の表示順（0始まり）
     lms_course_id TEXT, -- LMSの講義ID。IDが取得できない行はNULL
     name TEXT NOT NULL, -- 講義名
-    availability TEXT NOT NULL, -- LMSに表示された講義の公開・利用状態
+    availability TEXT NOT NULL -- LMSに表示された講義の公開・利用状態
+        CHECK (
+            (availability = 'available' AND lms_course_id IS NOT NULL)
+            OR (availability = 'unavailable' AND lms_course_id IS NULL)
+        ),
     type TEXT NOT NULL CHECK (type IN ('scheduled', 'other', 'unknown')), -- 時間割区分：scheduled（曜日・時限あり）、other（その他）、unknown（不明）
     weekday INTEGER CHECK (weekday BETWEEN 1 AND 7), -- 曜日（1＝月曜〜7＝日曜）。scheduled以外はNULL
     period INTEGER CHECK (period >= 1), -- 時限（1始まり）。scheduled以外はNULL
@@ -49,6 +53,7 @@ CREATE TABLE courses (
 | position | PRIMARY KEY | PRIMARY KEY (position) |
 | - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES course_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
 | sqlite_autoindex_courses_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
+| - | CHECK | CHECK ( (availability = 'available' AND lms_course_id IS NOT NULL) OR (availability = 'unavailable' AND lms_course_id IS NULL) ) |
 | - | CHECK | CHECK (type IN ('scheduled', 'other', 'unknown')) |
 | - | CHECK | CHECK (weekday BETWEEN 1 AND 7) |
 | - | CHECK | CHECK (period >= 1) |

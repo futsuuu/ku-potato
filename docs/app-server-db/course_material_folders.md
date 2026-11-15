@@ -13,7 +13,7 @@ CREATE TABLE course_material_folders (
     retrieval_id TEXT NOT NULL REFERENCES course_material_retrievals(id), -- 教材一覧の取得ID
     position INTEGER NOT NULL, -- 取得した一覧内のフォルダー表示順（0始まり）
     name TEXT NOT NULL, -- 教材フォルダー名
-    class_date TEXT, -- 授業日（YYYY-MM-DD）。未掲載・不正な日付はNULL
+    class_date TEXT, -- 授業日（YYYY-MM-DD）。未掲載の場合はNULL
     description_html TEXT, -- フォルダーの説明HTML。取得できない場合はNULL
     PRIMARY KEY (retrieval_id, position)
 )
@@ -28,7 +28,7 @@ CREATE TABLE course_material_folders (
 | retrieval_id | TEXT |  | false | [course_materials](course_materials.md) | [course_material_retrievals](course_material_retrievals.md) | 教材一覧の取得ID |
 | position | INTEGER |  | false | [course_materials](course_materials.md) |  | 取得した一覧内のフォルダー表示順（0始まり） |
 | name | TEXT |  | false |  |  | 教材フォルダー名 |
-| class_date | TEXT |  | true |  |  | 授業日（YYYY-MM-DD）。未掲載・不正な日付はNULL |
+| class_date | TEXT |  | true |  |  | 授業日（YYYY-MM-DD）。未掲載の場合はNULL |
 | description_html | TEXT |  | true |  |  | フォルダーの説明HTML。取得できない場合はNULL |
 
 ## Constraints
@@ -76,7 +76,7 @@ erDiagram
   TEXT name
   TEXT type
   TEXT status
-  INTEGER material_link_available
+  BOOLEAN material_link_available
   TEXT publication_deadline_kind
   INTEGER publication_deadline_at
   TEXT resource_availability

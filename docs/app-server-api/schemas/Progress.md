@@ -1,11 +1,11 @@
 # Progress
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
-- **`completed` (required)**: `integer`, format: `int64`, minimum: `0`
-- **`stage` (required)**: `string`, possible values: `"waiting", "authenticating", "logging-out", "registering", "fetching-courses", "fetching-materials", "fetching-resources", "downloading", "saving", "completed"`
-- **`total` (required)**: `integer`, format: `int64`, minimum: `0`
-- **`lmsCourseId`**: `string`
+- **`completed` (required)**: `integer`, minimum: `0`
+- **`stage` (required)**: `string`, possible values: `"waiting", "authenticating", "registering", "fetching-courses", "fetching-materials", "fetching-resources", "downloading", "saving", "completed"`
+- **`total` (required)**: `integer`, minimum: `0`
+- **`lmsCourseId`**: `string | null`, minLength: `1`, maxLength: `200`
 
 **Example:**
 

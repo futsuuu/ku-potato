@@ -1,4 +1,3 @@
-// Generate tbls documentation from a fresh SQLite database, never from user data.
 package main
 
 import (
@@ -8,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/futsuuu/ku-potato/app-server/sqlite/schema"
 	"github.com/k1LoW/tbls/config"
 	"github.com/k1LoW/tbls/drivers/sqlite"
 	"github.com/k1LoW/tbls/output/md"
@@ -51,7 +49,11 @@ func analyze(path string) (*tblsschema.Schema, error) {
 		return nil, err
 	}
 	defer func() { _ = db.Close() }()
-	if _, err := db.Exec(schema.SQL); err != nil {
+	definition, err := os.ReadFile("app-server/src/archive/schema.sql")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec(string(definition)); err != nil {
 		return nil, err
 	}
 	document := &tblsschema.Schema{Name: "ku-potato"}
@@ -62,8 +64,6 @@ func analyze(path string) (*tblsschema.Schema, error) {
 	return document, nil
 }
 
-// Read comments retained in SQLite table definitions: the first standalone
-// comment describes the table; inline comments describe their columns.
 func addComments(document *tblsschema.Schema) {
 	for _, table := range document.Tables {
 		for line := range strings.SplitSeq(table.Def, "\n") {

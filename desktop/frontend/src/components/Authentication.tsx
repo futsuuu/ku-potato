@@ -26,9 +26,9 @@ export default function Authentication(props: {
   onLogin?: () => void;
   children?: JSX.Element;
 }) {
-  const [state, setState] = createSignal<Schema["AuthState"]>({ status: "unknown" });
+  const [state, setState] = createSignal<Schema["Authentication"]>({ status: "unknown" });
   const [registered, setRegistered] = createSignal(false);
-  const operation = createOperation<Schema["AuthState"]>();
+  const operation = createOperation<Schema["Authentication"]>();
   async function authenticate(kind: "login" | "check" | "register" | "deleteWebAuthn") {
     const api = untrack(() => props.api);
     const result = await operation.run(async (observe) => {

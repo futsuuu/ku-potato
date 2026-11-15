@@ -16,10 +16,10 @@ CREATE TABLE material_resources (
     name TEXT NOT NULL, -- 資料名
     type TEXT NOT NULL CHECK (type IN ('file', 'external', 'unknown')), -- 資料種別：file（ファイル）、external（外部リンク）、unknown（不明）
     status TEXT NOT NULL CHECK (status IN ('unviewed', 'viewed', 'unknown')), -- 閲覧状態：unviewed（未閲覧）、viewed（閲覧済み）、unknown（不明）
-    registered_on TEXT, -- 登録日（YYYY-MM-DD）。未掲載・不正な日付はNULL
-    first_viewed_on TEXT, -- 初回閲覧日（YYYY-MM-DD）。未掲載・不正な日付はNULL
+    registered_on TEXT, -- 登録日（YYYY-MM-DD）。未掲載の場合はNULL
+    first_viewed_on TEXT, -- 初回閲覧日（YYYY-MM-DD）。未掲載の場合はNULL
     description TEXT, -- 資料の説明。取得できない場合はNULL
-    url TEXT NOT NULL, -- LMSから取得した資料のURL
+    url TEXT CHECK (type != 'external' OR url IS NOT NULL), -- LMSから取得した資料のURL
     PRIMARY KEY (retrieval_id, position),
     UNIQUE (retrieval_id, lms_resource_id)
 )
@@ -37,10 +37,10 @@ CREATE TABLE material_resources (
 | name | TEXT |  | false |  |  | 資料名 |
 | type | TEXT |  | false |  |  | 資料種別：file（ファイル）、external（外部リンク）、unknown（不明） |
 | status | TEXT |  | false |  |  | 閲覧状態：unviewed（未閲覧）、viewed（閲覧済み）、unknown（不明） |
-| registered_on | TEXT |  | true |  |  | 登録日（YYYY-MM-DD）。未掲載・不正な日付はNULL |
-| first_viewed_on | TEXT |  | true |  |  | 初回閲覧日（YYYY-MM-DD）。未掲載・不正な日付はNULL |
+| registered_on | TEXT |  | true |  |  | 登録日（YYYY-MM-DD）。未掲載の場合はNULL |
+| first_viewed_on | TEXT |  | true |  |  | 初回閲覧日（YYYY-MM-DD）。未掲載の場合はNULL |
 | description | TEXT |  | true |  |  | 資料の説明。取得できない場合はNULL |
-| url | TEXT |  | false |  |  | LMSから取得した資料のURL |
+| url | TEXT |  | true |  |  | LMSから取得した資料のURL |
 
 ## Constraints
 
@@ -53,6 +53,7 @@ CREATE TABLE material_resources (
 | sqlite_autoindex_material_resources_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
 | - | CHECK | CHECK (type IN ('file', 'external', 'unknown')) |
 | - | CHECK | CHECK (status IN ('unviewed', 'viewed', 'unknown')) |
+| - | CHECK | CHECK (type != 'external' OR url IS NOT NULL) |
 
 ## Indexes
 

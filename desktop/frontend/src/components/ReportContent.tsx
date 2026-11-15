@@ -3,7 +3,7 @@ import type { Schema } from "../api";
 import { formatDate } from "../format";
 import LmsHtmlContent from "./LmsHtmlContent";
 
-const statuses: Record<Schema["ReportDetail"]["status"], string> = {
+const statuses: Record<Schema["Report"]["status"], string> = {
   unviewed: "未閲覧",
   unsubmitted: "未提出",
   submitted: "提出済み",
@@ -12,10 +12,7 @@ const statuses: Record<Schema["ReportDetail"]["status"], string> = {
   unknown: "不明",
 };
 
-export default function ReportContent(props: {
-  report: Schema["ReportDetail"];
-  archived: boolean;
-}) {
+export default function ReportContent(props: { report: Schema["Report"]; archived: boolean }) {
   return (
     <section class="report-section">
       <h2 class="section-heading">課題内容</h2>

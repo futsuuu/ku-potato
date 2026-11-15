@@ -1,9 +1,9 @@
 # CourseFailure
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
-- **`error` (required)**: [Error](Error.md)
-- **`lmsCourseId` (required)**: `string`
+- **`error` (required)**: [Public](Public.md)
+- **`lmsCourseId` (required)**: `string`, minLength: `1`, maxLength: `200`
 
 **Example:**
 

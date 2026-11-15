@@ -12,19 +12,23 @@ export default defineConfig({
       },
       "app-server:api:generate": {
         command:
-          "go run ./app-server/cmd/ku-potato-server openapi -out tools/api-codegen/openapi.generated.json",
+          "cargo run --locked --bin ku-potato-server -- openapi --out tools/api-codegen/openapi.generated.json",
         cache: {
-          input: ["app-server/**/*", "internal/**/*", "go.mod", "go.sum", "mise.toml"],
+          input: ["app-server/**/*", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml"],
           output: ["tools/api-codegen/openapi.generated.json"],
-          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+          env: ["CARGO_BUILD_TARGET", "RUSTFLAGS"],
         },
       },
       "app-server:build": {
-        command: "go build -o ./desktop/build/bin/ ./app-server/cmd/ku-potato-server",
+        command: "node tools/build-server.mjs",
         dependsOn: ["browser-worker:build", "user-browser:build"],
         cache: {
           input: [
             "app-server/**/*",
+            "Cargo.toml",
+            "Cargo.lock",
+            "rust-toolchain.toml",
+            "tools/build-server.mjs",
             "browser-worker/**/*",
             "user-browser/**/*",
             "internal/**/*",
@@ -33,35 +37,28 @@ export default defineConfig({
             "mise.toml",
           ],
           output: ["desktop/build/bin/ku-potato-server*"],
-          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
+          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN", "CARGO_BUILD_TARGET", "RUSTFLAGS"],
         },
       },
       "app-server:db:check": {
-        command: "go run ./tools/db-codegen -check",
-        cache: {
-          input: [
-            "tools/db-codegen/**/*",
-            "app-server/sqlite/schema/**/*",
-            "app-server/sqlite/gen/**/*",
-            "go.mod",
-            "go.sum",
-            "mise.toml",
-          ],
-          output: [],
-          env: ["GOOS", "GOARCH", "CGO_ENABLED", "GOTOOLCHAIN"],
-        },
+        command: [
+          "node tools/generate-entities.mjs --check",
+          "cargo test --locked --lib archive::",
+          "go test ./tools/db-docs",
+        ],
+        cache: false,
+      },
+      "app-server:db:generate": {
+        command: "node tools/generate-entities.mjs",
+        cache: false,
       },
       "app-server:db:docs": {
         command: "go run ./tools/db-docs",
         cache: false,
       },
-      "app-server:db:generate": {
-        command: "go run ./tools/db-codegen",
-        cache: false,
-      },
       "app-server:dev": {
         command:
-          "go run ./app-server/cmd/ku-potato-server -worker ./desktop/build/bin/ku-potato-browser-worker -user-browser ./desktop/build/bin/ku-potato-user-browser",
+          "cargo run --locked --bin ku-potato-server -- --worker ./desktop/build/bin/ku-potato-browser-worker --user-browser ./desktop/build/bin/ku-potato-user-browser",
         dependsOn: ["browser-worker:build", "user-browser:build"],
         cache: false,
       },
@@ -91,7 +88,13 @@ export default defineConfig({
         cache: false,
       },
       check: {
-        command: ["vp check", "golangci-lint fmt --diff", "golangci-lint run ./..."],
+        command: [
+          "vp check",
+          "cargo fmt --all --check",
+          "cargo clippy --locked --workspace --all-targets -- -D warnings",
+          "golangci-lint fmt --diff",
+          "golangci-lint run ./...",
+        ],
         dependsOn: [
           "desktop:frontend:build",
           "app-server:db:check",
@@ -111,7 +114,7 @@ export default defineConfig({
         dependsOn: ["app-server:api:generate"],
       },
       "desktop:frontend:build": {
-        command: "vp build",
+        command: ["tsc --noEmit", "vp build"],
         cwd: "desktop/frontend",
         dependsOn: ["desktop:frontend:api:generate", "desktop:bindings:generate"],
       },
@@ -129,13 +132,16 @@ export default defineConfig({
         command: [
           "vp fmt",
           "golangci-lint fmt",
+          "cargo fmt --all",
           "clang-format -i browser-worker/protocol/worker.proto user-browser/protocol/user_browser.proto",
         ],
         cache: false,
       },
       test: {
-        command:
-          "go test -count=1 ./app-server/... ./browser-worker/... ./user-browser/... ./internal/... ./desktop/...",
+        command: [
+          "cargo test --locked --workspace",
+          "go test -count=1 ./browser-worker/... ./user-browser/... ./internal/... ./desktop/...",
+        ],
         dependsOn: ["desktop:frontend:build", "desktop:frontend:test", "tools:openapi-docs:test"],
         cache: false,
       },

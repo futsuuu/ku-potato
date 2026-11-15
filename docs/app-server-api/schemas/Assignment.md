@@ -1,9 +1,9 @@
 # Assignment
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
 - **`folderName` (required)**: `string`
-- **`lmsCourseId` (required)**: `string`
+- **`lmsCourseId` (required)**: `string`, minLength: `1`, maxLength: `200`
 - **`material` (required)**: [Material](Material.md)
 
 **Example:**

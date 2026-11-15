@@ -50,7 +50,16 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev pkg-config protobuf-compiler
+      - name: Install Protobuf on macOS
+        if: runner.os == 'macOS'
+        run: brew install protobuf
+      - name: Install Protobuf on Windows
+        if: runner.os == 'Windows'
+        run: choco install protoc --yes --no-progress
+      - name: Install Rust
+        shell: bash
+        run: rustup show
       - run: vp run build
       - run: vp run test
 
@@ -88,5 +97,11 @@ jobs:
       - name: Install check dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
+          sudo apt-get install -y --no-install-recommends clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config protobuf-compiler
+      - name: Install Rust
+        run: rustup show
+      - name: Install SeaORM CLI
+        run: |
+          cargo install --locked sea-orm-cli --version 2.0.4 \
+            --no-default-features --features codegen,sqlx-sqlite,runtime-tokio
       - run: vp run check

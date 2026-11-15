@@ -11,14 +11,17 @@ import Layout from "../components/Layout";
 const course: Schema["Course"] = {
   name: "情報科学",
   lmsCourseId: "C 1",
+  academicYear: 2026,
+  type: "other",
   availability: "available",
 };
 const material: Schema["Material"] = {
   name: "講義資料",
   lmsMaterialId: "M 1",
   type: "material",
+  resourceAvailability: "available",
   status: "unknown",
-  publicationDeadline: "no-deadline",
+  publicationDeadlineKind: "unlisted",
   materialLinkAvailable: true,
 };
 const reportMaterial: Schema["Material"] = {
@@ -28,7 +31,7 @@ const reportMaterial: Schema["Material"] = {
   type: "report",
   status: "unsubmitted",
 };
-const report: Schema["ReportDetail"] = {
+const report: Schema["Report"] = {
   status: "unsubmitted",
   submissionPeriodKind: "unlisted",
   correctionMode: "unknown",
