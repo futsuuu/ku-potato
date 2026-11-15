@@ -75,12 +75,12 @@ export async function generateDocs(
   }
 }
 
-if (import.meta.main) {
-  if (process.argv.length !== 4) {
+export async function main(args: string[], cwd: string): Promise<void> {
+  if (args.length !== 2) {
     throw new Error("usage: node generate.ts <openapi.json> <output-directory>");
   }
-  const input = resolve(process.argv[2]);
-  const output = resolve(process.argv[3]);
+  const input = resolve(cwd, args[0]);
+  const output = resolve(cwd, args[1]);
   const inputLocation = relative(output, input);
   if (
     inputLocation !== ".." &&
@@ -91,4 +91,8 @@ if (import.meta.main) {
   }
   const document = JSON.parse(await readFile(input, "utf8"));
   await generateDocs(document, output);
+}
+
+if (import.meta.main) {
+  await main(process.argv.slice(2), process.cwd());
 }

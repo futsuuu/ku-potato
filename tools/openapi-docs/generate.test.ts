@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { OpenAPIV3_1 } from "@scalar/openapi-types";
 import { test, type TestContext } from "vite-plus/test";
-import { generateDocs } from "./generate.ts";
+import { generateDocs, main } from "./generate.ts";
 
 function description(): OpenAPIV3_1.Document {
   return {
@@ -93,58 +91,39 @@ async function assertLocalLinks(
   }
 }
 
-test(
-  "CLI generates independent references from input and output paths relative to the caller",
-  { timeout: 30_000 },
-  async (t) => {
-    const root = dirname(await directory(t));
-    const script = fileURLToPath(new URL("generate.ts", import.meta.url));
-    for (const name of ["first", "second"]) {
-      const document = description();
-      document.info = { title: `${name} API`, version: "1.0.0" };
-      document.paths!["/status"]!.get!.operationId = `${name}Status`;
-      await writeFile(join(root, `${name}.json`), JSON.stringify(document));
-      const result = spawnSync(process.execPath, [script, `${name}.json`, `${name} reference/`], {
-        cwd: root,
-        encoding: "utf8",
-      });
-      assert.equal(result.status, 0, String(result.error ?? result.stdout + result.stderr));
-      const destination = join(root, `${name} reference`);
-      const generated = await pages(destination);
-      assert.match(generated["README.md"], new RegExp(`# ${name} API`));
-      assert.match(generated[`${name}Status.md`], /# Read status/);
-      await assertLocalLinks(destination, generated);
-    }
-    assert.match(await readFile(join(root, "first reference/README.md"), "utf8"), /# first API/);
-  },
-);
+test("CLI generates independent references from input and output paths relative to the caller", async (t) => {
+  const root = dirname(await directory(t));
+  for (const name of ["first", "second"]) {
+    const document = description();
+    document.info = { title: `${name} API`, version: "1.0.0" };
+    document.paths!["/status"]!.get!.operationId = `${name}Status`;
+    await writeFile(join(root, `${name}.json`), JSON.stringify(document));
+    await main([`${name}.json`, `${name} reference/`], root);
+    const destination = join(root, `${name} reference`);
+    const generated = await pages(destination);
+    assert.match(generated["README.md"], new RegExp(`# ${name} API`));
+    assert.match(generated[`${name}Status.md`], /# Read status/);
+    await assertLocalLinks(destination, generated);
+  }
+  assert.match(await readFile(join(root, "first reference/README.md"), "utf8"), /# first API/);
+});
 
-test(
-  "CLI requires both paths and prevents replacing the input document or its directory",
-  { timeout: 30_000 },
-  async (t) => {
-    const root = dirname(await directory(t));
-    const script = fileURLToPath(new URL("generate.ts", import.meta.url));
-    const source = JSON.stringify(description());
-    await writeFile(join(root, "openapi.json"), source);
-    const missingOutput = spawnSync(process.execPath, [script, "openapi.json"], {
-      cwd: root,
-      encoding: "utf8",
-    });
-    assert.notEqual(missingOutput.status, 0);
-    assert.match(missingOutput.stderr, /usage:/);
-    for (const output of ["openapi.json", "."]) {
-      const result = spawnSync(process.execPath, [script, "openapi.json", output], {
-        cwd: root,
-        encoding: "utf8",
-      });
-      assert.notEqual(result.status, 0);
-      assert.match(result.stderr, /Output directory must not contain the input document/);
-      assert.equal(await readFile(join(root, "openapi.json"), "utf8"), source);
-    }
-    assert.deepEqual(await readdir(root), ["openapi.json"]);
-  },
-);
+test("CLI requires both paths and prevents replacing the input document or its directory", async (t) => {
+  const root = dirname(await directory(t));
+  const source = JSON.stringify(description());
+  await writeFile(join(root, "openapi.json"), source);
+  for (const args of [[], ["openapi.json"], ["openapi.json", "docs", "extra"]]) {
+    await assert.rejects(main(args, root), /usage:/);
+  }
+  for (const output of ["openapi.json", "."]) {
+    await assert.rejects(
+      main(["openapi.json", output], root),
+      /Output directory must not contain the input document/,
+    );
+    assert.equal(await readFile(join(root, "openapi.json"), "utf8"), source);
+  }
+  assert.deepEqual(await readdir(root), ["openapi.json"]);
+});
 
 test("writes one page per method and path with linked schemas and an index", async (t) => {
   const destination = await directory(t);
