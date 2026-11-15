@@ -11,7 +11,9 @@
     in
     {
       devShells = forEachSystem (pkgs: {
-        default = pkgs.mkShell {
+        default = (pkgs.mkShell.override {
+          stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
+        }) {
           packages = [
             pkgs.go_1_27
             pkgs.rustc
