@@ -72,13 +72,22 @@ func (b *Browser) start(ctx context.Context) error {
 		return nil
 	}
 	opts := append([]cd.ExecAllocatorOption{}, cd.DefaultExecAllocatorOptions[:]...)
+	// https://github.com/microsoft/playwright/blob/b4d016a/packages/playwright-core/src/server/chromium/chromiumSwitches.ts
 	opts = append(
 		opts,
 		cd.UserDataDir(b.opts.ProfileDir),
-		cd.Flag("disk-cache-dir", b.opts.CacheDir),
-		cd.Flag("headless", "new"),
-		cd.Flag("disable-dev-shm-usage", true),
 		cd.Flag("allow-browser-signin", "false"),
+		cd.Flag("disk-cache-dir", b.opts.CacheDir),
+		cd.Flag("disable-dev-shm-usage", true),
+		// Flag replaces the entire list, so retain chromedp's disabled features.
+		cd.Flag(
+			"disable-features",
+			"site-per-process,Translate,BlinkGenPropertyTrees,msForceBrowserSignIn",
+		),
+		cd.Flag("disable-search-engine-choice-screen", true),
+		cd.Flag("edge-skip-compat-layer-relaunch", true),
+		cd.Flag("headless", "new"),
+		cd.Flag("no-service-autorun", true),
 		cd.Flag("restore-last-session", true),
 	)
 
