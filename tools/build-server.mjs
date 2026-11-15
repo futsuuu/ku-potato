@@ -7,7 +7,7 @@ const result = spawnSync(
   [
     "build",
     "--locked",
-    "--release",
+    ...process.argv.slice(2),
     "--bin",
     "ku-potato-server",
     "--message-format=json-render-diagnostics",
