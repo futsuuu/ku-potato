@@ -683,7 +683,12 @@ mod tests {
     #[tokio::test]
     async fn database_paths_preserve_reserved_characters() {
         let temporary = tempfile::tempdir().unwrap();
-        let path = temporary.path().join("archive #?% 日本語.sqlite");
+        let filename = if cfg!(windows) {
+            "archive #% 日本語.sqlite"
+        } else {
+            "archive #?% 日本語.sqlite"
+        };
+        let path = temporary.path().join(filename);
         let store = super::Store::open_path(&path).await.unwrap();
         store
             .append(snapshot(vec![material("MAT1", "original")], None))
