@@ -1,11 +1,13 @@
 import type { Schema } from "../api";
-import { formatDate } from "../format";
+import { formatDate, formatDeadline } from "../format";
 
 export default function MaterialInfo(props: { material: Schema["Material"] }) {
   return (
     <small class="muted-note">
-      <span class="tnum">{formatDate(props.material.publicationDeadline)}</span>
-      {props.material.resourceAvailability === "unavailable" ? " · 現在は非公開" : ""}
+      <span class="tnum">{formatDeadline(props.material)}</span>
+      {props.material.type === "material" && props.material.resourceAvailability === "unavailable"
+        ? " · 現在は非公開"
+        : ""}
       {props.material.archived &&
         props.material.type === "material" &&
         props.material.retrievedAt && (

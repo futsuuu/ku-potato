@@ -18,8 +18,8 @@ CREATE TABLE report_details (
     submission_due_at INTEGER, -- 提出締切時刻（Unixミリ秒）。締切が不明・未掲載の場合はNULL
     correction_mode TEXT NOT NULL CHECK (correction_mode IN ('unknown', 'not-allowed', 'unlimited', 'limited')), -- 修正条件：unknown（不明）、not-allowed（不可）、unlimited（無制限）、limited（回数制限）
     correction_limit INTEGER CHECK (correction_limit >= 0), -- 修正回数の上限（0以上）。correction_modeがlimitedの場合のみ値を持つ
-    text_answer_allowed INTEGER CHECK (text_answer_allowed IN (0, 1)), -- テキスト回答を許可するか（0＝不可、1＝可、NULL＝不明）
-    file_answer_allowed INTEGER CHECK (file_answer_allowed IN (0, 1)), -- ファイル回答を許可するか（0＝不可、1＝可、NULL＝不明）
+    text_answer_allowed BOOLEAN CHECK (text_answer_allowed IN (0, 1)), -- テキスト回答を許可するか（0＝不可、1＝可、NULL＝不明）
+    file_answer_allowed BOOLEAN CHECK (file_answer_allowed IN (0, 1)), -- ファイル回答を許可するか（0＝不可、1＝可、NULL＝不明）
     max_total_file_bytes INTEGER CHECK (max_total_file_bytes >= 0), -- 提出ファイルの合計サイズ上限（バイト）。不明の場合はNULL
     CHECK (
         (submission_period_kind = 'at' AND (submission_starts_at IS NOT NULL OR submission_due_at IS NOT NULL))
@@ -44,8 +44,8 @@ CREATE TABLE report_details (
 | submission_due_at | INTEGER |  | true |  |  | 提出締切時刻（Unixミリ秒）。締切が不明・未掲載の場合はNULL |
 | correction_mode | TEXT |  | false |  |  | 修正条件：unknown（不明）、not-allowed（不可）、unlimited（無制限）、limited（回数制限） |
 | correction_limit | INTEGER |  | true |  |  | 修正回数の上限（0以上）。correction_modeがlimitedの場合のみ値を持つ |
-| text_answer_allowed | INTEGER |  | true |  |  | テキスト回答を許可するか（0＝不可、1＝可、NULL＝不明） |
-| file_answer_allowed | INTEGER |  | true |  |  | ファイル回答を許可するか（0＝不可、1＝可、NULL＝不明） |
+| text_answer_allowed | BOOLEAN |  | true |  |  | テキスト回答を許可するか（0＝不可、1＝可、NULL＝不明） |
+| file_answer_allowed | BOOLEAN |  | true |  |  | ファイル回答を許可するか（0＝不可、1＝可、NULL＝不明） |
 | max_total_file_bytes | INTEGER |  | true |  |  | 提出ファイルの合計サイズ上限（バイト）。不明の場合はNULL |
 
 ## Constraints
@@ -88,8 +88,8 @@ erDiagram
   INTEGER submission_due_at
   TEXT correction_mode
   INTEGER correction_limit
-  INTEGER text_answer_allowed
-  INTEGER file_answer_allowed
+  BOOLEAN text_answer_allowed
+  BOOLEAN file_answer_allowed
   INTEGER max_total_file_bytes
 }
 "report_detail_retrievals" {

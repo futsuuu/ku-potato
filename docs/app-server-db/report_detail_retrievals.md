@@ -70,8 +70,8 @@ erDiagram
   INTEGER submission_due_at
   TEXT correction_mode
   INTEGER correction_limit
-  INTEGER text_answer_allowed
-  INTEGER file_answer_allowed
+  BOOLEAN text_answer_allowed
+  BOOLEAN file_answer_allowed
   INTEGER max_total_file_bytes
 }
 ```

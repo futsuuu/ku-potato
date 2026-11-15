@@ -73,7 +73,7 @@ erDiagram
   TEXT name
   TEXT type
   TEXT status
-  INTEGER material_link_available
+  BOOLEAN material_link_available
   TEXT publication_deadline_kind
   INTEGER publication_deadline_at
   TEXT resource_availability
@@ -123,8 +123,8 @@ erDiagram
   INTEGER submission_due_at
   TEXT correction_mode
   INTEGER correction_limit
-  INTEGER text_answer_allowed
-  INTEGER file_answer_allowed
+  BOOLEAN text_answer_allowed
+  BOOLEAN file_answer_allowed
   INTEGER max_total_file_bytes
 }
 ```

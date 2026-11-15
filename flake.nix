@@ -14,6 +14,11 @@
         default = pkgs.mkShell {
           packages = [
             pkgs.go_1_27
+            pkgs.rustc
+            pkgs.cargo
+            pkgs.rustfmt
+            pkgs.clippy
+            pkgs.sea-orm-cli
             pkgs.golangci-lint
             pkgs.protobuf
             pkgs.llvmPackages_18.clang-tools

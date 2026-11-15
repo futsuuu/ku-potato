@@ -4,130 +4,58 @@
 - **Path:** `/materials/{materialId}/resources/{resourceId}/file`
 - **Operation ID:** `getSavedFile`
 
+Serves verified saved content with range requests and ETag conditionals. Does not download missing content.
+
 ## Effective servers
 
 - `/`
 
 ## Path parameters
 
-- **`materialId` (required)**: `string`
-- **`resourceId` (required)**: `string`
+- **`materialId` (required)**: `string`, maxLength: `200`, pattern: `^[A-Z]+[0-9]+$`
+- **`resourceId` (required)**: `string`, maxLength: `200`, pattern: `^SRS[0-9]+$`
 
 ## Header parameters
 
-- **`Range`**: `string`
+- **`Range`**: `string | null`
 
   Byte range to retrieve.
-- **`If-None-Match`**: `string`
-
-  Return 304 if the saved file's ETag matches.
-- **`If-Range`**: `string`
+- **`If-Range`**: `string | null`
 
   Apply Range only if the saved file's ETag matches.
+- **`If-None-Match`**: `string | null`
+
+  Return 304 if the saved file's ETag matches.
 
 ## Responses
 
-### 200 OK
-
-**Headers:**
-
-- **`Accept-Ranges`**
-
-  `string`
-- **`Content-Disposition`**
-
-  `string`
-- **`Content-Range`**
-
-  `string`
-- **`ETag`**
-
-  `string`
+### 200
 
 **Content type:** `application/octet-stream`
 
 `string`, format: `binary`
 
-### 206 Partial Content
-
-**Headers:**
-
-- **`Accept-Ranges`**
-
-  `string`
-- **`Content-Disposition`**
-
-  `string`
-- **`Content-Range`**
-
-  `string`
-- **`ETag`**
-
-  `string`
+### 206
 
 **Content type:** `application/octet-stream`
 
 `string`, format: `binary`
 
-### 304 ETag matched
+### 304
 
-### 400 Bad Request
+### 400, 403, 404, 500
 
-**Content type:** `application/json`
-
-schema: [ErrorBody](schemas/ErrorBody.md), no additional properties
-
-- **`error` (required)**: [Error](schemas/Error.md)
-
-**Content type:** `application/problem+json`
-
-schema: [ErrorModel](schemas/ErrorModel.md), no additional properties
-
-- **`detail`**: `string`
-
-  A human-readable explanation specific to this occurrence of the problem.
-- **`errors`**: array of [ErrorDetail](schemas/ErrorDetail.md) | `null`
-
-  Optional list of individual error details
-- **`instance`**: `string`, format: `uri`
-
-  A URI reference that identifies the specific occurrence of the problem.
-- **`status`**: `integer`, format: `int64`
-
-  HTTP status code
-- **`title`**: `string`
-
-  A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
-- **`type`**: `string`, format: `uri`, default: `"about:blank"`
-
-  A URI reference to human-readable documentation for the error.
-
-### 403, 404, 409, 500
-
-- `403` Forbidden
-- `404` Not Found
-- `409` Conflict
-- `500` Internal Server Error
+- `400`
+- `403`
+- `404`
+- `500`
 
 **Content type:** `application/json`
 
-*Schema `ErrorBody` is shown above.*
+schema: [ErrorBody](schemas/ErrorBody.md)
 
-### 408, 413, 415, 422
+- **`error` (required)**: [Public](schemas/Public.md)
 
-- `408` Request Timeout
-- `413` Request Entity Too Large
-- `415` Unsupported Media Type
-- `422` Unprocessable Entity
-
-**Content type:** `application/problem+json`
-
-*Schema `ErrorModel` is shown above.*
-
-### 416 Invalid byte range
-
-**Content type:** `text/plain`
-
-`string`
+### 416
 
 [API index](README.md)

@@ -7,10 +7,7 @@ export default function Progress(props: { pending: boolean; error: string; statu
     <>
       <Show when={props.pending}>
         <div class="operation-progress" role="status" aria-live="polite">
-          <span>
-            {props.status?.status === "retrying" ? "再試行中 · " : ""}
-            {props.status?.progress ? stages[props.status.progress.stage] : "読み込み中"}
-          </span>
+          <span>{props.status?.progress ? stages[props.status.progress.stage] : "読み込み中"}</span>
           <Show when={(props.status?.progress?.total ?? 0) > 0}>
             <span class="tnum">
               {props.status?.progress?.completed} / {props.status?.progress?.total}

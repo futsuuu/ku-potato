@@ -16,6 +16,7 @@ const base: Schema["Resource"] = {
   lmsResourceId: "SRS1",
   name: "Handout",
   type: "external",
+  status: "unknown",
   archived: false,
   url: "https://example.com/handout",
 };

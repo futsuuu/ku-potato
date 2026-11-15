@@ -15,7 +15,7 @@ const material: Schema["Material"] = {
   name: "資料",
   type: "material",
   status: "unknown",
-  publicationDeadline: "unavailable",
+  publicationDeadlineKind: "closed",
   materialLinkAvailable: false,
   resourceAvailability: "unavailable",
   archived: true,

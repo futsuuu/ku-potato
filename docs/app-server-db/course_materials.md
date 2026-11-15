@@ -17,10 +17,10 @@ CREATE TABLE course_materials (
     name TEXT NOT NULL, -- 教材名
     type TEXT NOT NULL CHECK (type IN ('material', 'report', 'test', 'questionnaire', 'e-learning', 'board', 'feedback', 'unknown')), -- 教材種別：material、report、test、questionnaire、e-learning、board、feedback、unknown
     status TEXT NOT NULL, -- 教材種別に応じた閲覧・提出・受験等の状態。不明な値はunknown。許容値はCHECK制約で定義
-    material_link_available INTEGER NOT NULL CHECK (material_link_available IN (0, 1)), -- 教材へのリンクが利用可能か（0＝不可、1＝可）
+    material_link_available BOOLEAN NOT NULL CHECK (material_link_available IN (0, 1)), -- 教材へのリンクが利用可能か（0＝不可、1＝可）
     publication_deadline_kind TEXT NOT NULL CHECK (publication_deadline_kind IN ('at', 'unlisted', 'closed', 'unknown')), -- 公開期限の区分：at（日時あり）、unlisted（掲載なし）、closed（公開終了）、unknown（不明）
     publication_deadline_at INTEGER, -- 公開期限（Unixミリ秒）。区分がatの場合のみ値を持つ
-    resource_availability TEXT NOT NULL, -- LMSに表示された資料の公開・利用状態
+    resource_availability TEXT CHECK ((type = 'material' AND resource_availability IS NOT NULL AND resource_availability IN ('available', 'unavailable')) OR (type != 'material' AND resource_availability IS NULL)), -- LMSに表示された資料の公開・利用状態
     CHECK ((publication_deadline_kind = 'at') = (publication_deadline_at IS NOT NULL)),
     CHECK (
         status = 'unknown'
@@ -50,10 +50,10 @@ CREATE TABLE course_materials (
 | name | TEXT |  | false |  |  | 教材名 |
 | type | TEXT |  | false |  |  | 教材種別：material、report、test、questionnaire、e-learning、board、feedback、unknown |
 | status | TEXT |  | false |  |  | 教材種別に応じた閲覧・提出・受験等の状態。不明な値はunknown。許容値はCHECK制約で定義 |
-| material_link_available | INTEGER |  | false |  |  | 教材へのリンクが利用可能か（0＝不可、1＝可） |
+| material_link_available | BOOLEAN |  | false |  |  | 教材へのリンクが利用可能か（0＝不可、1＝可） |
 | publication_deadline_kind | TEXT |  | false |  |  | 公開期限の区分：at（日時あり）、unlisted（掲載なし）、closed（公開終了）、unknown（不明） |
 | publication_deadline_at | INTEGER |  | true |  |  | 公開期限（Unixミリ秒）。区分がatの場合のみ値を持つ |
-| resource_availability | TEXT |  | false |  |  | LMSに表示された資料の公開・利用状態 |
+| resource_availability | TEXT |  | true |  |  | LMSに表示された資料の公開・利用状態 |
 
 ## Constraints
 
@@ -67,6 +67,7 @@ CREATE TABLE course_materials (
 | - | CHECK | CHECK (type IN ('material', 'report', 'test', 'questionnaire', 'e-learning', 'board', 'feedback', 'unknown')) |
 | - | CHECK | CHECK (material_link_available IN (0, 1)) |
 | - | CHECK | CHECK (publication_deadline_kind IN ('at', 'unlisted', 'closed', 'unknown')) |
+| - | CHECK | CHECK ((type = 'material' AND resource_availability IS NOT NULL AND resource_availability IN ('available', 'unavailable')) OR (type != 'material' AND resource_availability IS NULL)) |
 | - | CHECK | CHECK ((publication_deadline_kind = 'at') = (publication_deadline_at IS NOT NULL)) |
 | - | CHECK | CHECK ( status = 'unknown' OR (type = 'material' AND status IN ('unviewed', 'viewed', 'partially-viewed')) OR (type = 'report' AND status IN ('unviewed', 'unsubmitted', 'submitted', 'resubmission-required', 'evaluated')) OR (type IN ('test', 'e-learning') AND status IN ('not-started', 'in-progress', 'completed')) OR (type = 'questionnaire' AND status IN ('unanswered', 'answered')) OR (type = 'board' AND status IN ('unposted', 'evaluated')) OR (type = 'feedback' AND status IN ('unevaluated', 'evaluated')) ) |
 
@@ -93,7 +94,7 @@ erDiagram
   TEXT name
   TEXT type
   TEXT status
-  INTEGER material_link_available
+  BOOLEAN material_link_available
   TEXT publication_deadline_kind
   INTEGER publication_deadline_at
   TEXT resource_availability

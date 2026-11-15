@@ -17,7 +17,10 @@ function createWorkspace(api: API) {
     courses,
     loadCourses,
     courseName: (id: string) =>
-      courses.data()?.find((course) => course.lmsCourseId === id)?.name ?? id,
+      courses
+        .data()
+        ?.find((course) => course.availability === "available" && course.lmsCourseId === id)
+        ?.name ?? id,
   };
 }
 

@@ -1,8 +1,8 @@
 # ErrorBody
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
-- **`error` (required)**: [Error](Error.md)
+- **`error` (required)**: [Public](Public.md)
 
 **Example:**
 

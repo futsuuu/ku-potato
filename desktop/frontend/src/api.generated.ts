@@ -26,7 +26,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Read cached authentication state */
+    /**
+     * Read cached authentication state
+     * @description Returns the last observed LMS authentication state without starting an authentication check.
+     */
     get: operations["getCachedAuthenticationState"];
     put?: never;
     post?: never;
@@ -63,7 +66,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Read cached Google authentication state */
+    /**
+     * Read cached Google authentication state
+     * @description Returns the last observed Google authentication state without starting an authentication check.
+     */
     get: operations["getCachedGoogleAuthenticationState"];
     put?: never;
     post?: never;
@@ -140,7 +146,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Read saved WebAuthn credential state */
+    /**
+     * Read saved WebAuthn credential state
+     * @description Reports whether a saved virtual WebAuthn credential is registered.
+     */
     get: operations["getWebAuthn"];
     put?: never;
     /**
@@ -205,7 +214,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Check HTTP process */
+    /**
+     * Check HTTP process
+     * @description Reports HTTP process availability without starting browser work.
+     */
     get: operations["health"];
     put?: never;
     post?: never;
@@ -262,13 +274,19 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Serve a saved file */
+    /**
+     * Serve a saved file
+     * @description Serves verified saved content with range requests and ETag conditionals. Does not download missing content.
+     */
     get: operations["getSavedFile"];
     put?: never;
     post?: never;
     delete?: never;
     options?: never;
-    /** Serve a saved file */
+    /**
+     * Read saved file headers
+     * @description Returns the same headers as a saved-file GET request without a response body.
+     */
     head: operations["headSavedFile"];
     patch?: never;
     trace?: never;
@@ -282,8 +300,31 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Materialize a saved resource for local clients */
+    /**
+     * Materialize a saved resource for local clients
+     * @description Verifies and materializes saved content and returns its local filesystem path. Does not download missing content.
+     */
     post: operations["prepareResource"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/openapi.json": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read the generated OpenAPI document
+     * @description Generated from the same Rust routes and schemas used by this server.
+     */
+    get: operations["specification"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -294,412 +335,526 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** Format: int32 */
+    AcademicYear: number;
+    Access:
+      | {
+          /** @enum {string} */
+          availability: "available";
+          lmsCourseId: components["schemas"]["CourseId"];
+        }
+      | {
+          /** @enum {string} */
+          availability: "unavailable";
+        };
     Assignment: {
       folderName: string;
-      lmsCourseId: string;
+      lmsCourseId: components["schemas"]["CourseId"];
       material: components["schemas"]["Material"];
     };
-    AssignmentsResult: {
-      assignments: components["schemas"]["Assignment"][] | null;
-      failures: components["schemas"]["CourseFailure"][] | null;
+    Assignments: {
+      assignments: components["schemas"]["Assignment"][];
+      failures: components["schemas"]["CourseFailure"][];
     };
-    AuthInputBody: {
-      /**
-       * @description Allow manual authentication in a visible browser on the server machine.
-       * @default false
-       */
+    Authentication:
+      | {
+          /** @enum {string} */
+          status: "unknown";
+        }
+      | {
+          /** @enum {string} */
+          status: "authenticated";
+        }
+      | {
+          /** @enum {string} */
+          status: "unauthenticated";
+        };
+    /** @description Set interactive to allow manual authentication in a visible browser on the server machine. */
+    AuthenticationInput: {
+      /** @default false */
       interactive: boolean;
     };
-    AuthState: {
-      /** @enum {string} */
-      status: "unknown" | "authenticated" | "unauthenticated";
-    };
-    Course: {
-      /** Format: int64 */
-      academicYear?: number;
-      archived?: boolean;
-      /** @enum {string} */
-      availability: "available" | "unavailable";
-      lmsCourseId?: string;
-      name: string;
-      /** Format: int64 */
-      period?: number;
-      /** @enum {string} */
-      type?: "scheduled" | "other" | "unknown";
-      /** Format: int64 */
-      weekday?: number;
-    };
+    /** @enum {string} */
+    Availability: "available" | "unavailable";
+    /** @enum {string} */
+    BoardStatus: "unposted" | "evaluated" | "unknown";
+    ContentHash: string;
+    Correction:
+      | {
+          /** @enum {string} */
+          correctionMode: "unknown";
+        }
+      | {
+          /** @enum {string} */
+          correctionMode: "not-allowed";
+        }
+      | {
+          /** @enum {string} */
+          correctionMode: "unlimited";
+        }
+      | {
+          /** Format: int64 */
+          correctionLimit: number;
+          /** @enum {string} */
+          correctionMode: "limited";
+        };
+    Course: components["schemas"]["Access"] &
+      components["schemas"]["Schedule"] & {
+        academicYear: components["schemas"]["AcademicYear"];
+        archived?: boolean;
+        name: string;
+      };
     CourseFailure: {
-      error: components["schemas"]["Error"];
-      lmsCourseId: string;
+      error: components["schemas"]["Public"];
+      lmsCourseId: components["schemas"]["CourseId"];
     };
+    CourseId: string;
     CourseMaterials: {
-      folders: components["schemas"]["Folder"][] | null;
-      lmsCourseId: string;
+      folders: components["schemas"]["Folder"][];
+      lmsCourseId: components["schemas"]["CourseId"];
     };
-    DataBodyAssignmentsResult: {
-      data: components["schemas"]["AssignmentsResult"];
+    Data_Assignments: {
+      data: {
+        assignments: components["schemas"]["Assignment"][];
+        failures: components["schemas"]["CourseFailure"][];
+      };
     };
-    DataBodyAuthState: {
-      data: components["schemas"]["AuthState"];
+    Data_Authentication: {
+      data:
+        | {
+            /** @enum {string} */
+            status: "unknown";
+          }
+        | {
+            /** @enum {string} */
+            status: "authenticated";
+          }
+        | {
+            /** @enum {string} */
+            status: "unauthenticated";
+          };
     };
-    DataBodyCourseMaterials: {
-      data: components["schemas"]["CourseMaterials"];
+    Data_CourseMaterials: {
+      data: {
+        folders: components["schemas"]["Folder"][];
+        lmsCourseId: components["schemas"]["CourseId"];
+      };
     };
-    DataBodyDetail: {
-      data: components["schemas"]["Detail"];
+    Data_Detail: {
+      data: {
+        course: components["schemas"]["Course"];
+        material: components["schemas"]["Material"];
+        report?: components["schemas"]["Report"] | null;
+        resources: components["schemas"]["Resource"][];
+      };
     };
-    DataBodyDownloadResult: {
-      data: components["schemas"]["FileDownload"] | components["schemas"]["ExternalDownload"];
+    Data_Download: {
+      data:
+        | {
+            downloadUrl: string;
+            file: components["schemas"]["SavedFile"];
+            /** @enum {string} */
+            type: "file";
+          }
+        | {
+            /** @enum {string} */
+            type: "external";
+            url: components["schemas"]["WebUrl"];
+          };
     };
-    DataBodyListCourse: {
-      data: components["schemas"]["Course"][] | null;
+    Data_Registration: {
+      data: {
+        registered: boolean;
+      };
     };
-    DataBodyRegistrationResult: {
-      data: components["schemas"]["RegistrationResult"];
+    Data_ResourcePath: {
+      data: {
+        path: string;
+      };
     };
-    DataBodyResourcePath: {
-      data: components["schemas"]["ResourcePath"];
+    Data_Vec: {
+      data: (components["schemas"]["Access"] &
+        components["schemas"]["Schedule"] & {
+          academicYear: components["schemas"]["AcademicYear"];
+          archived?: boolean;
+          name: string;
+        })[];
     };
+    Deadline:
+      | {
+          /** Format: date-time */
+          publicationDeadlineAt: string;
+          /** @enum {string} */
+          publicationDeadlineKind: "at";
+        }
+      | {
+          /** @enum {string} */
+          publicationDeadlineKind: "unlisted";
+        }
+      | {
+          /** @enum {string} */
+          publicationDeadlineKind: "closed";
+        }
+      | {
+          /** @enum {string} */
+          publicationDeadlineKind: "unknown";
+        };
     Detail: {
       course: components["schemas"]["Course"];
       material: components["schemas"]["Material"];
-      report?: components["schemas"]["ReportDetail"];
-      resources: components["schemas"]["Resource"][] | null;
+      report?: components["schemas"]["Report"] | null;
+      resources: components["schemas"]["Resource"][];
     };
-    Error: {
-      message: string;
-      /** @enum {string} */
-      reason:
-        | "invalid-input"
-        | "conflict"
-        | "authentication-required"
-        | "archive-data-missing"
-        | "material-not-found"
-        | "resource-not-found"
-        | "course-not-found"
-        | "unsupported-resource"
-        | "source"
-        | "timeout"
-        | "internal"
-        | "archive"
-        | "authentication-storage"
-        | "resource-storage"
-        | "not-found"
-        | "forbidden"
-        | "browser-start";
-    };
+    /** @enum {string} */
+    DocumentStatus: "unviewed" | "viewed" | "partially-viewed" | "unknown";
+    Download:
+      | {
+          downloadUrl: string;
+          file: components["schemas"]["SavedFile"];
+          /** @enum {string} */
+          type: "file";
+        }
+      | {
+          /** @enum {string} */
+          type: "external";
+          url: components["schemas"]["WebUrl"];
+        };
     ErrorBody: {
-      error: components["schemas"]["Error"];
+      error: components["schemas"]["Public"];
     };
-    ErrorDetail: {
-      /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
-      location?: string;
-      /** @description Error message text */
-      message?: string;
-      /** @description The value at the given location */
-      value?: unknown;
-    };
-    ErrorModel: {
-      /**
-       * @description A human-readable explanation specific to this occurrence of the problem.
-       * @example Property foo is required but is missing.
-       */
-      detail?: string;
-      /** @description Optional list of individual error details */
-      errors?: components["schemas"]["ErrorDetail"][] | null;
-      /**
-       * Format: uri
-       * @description A URI reference that identifies the specific occurrence of the problem.
-       * @example https://example.com/error-log/abc123
-       */
-      instance?: string;
-      /**
-       * Format: int64
-       * @description HTTP status code
-       * @example 400
-       */
-      status?: number;
-      /**
-       * @description A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
-       * @example Bad Request
-       */
-      title?: string;
-      /**
-       * Format: uri
-       * @description A URI reference to human-readable documentation for the error.
-       * @default about:blank
-       * @example https://example.com/errors/example
-       */
-      type: string;
-    };
-    ExternalDownload: {
-      /** @enum {string} */
-      type: "external";
-      /** Format: uri */
-      url: string;
-    };
-    FileDownload: {
-      downloadUrl: string;
-      file: components["schemas"]["SavedFile"];
-      /** @enum {string} */
-      type: "file";
-    };
+    /** @enum {string} */
+    FeedbackStatus: "unevaluated" | "evaluated" | "unknown";
     Folder: {
       /** Format: date */
-      classDate?: string;
-      descriptionHtml?: string;
-      materials: components["schemas"]["Material"][] | null;
+      classDate?: string | null;
+      descriptionHtml?: string | null;
+      materials: components["schemas"]["Material"][];
       name: string;
     };
-    HealthResponseBody: {
-      /** @enum {string} */
-      service: "ku-potato-server";
-      /** @enum {string} */
-      status: "ok";
+    Health: {
+      service: string;
+      status: string;
     };
-    Material:
+    Material: components["schemas"]["MaterialKind"] &
+      components["schemas"]["Deadline"] & {
+        archived?: boolean;
+        lmsMaterialId: components["schemas"]["MaterialId"];
+        materialLinkAvailable: boolean;
+        name: string;
+        /** Format: date-time */
+        retrievedAt?: string | null;
+      };
+    MaterialId: string;
+    MaterialKind:
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status: "unviewed" | "viewed" | "partially-viewed" | "unknown";
+          resourceAvailability: components["schemas"]["Availability"];
+          status: components["schemas"]["DocumentStatus"];
           /** @enum {string} */
           type: "material";
         }
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status:
-            | "unviewed"
-            | "unsubmitted"
-            | "submitted"
-            | "resubmission-required"
-            | "evaluated"
-            | "unknown";
+          status: components["schemas"]["ReportStatus"];
           /** @enum {string} */
           type: "report";
         }
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status: "not-started" | "in-progress" | "completed" | "unknown";
+          status: components["schemas"]["TestStatus"];
           /** @enum {string} */
           type: "test";
         }
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status: "unanswered" | "answered" | "unknown";
+          status: components["schemas"]["QuestionnaireStatus"];
           /** @enum {string} */
           type: "questionnaire";
         }
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status: "not-started" | "in-progress" | "completed" | "unknown";
+          status: components["schemas"]["TestStatus"];
           /** @enum {string} */
           type: "e-learning";
         }
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status: "unposted" | "evaluated" | "unknown";
+          status: components["schemas"]["BoardStatus"];
           /** @enum {string} */
           type: "board";
         }
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status: "unevaluated" | "evaluated" | "unknown";
+          status: components["schemas"]["FeedbackStatus"];
           /** @enum {string} */
           type: "feedback";
         }
       | {
-          archived?: boolean;
-          lmsMaterialId: string;
-          materialLinkAvailable: boolean;
-          name: string;
-          publicationDeadline: string;
-          /** Format: date-time */
-          publicationDeadlineAt?: string;
-          /** @enum {string} */
-          publicationDeadlineKind?: "at" | "unlisted" | "closed" | "unknown";
-          /** @enum {string} */
-          resourceAvailability?: "available" | "unavailable";
-          /** Format: date-time */
-          retrievedAt?: string;
-          /** @enum {string} */
-          status: "unknown";
+          status: components["schemas"]["Unknown"];
           /** @enum {string} */
           type: "unknown";
         };
+    /** @enum {string} */
+    OperationState: "running" | "succeeded" | "blocked" | "failed";
     OperationStatus: {
-      /** Format: int64 */
+      /** Format: int32 */
       attempt: number;
-      error?: components["schemas"]["Error"];
-      progress?: components["schemas"]["Progress"];
-      /** @enum {string} */
-      status: "queued" | "running" | "retrying" | "succeeded" | "failed" | "blocked";
+      progress: components["schemas"]["Progress"];
+      status: components["schemas"]["OperationState"];
     };
     Progress: {
-      /** Format: int64 */
       completed: number;
-      lmsCourseId?: string;
-      /** @enum {string} */
-      stage:
-        | "waiting"
-        | "authenticating"
-        | "logging-out"
-        | "registering"
-        | "fetching-courses"
-        | "fetching-materials"
-        | "fetching-resources"
-        | "downloading"
-        | "saving"
-        | "completed";
-      /** Format: int64 */
+      lmsCourseId?: components["schemas"]["CourseId"] | null;
+      stage: components["schemas"]["Stage"];
       total: number;
     };
-    RegistrationResult: {
+    Public: {
+      message: string;
+      reason: components["schemas"]["Reason"];
+    };
+    /** @enum {string} */
+    QuestionnaireStatus: "unanswered" | "answered" | "unknown";
+    /** @enum {string} */
+    Reason:
+      | "invalid-input"
+      | "payload-too-large"
+      | "conflict"
+      | "authentication-required"
+      | "archive-data-missing"
+      | "material-not-found"
+      | "resource-not-found"
+      | "course-not-found"
+      | "unsupported-resource"
+      | "source"
+      | "timeout"
+      | "internal"
+      | "archive"
+      | "authentication-storage"
+      | "resource-storage"
+      | "not-found"
+      | "forbidden"
+      | "browser-start";
+    Registration: {
       registered: boolean;
     };
-    ReportDetail: {
-      /** Format: int64 */
-      correctionLimit?: number;
-      /** @enum {string} */
-      correctionMode: "unknown" | "not-allowed" | "unlimited" | "limited";
-      fileAnswerAllowed?: boolean;
-      /** Format: int64 */
-      maxTotalFileBytes?: number;
-      promptHtml?: string;
-      /** Format: date-time */
-      retrievedAt?: string;
-      /** @enum {string} */
-      status:
-        | "unviewed"
-        | "unsubmitted"
-        | "submitted"
-        | "resubmission-required"
-        | "evaluated"
-        | "unknown";
-      /** Format: date-time */
-      submissionDueAt?: string;
-      /** @enum {string} */
-      submissionPeriodKind: "at" | "unlisted" | "unknown";
-      /** Format: date-time */
-      submissionStartsAt?: string;
-      textAnswerAllowed?: boolean;
-    };
-    Resource: {
+    Report: components["schemas"]["SubmissionPeriod"] &
+      components["schemas"]["Correction"] & {
+        fileAnswerAllowed?: boolean | null;
+        /** Format: int64 */
+        maxTotalFileBytes?: number | null;
+        promptHtml?: string | null;
+        /** Format: date-time */
+        retrievedAt?: string | null;
+        status: components["schemas"]["ReportStatus"];
+        textAnswerAllowed?: boolean | null;
+      };
+    /** @enum {string} */
+    ReportStatus:
+      | "unviewed"
+      | "unsubmitted"
+      | "submitted"
+      | "resubmission-required"
+      | "evaluated"
+      | "unknown";
+    Resource: components["schemas"]["ResourceContent"] & {
       archived?: boolean;
-      description?: string;
+      description?: string | null;
       /** Format: date */
-      firstViewedOn?: string;
-      lmsResourceId: string;
+      firstViewedOn?: string | null;
+      lmsResourceId: components["schemas"]["ResourceId"];
       name: string;
       /** Format: date */
-      registeredOn?: string;
-      savedFile?: components["schemas"]["SavedFile"];
-      /** @enum {string} */
-      status?: "unviewed" | "viewed" | "unknown";
-      /** @enum {string} */
-      type: "file" | "external" | "unknown";
-      /** Format: uri */
-      url?: string;
+      registeredOn?: string | null;
+      savedFile?: components["schemas"]["SavedFile"] | null;
+      status: components["schemas"]["ResourceStatus"];
     };
+    ResourceContent:
+      | {
+          /** @enum {string} */
+          type: "file";
+          url?: components["schemas"]["WebUrl"] | null;
+        }
+      | {
+          /** @enum {string} */
+          type: "external";
+          url: components["schemas"]["WebUrl"];
+        }
+      | {
+          /** @enum {string} */
+          type: "unknown";
+          url?: components["schemas"]["WebUrl"] | null;
+        };
+    ResourceId: string;
     ResourcePath: {
       path: string;
     };
+    /** @enum {string} */
+    ResourceStatus: "unviewed" | "viewed" | "unknown";
     SavedFile: {
-      contentHash: string;
+      contentHash: components["schemas"]["ContentHash"];
       originalFilename: string;
       /** Format: int64 */
       originalSize: number;
     };
+    Schedule:
+      | {
+          /** Format: int32 */
+          period: number;
+          /** @enum {string} */
+          type: "scheduled";
+          weekday: components["schemas"]["Weekday"];
+        }
+      | {
+          /** @enum {string} */
+          type: "other";
+        }
+      | {
+          /** @enum {string} */
+          type: "unknown";
+        };
+    /** @enum {string} */
+    Stage:
+      | "waiting"
+      | "authenticating"
+      | "registering"
+      | "fetching-courses"
+      | "fetching-materials"
+      | "fetching-resources"
+      | "downloading"
+      | "saving"
+      | "completed";
+    StreamEvent_Assignments:
+      | {
+          data: components["schemas"]["OperationStatus"];
+          /** @enum {string} */
+          event: "status";
+        }
+      | {
+          data: components["schemas"]["Data_Assignments"];
+          /** @enum {string} */
+          event: "result";
+        }
+      | {
+          data: components["schemas"]["ErrorBody"];
+          /** @enum {string} */
+          event: "error";
+        };
+    StreamEvent_Authentication:
+      | {
+          data: components["schemas"]["OperationStatus"];
+          /** @enum {string} */
+          event: "status";
+        }
+      | {
+          data: components["schemas"]["Data_Authentication"];
+          /** @enum {string} */
+          event: "result";
+        }
+      | {
+          data: components["schemas"]["ErrorBody"];
+          /** @enum {string} */
+          event: "error";
+        };
+    StreamEvent_CourseMaterials:
+      | {
+          data: components["schemas"]["OperationStatus"];
+          /** @enum {string} */
+          event: "status";
+        }
+      | {
+          data: components["schemas"]["Data_CourseMaterials"];
+          /** @enum {string} */
+          event: "result";
+        }
+      | {
+          data: components["schemas"]["ErrorBody"];
+          /** @enum {string} */
+          event: "error";
+        };
+    StreamEvent_Detail:
+      | {
+          data: components["schemas"]["OperationStatus"];
+          /** @enum {string} */
+          event: "status";
+        }
+      | {
+          data: components["schemas"]["Data_Detail"];
+          /** @enum {string} */
+          event: "result";
+        }
+      | {
+          data: components["schemas"]["ErrorBody"];
+          /** @enum {string} */
+          event: "error";
+        };
+    StreamEvent_Download:
+      | {
+          data: components["schemas"]["OperationStatus"];
+          /** @enum {string} */
+          event: "status";
+        }
+      | {
+          data: components["schemas"]["Data_Download"];
+          /** @enum {string} */
+          event: "result";
+        }
+      | {
+          data: components["schemas"]["ErrorBody"];
+          /** @enum {string} */
+          event: "error";
+        };
+    StreamEvent_Registration:
+      | {
+          data: components["schemas"]["OperationStatus"];
+          /** @enum {string} */
+          event: "status";
+        }
+      | {
+          data: components["schemas"]["Data_Registration"];
+          /** @enum {string} */
+          event: "result";
+        }
+      | {
+          data: components["schemas"]["ErrorBody"];
+          /** @enum {string} */
+          event: "error";
+        };
+    StreamEvent_Vec_Course:
+      | {
+          data: components["schemas"]["OperationStatus"];
+          /** @enum {string} */
+          event: "status";
+        }
+      | {
+          data: components["schemas"]["Data_Vec"];
+          /** @enum {string} */
+          event: "result";
+        }
+      | {
+          data: components["schemas"]["ErrorBody"];
+          /** @enum {string} */
+          event: "error";
+        };
+    SubmissionPeriod:
+      | (components["schemas"]["SubmissionWindow"] & {
+          /** @enum {string} */
+          submissionPeriodKind: "at";
+        })
+      | {
+          /** @enum {string} */
+          submissionPeriodKind: "unlisted";
+        }
+      | {
+          /** @enum {string} */
+          submissionPeriodKind: "unknown";
+        };
+    SubmissionWindow: {
+      /** Format: date-time */
+      submissionDueAt?: string | null;
+      /** Format: date-time */
+      submissionStartsAt?: string | null;
+    };
+    /** @enum {string} */
+    TestStatus: "not-started" | "in-progress" | "completed" | "unknown";
+    /** @enum {string} */
+    Unknown: "unknown";
+    /** Format: uri */
+    WebUrl: string;
+    /** Format: int32 */
+    Weekday: number;
   };
   responses: never;
   parameters: never;
@@ -712,10 +867,9 @@ export interface operations {
   listAssignments: {
     parameters: {
       query?: {
-        /** @description auto reads saved data or starts synchronization; false reads only; true starts synchronization. */
         sync?: "auto" | "true" | "false";
-        /** @description Repeat to select courses; omission selects all saved courses. */
-        courseId?: string[] | null;
+        /** @description Repeat to select courses; omission uses the courses selected by the synchronization policy. */
+        courseId?: components["schemas"]["CourseId"][];
       };
       header?: never;
       path?: never;
@@ -723,63 +877,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyAssignmentsResult"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Assignments"][];
         };
       };
-      /** @description Bad Request */
       400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -787,40 +893,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
+      403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -834,90 +912,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DataBodyAuthState"];
+          "application/json": components["schemas"]["Data_Authentication"];
         };
       };
-      /** @description Bad Request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
       403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Not Found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Internal Server Error */
-      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -936,104 +939,20 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyAuthState"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Authentication"][];
         };
       };
-      /** @description Bad Request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
         };
       };
     };
@@ -1047,90 +966,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DataBodyAuthState"];
+          "application/json": components["schemas"]["Data_Authentication"];
         };
       };
-      /** @description Bad Request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
       403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Not Found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Internal Server Error */
-      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -1149,104 +993,20 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyAuthState"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Authentication"][];
         };
       };
-      /** @description Bad Request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
         };
       };
     };
@@ -1260,66 +1020,26 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["AuthInputBody"];
+        "application/json": components["schemas"]["AuthenticationInput"];
       };
     };
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyAuthState"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Authentication"][];
         };
       };
-      /** @description Bad Request */
       400: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -1328,40 +1048,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
       413: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -1375,66 +1067,26 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["AuthInputBody"];
+        "application/json": components["schemas"]["AuthenticationInput"];
       };
     };
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyAuthState"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Authentication"][];
         };
       };
-      /** @description Bad Request */
       400: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -1443,40 +1095,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
       413: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -1490,26 +1114,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DataBodyRegistrationResult"];
+          "application/json": components["schemas"]["Data_Registration"];
         };
       };
-      /** @description Bad Request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -1518,61 +1130,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Not Found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Internal Server Error */
       500: {
         headers: {
           [name: string]: unknown;
@@ -1592,66 +1149,26 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["AuthInputBody"];
+        "application/json": components["schemas"]["AuthenticationInput"];
       };
     };
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyRegistrationResult"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Registration"][];
         };
       };
-      /** @description Bad Request */
       400: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -1660,40 +1177,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
       413: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -1707,62 +1196,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyRegistrationResult"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Registration"][];
         };
       };
-      /** @description Bad Request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -1771,48 +1212,11 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
     };
   };
   listCourses: {
     parameters: {
       query?: {
-        /** @description auto reads saved data or starts synchronization; false reads only; true starts synchronization. */
         sync?: "auto" | "true" | "false";
       };
       header?: never;
@@ -1821,63 +1225,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyListCourse"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Vec_Course"][];
         };
       };
-      /** @description Bad Request */
       400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -1885,40 +1241,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
+      403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -1926,74 +1254,25 @@ export interface operations {
   listMaterials: {
     parameters: {
       query?: {
-        /** @description auto reads saved data or starts synchronization; false reads only; true starts synchronization. */
         sync?: "auto" | "true" | "false";
       };
       header?: never;
       path: {
-        courseId: string;
+        courseId: components["schemas"]["CourseId"];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyCourseMaterials"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_CourseMaterials"][];
         };
       };
-      /** @description Bad Request */
       400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -2001,40 +1280,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
+      403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -2048,90 +1299,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["HealthResponseBody"];
+          "application/json": components["schemas"]["Health"];
         };
       };
-      /** @description Bad Request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
       403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Not Found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Internal Server Error */
-      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -2144,74 +1320,25 @@ export interface operations {
   getMaterial: {
     parameters: {
       query?: {
-        /** @description auto reads saved data or starts synchronization; false reads only; true starts synchronization. */
         sync?: "auto" | "true" | "false";
       };
       header?: never;
       path: {
-        materialId: string;
+        materialId: components["schemas"]["MaterialId"];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyDetail"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Detail"][];
         };
       };
-      /** @description Bad Request */
       400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -2219,40 +1346,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
+      403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -2262,70 +1361,22 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        materialId: string;
-        resourceId: string;
+        materialId: components["schemas"]["MaterialId"];
+        resourceId: components["schemas"]["ResourceId"];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": (
-            | {
-                data: components["schemas"]["ErrorBody"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "error";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["DataBodyDownloadResult"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "result";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-            | {
-                data: components["schemas"]["OperationStatus"];
-                /**
-                 * @description The event name.
-                 * @constant
-                 */
-                event: "status";
-                /** @description The event ID. */
-                id?: number;
-                /** @description The retry time in milliseconds. */
-                retry?: number;
-              }
-          )[];
+          "text/event-stream": components["schemas"]["StreamEvent_Download"][];
         };
       };
-      /** @description Bad Request */
       400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -2333,40 +1384,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
+      403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": components["schemas"]["ErrorBody"];
         };
       };
     };
@@ -2376,64 +1399,50 @@ export interface operations {
       query?: never;
       header?: {
         /** @description Byte range to retrieve. */
-        Range?: string;
-        /** @description Return 304 if the saved file's ETag matches. */
-        "If-None-Match"?: string;
+        Range?: string | null;
         /** @description Apply Range only if the saved file's ETag matches. */
-        "If-Range"?: string;
+        "If-Range"?: string | null;
+        /** @description Return 304 if the saved file's ETag matches. */
+        "If-None-Match"?: string | null;
       };
       path: {
-        materialId: string;
-        resourceId: string;
+        materialId: components["schemas"]["MaterialId"];
+        resourceId: components["schemas"]["ResourceId"];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
-          "Accept-Ranges"?: string;
-          "Content-Disposition"?: string;
-          "Content-Range"?: string;
-          ETag?: string;
           [name: string]: unknown;
         };
         content: {
           "application/octet-stream": string;
         };
       };
-      /** @description Partial Content */
       206: {
         headers: {
-          "Accept-Ranges"?: string;
-          "Content-Disposition"?: string;
-          "Content-Range"?: string;
-          ETag?: string;
           [name: string]: unknown;
         };
         content: {
           "application/octet-stream": string;
         };
       };
-      /** @description ETag matched */
       304: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
       };
-      /** @description Bad Request */
       400: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ErrorBody"];
-          "application/problem+json": components["schemas"]["ErrorModel"];
         };
       };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -2442,7 +1451,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Not Found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -2451,61 +1459,12 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Invalid byte range */
       416: {
         headers: {
           [name: string]: unknown;
         };
-        content: {
-          "text/plain": string;
-        };
+        content?: never;
       };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Internal Server Error */
       500: {
         headers: {
           [name: string]: unknown;
@@ -2521,64 +1480,40 @@ export interface operations {
       query?: never;
       header?: {
         /** @description Byte range to retrieve. */
-        Range?: string;
-        /** @description Return 304 if the saved file's ETag matches. */
-        "If-None-Match"?: string;
+        Range?: string | null;
         /** @description Apply Range only if the saved file's ETag matches. */
-        "If-Range"?: string;
+        "If-Range"?: string | null;
+        /** @description Return 304 if the saved file's ETag matches. */
+        "If-None-Match"?: string | null;
       };
       path: {
-        materialId: string;
-        resourceId: string;
+        materialId: components["schemas"]["MaterialId"];
+        resourceId: components["schemas"]["ResourceId"];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
-          "Accept-Ranges"?: string;
-          "Content-Disposition"?: string;
-          "Content-Range"?: string;
-          ETag?: string;
           [name: string]: unknown;
         };
-        content: {
-          "application/octet-stream": string;
-        };
+        content?: never;
       };
-      /** @description Partial Content */
-      206: {
-        headers: {
-          "Accept-Ranges"?: string;
-          "Content-Disposition"?: string;
-          "Content-Range"?: string;
-          ETag?: string;
-          [name: string]: unknown;
-        };
-        content: {
-          "application/octet-stream": string;
-        };
-      };
-      /** @description ETag matched */
       304: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
       };
-      /** @description Bad Request */
       400: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ErrorBody"];
-          "application/problem+json": components["schemas"]["ErrorModel"];
         };
       };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -2587,7 +1522,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Not Found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -2596,61 +1530,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBody"];
-        };
-      };
-      /** @description Request Entity Too Large */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Invalid byte range */
-      416: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "text/plain": string;
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Internal Server Error */
       500: {
         headers: {
           [name: string]: unknown;
@@ -2666,33 +1545,29 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        materialId: string;
-        resourceId: string;
+        materialId: components["schemas"]["MaterialId"];
+        resourceId: components["schemas"]["ResourceId"];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DataBodyResourcePath"];
+          "application/json": components["schemas"]["Data_ResourcePath"];
         };
       };
-      /** @description Bad Request */
       400: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": components["schemas"]["ErrorBody"];
-          "application/problem+json": components["schemas"]["ErrorModel"];
         };
       };
-      /** @description Forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -2701,7 +1576,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Not Found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -2710,17 +1584,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Timeout */
-      408: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Conflict */
-      409: {
+      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -2728,35 +1592,26 @@ export interface operations {
           "application/json": components["schemas"]["ErrorBody"];
         };
       };
-      /** @description Request Entity Too Large */
-      413: {
+    };
+  };
+  specification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
+          "application/json": unknown;
         };
       };
-      /** @description Unsupported Media Type */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Unprocessable Entity */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["ErrorModel"];
-        };
-      };
-      /** @description Internal Server Error */
-      500: {
+      403: {
         headers: {
           [name: string]: unknown;
         };

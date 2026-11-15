@@ -1,6 +1,6 @@
 # ResourcePath
 
-**Type:** `object`, no additional properties
+**Type:** `object`
 
 - **`path` (required)**: `string`
 
