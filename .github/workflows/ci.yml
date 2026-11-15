@@ -50,7 +50,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev pkg-config protobuf-compiler
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev pkg-config protobuf-compiler libprotobuf-dev
       - name: Install Protobuf on macOS
         if: runner.os == 'macOS'
         run: brew install protobuf
@@ -98,7 +98,7 @@ jobs:
       - name: Install check dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config protobuf-compiler
+          sudo apt-get install -y --no-install-recommends clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config protobuf-compiler libprotobuf-dev
       - name: Install Rust
         run: rustup show
       - uses: Swatinem/rust-cache@v2.9.3
