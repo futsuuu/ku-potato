@@ -46,7 +46,7 @@ jobs:
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           cache: true
-      - name: Install desktop build dependencies
+      - name: Install build dependencies on Linux
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -60,6 +60,7 @@ jobs:
       - name: Install Rust
         shell: bash
         run: rustup show
+      - uses: Swatinem/rust-cache@v2.9.3
       - run: vp run build
       - run: vp run test
 
@@ -100,6 +101,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends clang-format libgtk-4-dev libwebkitgtk-6.0-dev pkg-config protobuf-compiler
       - name: Install Rust
         run: rustup show
+      - uses: Swatinem/rust-cache@v2.9.3
       - name: Install SeaORM CLI
         run: |
           cargo install --locked sea-orm-cli --version 2.0.4 \
