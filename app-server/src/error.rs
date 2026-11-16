@@ -130,14 +130,14 @@ impl From<&crate::browser::Error> for Public {
     }
 }
 
-impl From<&crate::browser::drive::Error> for Public {
-    fn from(error: &crate::browser::drive::Error) -> Self {
+impl From<&google_drive::Error> for Public {
+    fn from(error: &google_drive::Error) -> Self {
         match error {
-            crate::browser::drive::Error::AccessDenied => Self {
+            google_drive::Error::AccessDenied => Self {
                 reason: Reason::Forbidden,
                 message: error.to_string(),
             },
-            crate::browser::drive::Error::NotDownloadable => Self {
+            google_drive::Error::NotDownloadable => Self {
                 reason: Reason::UnsupportedResource,
                 message: error.to_string(),
             },
@@ -229,12 +229,11 @@ mod tests {
 
     #[test]
     fn drive_errors_keep_public_classifications_without_exposing_details() {
-        let denied = crate::browser::Error::from(crate::browser::drive::Error::AccessDenied);
-        let unsupported =
-            crate::browser::Error::from(crate::browser::drive::Error::NotDownloadable);
-        let invalid = crate::browser::Error::from(crate::browser::drive::Error::FileIdMismatch {
-            expected: "private expected ID".into(),
-            actual: Some("private actual ID".into()),
+        let denied = crate::browser::Error::from(google_drive::Error::AccessDenied);
+        let unsupported = crate::browser::Error::from(google_drive::Error::NotDownloadable);
+        let invalid = crate::browser::Error::from(google_drive::Error::InvalidResponse {
+            reason: "private response details",
+            source: Some(Box::new(std::io::Error::other("private source"))),
         });
         assert_eq!(
             super::Public::from(&denied).reason,
