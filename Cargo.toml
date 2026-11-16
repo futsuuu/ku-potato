@@ -1,5 +1,5 @@
 [workspace]
-members = ["app-server"]
+members = ["app-server", "google-drive"]
 resolver = "3"
 
 [workspace.package]
