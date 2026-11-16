@@ -5,14 +5,60 @@ pub fn download_url(url: &crate::model::WebUrl) -> Option<url::Url> {
     google_drive::download_url(url.as_ref())
 }
 
-fn map_error(error: google_drive::Error) -> super::Error {
+fn map_error(error: google_drive::download::Error) -> super::Error {
     match error {
-        google_drive::Error::AuthenticationRequired => {
-            super::Error::AuthenticationRequired(super::Provider::Google)
+        google_drive::download::Error::Request(
+            google_drive::RequestError::AuthenticationRequired,
+        ) => super::Error::AuthenticationRequired(super::Provider::Google),
+        google_drive::download::Error::Request(google_drive::RequestError::Request(source)) => {
+            super::Error::DriveRequest(source)
         }
-        google_drive::Error::Request(source) => super::Error::DriveRequest(source),
         error => super::Error::Drive(error),
     }
+}
+
+fn map_stream_error(error: google_drive::download::StreamError) -> super::Error {
+    match error {
+        google_drive::download::StreamError::Request(source) => super::Error::DriveRequest(source),
+        error => super::Error::DriveStream(error),
+    }
+}
+
+#[test]
+fn download_error_mapping_preserves_authentication_and_stream_failure_classifications() {
+    let authentication = map_error(google_drive::download::Error::Request(
+        google_drive::RequestError::AuthenticationRequired,
+    ));
+    assert!(matches!(
+        authentication,
+        super::Error::AuthenticationRequired(super::Provider::Google)
+    ));
+    let stream = map_stream_error(google_drive::download::StreamError::SizeMismatch {
+        expected: 6,
+        received: 5,
+    });
+    assert!(matches!(stream, super::Error::DriveStream(_)));
+    let public = crate::error::Public::from(&stream);
+    assert_eq!(public.reason, crate::error::Reason::Source);
+    assert_eq!(public.message, "Could not download the Google Drive file");
+
+    let request = map_stream_error(google_drive::download::StreamError::Request(
+        reqwest::Client::new()
+            .get("http://[private")
+            .build()
+            .unwrap_err(),
+    ));
+    assert!(matches!(request, super::Error::DriveRequest(_)));
+    assert!(
+        std::error::Error::source(&request)
+            .unwrap()
+            .is::<reqwest::Error>()
+    );
+    assert!(
+        !crate::error::Public::from(&request)
+            .message
+            .contains("private")
+    );
 }
 
 fn create_cookie_store(
@@ -125,14 +171,14 @@ fn browser_cookie_conversion_preserves_scope_and_excludes_unusable_cookies() {
 
 pub async fn download_file(
     browser: &super::Client,
-    destination: url::Url,
+    request_url: url::Url,
     temporary: &std::path::Path,
 ) -> Result<crate::files::Source, super::Error> {
     let cookies = create_cookie_store(browser.google_cookies().await?)?;
     let client = google_drive::Client::new(std::sync::Arc::new(cookies))
         .map_err(super::Error::DriveRequest)?;
     let download = client
-        .download_file(&destination)
+        .download_file(&request_url)
         .await
         .map_err(map_error)?;
     let filename = crate::files::safe_filename(&download.filename);
@@ -143,7 +189,7 @@ pub async fn download_file(
     futures_util::pin_mut!(stream);
     while let Some(chunk) = stream.next().await {
         output
-            .write_all(&chunk.map_err(map_error)?)
+            .write_all(&chunk.map_err(map_stream_error)?)
             .await
             .map_err(super::Error::DownloadStorage)?;
     }

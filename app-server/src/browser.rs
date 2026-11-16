@@ -43,7 +43,9 @@ pub enum Error {
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
     #[error(transparent)]
-    Drive(#[from] google_drive::Error),
+    Drive(#[from] google_drive::download::Error),
+    #[error(transparent)]
+    DriveStream(#[from] google_drive::download::StreamError),
     #[error("{service:?} RPC failed: {source}")]
     Rpc {
         service: process::Service,
