@@ -1053,6 +1053,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "google-drive"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "bytes",
+ "futures-util",
+ "http",
+ "mailparse",
+ "reqwest",
+ "scraper",
+ "thiserror",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "h2"
 version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
