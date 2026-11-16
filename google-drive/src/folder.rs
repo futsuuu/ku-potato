@@ -3,6 +3,15 @@
 //! This endpoint has no verified pagination/completeness contract. A listing, even an empty
 //! one, must not be used as evidence that previously observed entries were deleted.
 
+/// Failures while listing the direct children of a folder.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("The URL is not a supported Google Drive folder link")]
+    UnsupportedUrl,
+    #[error(transparent)]
+    Request(#[from] crate::RequestError),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listing {
     pub entries: Vec<Entry>,
@@ -33,8 +42,8 @@ pub enum EntryKind {
 ///     "https://drive.google.com/u/0/embeddedfolderview?id=root&resourcekey=key",
 /// ] {
 ///     let source = url::Url::parse(link).unwrap();
-///     let destination = google_drive::folder::view_url(&source).unwrap();
-///     assert_eq!(destination.as_str(),
+///     let request_url = google_drive::folder::view_url(&source).unwrap();
+///     assert_eq!(request_url.as_str(),
 ///         "https://drive.google.com/u/0/embeddedfolderview?id=root&resourcekey=key");
 /// }
 /// ```
@@ -60,15 +69,15 @@ pub fn view_url(url: &url::Url) -> Option<url::Url> {
     if !is_valid_id(&id) {
         return None;
     }
-    let mut destination =
+    let mut request_url =
         url::Url::parse("https://drive.google.com/u/0/embeddedfolderview").ok()?;
-    destination.query_pairs_mut().append_pair("id", &id);
+    request_url.query_pairs_mut().append_pair("id", &id);
     if let Some((_, key)) = url.query_pairs().find(|(name, _)| name == "resourcekey") {
-        destination
+        request_url
             .query_pairs_mut()
             .append_pair("resourcekey", &key);
     }
-    Some(destination)
+    Some(request_url)
 }
 
 #[test]
@@ -99,29 +108,26 @@ fn is_valid_id(id: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || b"_-".contains(&byte))
 }
 
-pub(crate) async fn list_folder(
-    client: &crate::Client,
-    url: &url::Url,
-) -> Result<Listing, crate::Error> {
-    let destination = view_url(url).ok_or(crate::Error::UnsupportedUrl)?;
+pub(crate) async fn list_folder(client: &crate::Client, url: &url::Url) -> Result<Listing, Error> {
+    let request_url = view_url(url).ok_or(Error::UnsupportedUrl)?;
     let mut requests = 0;
     let response = client
-        .send_request(destination.clone(), &mut requests)
+        .send_request(request_url.clone(), &mut requests)
         .await?;
-    parse_response(response, &destination).await
+    Ok(parse_response(response, &request_url).await?)
 }
 
 async fn parse_response(
     response: reqwest::Response,
-    destination: &url::Url,
-) -> Result<Listing, crate::Error> {
-    // Do not accept another folder, a regular Drive page, or a usercontent destination.
+    request_url: &url::Url,
+) -> Result<Listing, crate::RequestError> {
+    // Do not accept another folder, a regular Drive page, or a usercontent URL.
     if !matches!(
         response.url().path(),
         "/embeddedfolderview" | "/u/0/embeddedfolderview"
-    ) || view_url(response.url()).as_ref() != Some(destination)
+    ) || view_url(response.url()).as_ref() != Some(request_url)
     {
-        return Err(crate::Error::invalid_response(
+        return Err(crate::RequestError::invalid_response(
             "expected an embedded folder listing",
         ));
     }
@@ -137,12 +143,12 @@ async fn parse_response(
         .trim()
         .eq_ignore_ascii_case("text/html")
     {
-        return Err(crate::Error::invalid_response(
+        return Err(crate::RequestError::invalid_response(
             "expected an embedded folder listing",
         ));
     }
     let body = crate::read_body(response, 4 << 20).await?;
-    parse_listing(&body, destination)
+    parse_listing(&body, request_url)
 }
 
 #[cfg(test)]
@@ -188,33 +194,36 @@ async fn folder_responses_require_the_expected_destination_type_and_bounded_html
         let response = create_response(url, content_type, HTML);
         assert!(matches!(
             parse_response(response, &base).await,
-            Err(crate::Error::InvalidResponse { .. })
+            Err(crate::RequestError::InvalidResponse { .. })
         ));
     }
     let response = create_response(base.as_str(), "text/html", "x".repeat((4 << 20) + 1));
     assert!(matches!(
         parse_response(response, &base).await,
-        Err(crate::Error::InvalidResponse {
+        Err(crate::RequestError::InvalidResponse {
             reason: "HTML body exceeds size limit",
             ..
         })
     ));
 }
 
-fn parse_listing(body: &[u8], base: &url::Url) -> Result<Listing, crate::Error> {
-    let html = std::str::from_utf8(body)
-        .map_err(|source| crate::Error::invalid_response_source("invalid HTML encoding", source))?;
+fn parse_listing(body: &[u8], base: &url::Url) -> Result<Listing, crate::RequestError> {
+    let html = std::str::from_utf8(body).map_err(|source| {
+        crate::RequestError::invalid_response_source("invalid HTML encoding", source)
+    })?;
     let document = scraper::Html::parse_document(html);
     let containers = parse_selector(".flip-entries");
     let entries = parse_selector(".flip-entry");
     let links = parse_selector("a[href]");
     let titles = parse_selector(".flip-entry-title");
     let mut containers = document.select(&containers);
-    let container = containers.next().ok_or(crate::Error::invalid_response(
-        "expected an embedded folder listing",
-    ))?;
+    let container = containers
+        .next()
+        .ok_or(crate::RequestError::invalid_response(
+            "expected an embedded folder listing",
+        ))?;
     if containers.next().is_some() {
-        return Err(crate::Error::invalid_response(
+        return Err(crate::RequestError::invalid_response(
             "expected an embedded folder listing",
         ));
     }
@@ -226,32 +235,36 @@ fn parse_listing(body: &[u8], base: &url::Url) -> Result<Listing, crate::Error> 
             .attr("id")
             .and_then(|id| id.strip_prefix("entry-"))
             .filter(|id| is_valid_id(id))
-            .ok_or_else(|| crate::Error::invalid_response("missing or invalid folder entry id"))?;
+            .ok_or_else(|| {
+                crate::RequestError::invalid_response("missing or invalid folder entry id")
+            })?;
         if !seen.insert(id.to_owned()) {
-            return Err(crate::Error::invalid_response("duplicate folder entry ID"));
+            return Err(crate::RequestError::invalid_response(
+                "duplicate folder entry ID",
+            ));
         }
         let mut anchors = entry.select(&links);
         let link = anchors.next().ok_or_else(|| {
-            crate::Error::invalid_response("missing or invalid folder entry link")
+            crate::RequestError::invalid_response("missing or invalid folder entry link")
         })?;
         if anchors.next().is_some() {
-            return Err(crate::Error::invalid_response(
+            return Err(crate::RequestError::invalid_response(
                 "ambiguous folder entry link",
             ));
         }
         let href = link.value().attr("href").ok_or_else(|| {
-            crate::Error::invalid_response("missing or invalid folder entry link")
+            crate::RequestError::invalid_response("missing or invalid folder entry link")
         })?;
         let url = base.join(href).map_err(|source| {
-            crate::Error::invalid_response_source("invalid folder entry URL", source)
+            crate::RequestError::invalid_response_source("invalid folder entry URL", source)
         })?;
         let (kind, canonical) = if let Some(folder) = view_url(&url) {
             (EntryKind::Folder, folder)
         } else if let Some(file) = crate::download_url(&url) {
             (EntryKind::File, file)
         } else {
-            return Err(crate::Error::invalid_response(
-                "folder entry link destination is not allowed",
+            return Err(crate::RequestError::invalid_response(
+                "folder entry link URL is not allowed",
             ));
         };
         let actual = canonical
@@ -259,18 +272,20 @@ fn parse_listing(body: &[u8], base: &url::Url) -> Result<Listing, crate::Error> 
             .find(|(name, _)| name == "id")
             .map(|(_, value)| value.into_owned());
         if actual.as_deref() != Some(id) {
-            return Err(crate::Error::invalid_response(
+            return Err(crate::RequestError::invalid_response(
                 "folder entry ID does not match link",
             ));
         }
         let mut names = entry.select(&titles);
         let name = names
             .next()
-            .ok_or_else(|| crate::Error::invalid_response("missing or invalid folder entry name"))?
+            .ok_or_else(|| {
+                crate::RequestError::invalid_response("missing or invalid folder entry name")
+            })?
             .text()
             .collect::<String>();
         if name.is_empty() || names.next().is_some() {
-            return Err(crate::Error::invalid_response(
+            return Err(crate::RequestError::invalid_response(
                 "missing or ambiguous folder entry name",
             ));
         }
@@ -283,7 +298,7 @@ fn parse_listing(body: &[u8], base: &url::Url) -> Result<Listing, crate::Error> 
     }
     // A changed DOM must not silently hide entries outside the expected container.
     if document.select(&entries).count() != result.len() {
-        return Err(crate::Error::invalid_response(
+        return Err(crate::RequestError::invalid_response(
             "expected an embedded folder listing",
         ));
     }
@@ -328,7 +343,7 @@ fn login_redirect_and_unexpected_pages_are_not_empty_listings() {
     ] {
         assert!(matches!(
             parse_listing(html.as_bytes(), &base_url()),
-            Err(crate::Error::InvalidResponse { .. })
+            Err(crate::RequestError::InvalidResponse { .. })
         ));
     }
     assert!(
@@ -339,7 +354,7 @@ fn login_redirect_and_unexpected_pages_are_not_empty_listings() {
     );
     assert!(matches!(
         parse_listing(&[0xff], &base_url()),
-        Err(crate::Error::InvalidResponse {
+        Err(crate::RequestError::InvalidResponse {
             reason: "invalid HTML encoding",
             ..
         })
@@ -367,7 +382,7 @@ fn malformed_duplicate_and_mismatched_entries_fail_the_entire_listing() {
             HTML.replace("entry-file_3", "entry-file_1").as_bytes(),
             &base_url()
         ),
-        Err(crate::Error::InvalidResponse {
+        Err(crate::RequestError::InvalidResponse {
             reason: "duplicate folder entry ID",
             ..
         })
@@ -377,7 +392,7 @@ fn malformed_duplicate_and_mismatched_entries_fail_the_entire_listing() {
             HTML.replace("/file/d/file_1/", "/file/d/other/").as_bytes(),
             &base_url()
         ),
-        Err(crate::Error::InvalidResponse {
+        Err(crate::RequestError::InvalidResponse {
             reason: "folder entry ID does not match link",
             ..
         })

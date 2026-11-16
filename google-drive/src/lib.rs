@@ -2,10 +2,10 @@
 //!
 //! Pass a caller-managed cookie store, which may be empty for public content.
 //! Account 0 is used. A Google login redirect is reported as
-//! `Error::AuthenticationRequired`; this client does not drive login.
+//! `RequestError::AuthenticationRequired`; this client does not drive login.
 //!
 //! ```no_run
-//! # async fn example() -> Result<(), google_drive::Error> {
+//! # async fn example() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 //! use futures_util::StreamExt as _;
 //!
 //! let cookies = std::sync::Arc::new(reqwest::cookie::Jar::default());
@@ -34,8 +34,8 @@ pub mod folder;
 ///
 /// ```
 /// let source = url::Url::parse("https://docs.google.com/document/d/abc_123/edit").unwrap();
-/// let destination = google_drive::download_url(&source).unwrap();
-/// assert_eq!(destination.as_str(), "https://drive.google.com/uc?id=abc_123&export=download&authuser=0");
+/// let request_url = google_drive::download_url(&source).unwrap();
+/// assert_eq!(request_url.as_str(), "https://drive.google.com/uc?id=abc_123&export=download&authuser=0");
 /// let other = url::Url::parse("https://example.com/file").unwrap();
 /// assert!(google_drive::download_url(&other).is_none());
 /// ```
@@ -82,18 +82,18 @@ pub fn download_url(url: &url::Url) -> Option<url::Url> {
     {
         return None;
     }
-    let mut destination = url::Url::parse("https://drive.google.com/uc").ok()?;
-    destination
+    let mut request_url = url::Url::parse("https://drive.google.com/uc").ok()?;
+    request_url
         .query_pairs_mut()
         .append_pair("id", &id)
         .append_pair("export", "download")
         .append_pair("authuser", "0");
     if let Some((_, key)) = url.query_pairs().find(|(name, _)| name == "resourcekey") {
-        destination
+        request_url
             .query_pairs_mut()
             .append_pair("resourcekey", &key);
     }
-    Some(destination)
+    Some(request_url)
 }
 
 #[test]
@@ -175,17 +175,13 @@ fn redirect_destinations_are_restricted() {
     }
 }
 
-/// Failure categories callers can use to choose login, retry, skip or error reporting.
+/// Failures shared by HTTP requests and response validation.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum RequestError {
     #[error("Google authentication is required")]
     AuthenticationRequired,
     #[error("Google Drive denied access to the file")]
     AccessDenied,
-    #[error("Google Drive did not return a downloadable file")]
-    NotDownloadable,
-    #[error("The URL is not a supported Google Drive link")]
-    UnsupportedUrl,
     #[error("Google Drive request failed: {0}")]
     Request(#[from] reqwest::Error),
     #[error("Unexpected Google Drive response status: {status}")]
@@ -200,7 +196,7 @@ pub enum Error {
     },
 }
 
-impl Error {
+impl RequestError {
     fn invalid_response(reason: &'static str) -> Self {
         Self::InvalidResponse {
             reason,
@@ -247,9 +243,12 @@ impl Client {
     }
 
     /// Returns metadata and a streaming body, without creating a local file.
-    pub async fn download_file(&self, url: &url::Url) -> Result<download::Response, Error> {
-        let destination = download_url(url).ok_or(Error::UnsupportedUrl)?;
-        download::download_file(self, destination).await
+    pub async fn download_file(
+        &self,
+        url: &url::Url,
+    ) -> Result<download::Response, download::Error> {
+        let request_url = download_url(url).ok_or(download::Error::UnsupportedUrl)?;
+        download::download_file(self, request_url).await
     }
 
     /// Lists the direct children visible in the embedded view for account 0.
@@ -257,28 +256,28 @@ impl Client {
     /// No API key, OAuth token or JavaScript execution is required.
     /// Pagination and completeness are not guaranteed by this endpoint. Do not infer
     /// deletion from missing entries. Shortcuts are not resolved and folders are not traversed.
-    pub async fn list_folder(&self, url: &url::Url) -> Result<folder::Listing, Error> {
+    pub async fn list_folder(&self, url: &url::Url) -> Result<folder::Listing, folder::Error> {
         folder::list_folder(self, url).await
     }
 
     async fn send_request(
         &self,
-        mut destination: url::Url,
+        mut request_url: url::Url,
         requests: &mut usize,
-    ) -> Result<reqwest::Response, Error> {
+    ) -> Result<reqwest::Response, RequestError> {
         while *requests < 10 {
             *requests += 1;
-            if destination.host_str() == Some("accounts.google.com") {
-                return Err(Error::AuthenticationRequired);
+            if request_url.host_str() == Some("accounts.google.com") {
+                return Err(RequestError::AuthenticationRequired);
             }
-            if !is_allowed_download_url(&destination) {
-                return Err(Error::invalid_response(
-                    "redirect destination is not allowed",
+            if !is_allowed_download_url(&request_url) {
+                return Err(RequestError::invalid_response(
+                    "redirect URL is not allowed",
                 ));
             }
             let response = self
                 .http
-                .get(destination.clone())
+                .get(request_url.clone())
                 .header("Accept-Encoding", "identity")
                 .send()
                 .await?;
@@ -286,26 +285,29 @@ impl Client {
                 let location = response
                     .headers()
                     .get("Location")
-                    .ok_or_else(|| Error::invalid_response("missing redirect location"))?
+                    .ok_or_else(|| RequestError::invalid_response("missing redirect location"))?
                     .to_str()
                     .map_err(|source| {
-                        Error::invalid_response_source("invalid redirect location header", source)
+                        RequestError::invalid_response_source(
+                            "invalid redirect location header",
+                            source,
+                        )
                     })?;
-                destination = destination.join(location).map_err(|source| {
-                    Error::invalid_response_source("invalid redirect URL", source)
+                request_url = request_url.join(location).map_err(|source| {
+                    RequestError::invalid_response_source("invalid redirect URL", source)
                 })?;
                 continue;
             }
             return match response.status().as_u16() {
                 200 => Ok(response),
-                401 => Err(Error::AuthenticationRequired),
-                403 => Err(Error::AccessDenied),
-                _ => Err(Error::UnexpectedStatus {
+                401 => Err(RequestError::AuthenticationRequired),
+                403 => Err(RequestError::AccessDenied),
+                _ => Err(RequestError::UnexpectedStatus {
                     status: response.status(),
                 }),
             };
         }
-        Err(Error::invalid_response("request limit exceeded"))
+        Err(RequestError::invalid_response("request limit exceeded"))
     }
 }
 
@@ -317,27 +319,29 @@ async fn empty_store_defers_authentication_until_required() {
     let url = url::Url::parse("https://example.com/file").unwrap();
     assert!(matches!(
         client.download_file(&url).await,
-        Err(Error::UnsupportedUrl)
+        Err(download::Error::UnsupportedUrl)
     ));
     assert!(matches!(
         client.list_folder(&url).await,
-        Err(Error::UnsupportedUrl)
+        Err(folder::Error::UnsupportedUrl)
     ));
     let login = url::Url::parse("https://accounts.google.com/ServiceLogin").unwrap();
     let mut requests = 0;
     assert!(matches!(
         client.send_request(login, &mut requests).await,
-        Err(Error::AuthenticationRequired)
+        Err(RequestError::AuthenticationRequired)
     ));
 }
 
-async fn read_body(response: reqwest::Response, limit: usize) -> Result<Vec<u8>, Error> {
+async fn read_body(response: reqwest::Response, limit: usize) -> Result<Vec<u8>, RequestError> {
     let mut body = Vec::new();
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
         if chunk.len() > limit.saturating_sub(body.len()) {
-            return Err(Error::invalid_response("HTML body exceeds size limit"));
+            return Err(RequestError::invalid_response(
+                "HTML body exceeds size limit",
+            ));
         }
         body.extend_from_slice(&chunk);
     }
@@ -351,7 +355,7 @@ async fn html_responses_are_bounded() {
     assert_eq!(read_body(response(), 5).await.unwrap(), b"12345");
     assert!(matches!(
         read_body(response(), 4).await,
-        Err(Error::InvalidResponse {
+        Err(RequestError::InvalidResponse {
             reason: "HTML body exceeds size limit",
             ..
         })
