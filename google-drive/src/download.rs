@@ -147,17 +147,9 @@ pub(crate) async fn download_file(
         let response = client
             .send_request(request_url.clone(), &mut requests)
             .await?;
-        let disposition = response
-            .headers()
-            .get("Content-Disposition")
-            .and_then(|value| value.to_str().ok())
-            .map(mailparse::parse_content_disposition);
-        if let Some(disposition) = disposition
-            && disposition.disposition == mailparse::DispositionType::Attachment
-            && let Some(filename) = disposition.params.get("filename")
-        {
+        if let Some(filename) = parse_attachment_filename(response.headers()) {
             return Ok(Response {
-                filename: filename.clone(),
+                filename,
                 content_length: response.content_length(),
                 content_type: response
                     .headers()
@@ -177,6 +169,50 @@ pub(crate) async fn download_file(
         request_url = confirmation_url(&body, &base, &id, resource_key.as_deref())?;
     }
     Err(crate::RequestError::invalid_response("confirmation limit exceeded").into())
+}
+
+fn parse_attachment_filename(headers: &reqwest::header::HeaderMap) -> Option<String> {
+    // Drive also sends raw UTF-8, not just ASCII or RFC 2231 filename parameters.
+    let value = std::str::from_utf8(
+        headers
+            .get(reqwest::header::CONTENT_DISPOSITION)?
+            .as_bytes(),
+    )
+    .ok()?;
+    let disposition = mailparse::parse_content_disposition(value);
+    if disposition.disposition != mailparse::DispositionType::Attachment {
+        return None;
+    }
+    disposition.params.get("filename").cloned()
+}
+
+#[test]
+fn attachment_filename_decodes_utf8_without_relaxing_response_detection() {
+    let mut headers = reqwest::header::HeaderMap::new();
+    assert_eq!(parse_attachment_filename(&headers), None);
+    for (value, expected) in [
+        (
+            b"attachment; filename=\"handout.pdf\"".as_slice(),
+            Some("handout.pdf"),
+        ),
+        (
+            "attachment; filename=\"講義資料.pdf\"".as_bytes(),
+            Some("講義資料.pdf"),
+        ),
+        (
+            b"attachment; filename*=UTF-8''%E8%AC%9B%E7%BE%A9.pdf",
+            Some("講義.pdf"),
+        ),
+        (b"inline; filename=\"handout.pdf\"", None),
+        (b"attachment", None),
+        (b"attachment; filename=\"\xff.pdf\"", None),
+    ] {
+        headers.insert(
+            reqwest::header::CONTENT_DISPOSITION,
+            reqwest::header::HeaderValue::from_bytes(value).unwrap(),
+        );
+        assert_eq!(parse_attachment_filename(&headers).as_deref(), expected);
+    }
 }
 
 fn confirmation_url(
