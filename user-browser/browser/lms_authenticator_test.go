@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -32,7 +31,7 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	var lmsURL atomic.Value
 	var logins, bypasses atomic.Int32
 	var pause, interactiveLogin atomic.Bool
-	sso := httptest.NewUnstartedServer(
+	sso := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			switch r.URL.Path {
@@ -69,27 +68,20 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 			}
 		}),
 	)
-	// Give LMS, the university endpoint, and SSO distinct cookie hosts.
-	if err := sso.Listener.Close(); err != nil {
-		t.Fatal(err)
-	}
-	listener, err := net.Listen("tcp", "127.0.0.2:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sso.Listener = listener
-	sso.Start()
 	defer sso.Close()
+	// Chrome resolves *.localhost to loopback. Keep cookie hosts distinct without
+	// binding 127.0.0.2, which is not available by default on macOS.
+	ssoURL := strings.Replace(sso.URL, "127.0.0.1", "sso.localhost", 1)
 	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := r.Cookie("gateway"); err == nil {
 			bypasses.Add(1)
 			http.Redirect(w, r, lmsURL.Load().(string)+"/ticket", http.StatusFound)
 		} else {
-			http.Redirect(w, r, sso.URL, http.StatusFound)
+			http.Redirect(w, r, ssoURL, http.StatusFound)
 		}
 	}))
 	defer gateway.Close()
-	gatewayURL := strings.Replace(gateway.URL, "127.0.0.1", "localhost", 1)
+	gatewayURL := strings.Replace(gateway.URL, "127.0.0.1", "gateway.localhost", 1)
 	lms := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		home := func() { http.Redirect(w, r, "/lms/homeHoml/doIndex", http.StatusFound) }
@@ -126,7 +118,7 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	root := t.TempDir()
 	b, err := New(Options{
 		StateDir: root, CacheDir: filepath.Join(root, "cache"), Executable: testChrome(t),
-		LMSURL: lms.URL, SSOURL: sso.URL,
+		LMSURL: lms.URL, SSOURL: ssoURL,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +145,7 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 			{
 				CredentialID: "AQ==",
 				PrivateKey:   base64.StdEncoding.EncodeToString(encoded),
-				RpID:         "127.0.0.2",
+				RpID:         "sso.localhost",
 			},
 		},
 	}); err != nil {
@@ -164,10 +156,10 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	}
 	exec := cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser)
 	if err := storage.SetCookies([]*network.CookieParam{
-		{Name: "sso", Value: "stale", Domain: "127.0.0.2", Path: "/"},
-		{Name: "obsolete", Value: "old", Domain: "127.0.0.2", Path: "/"},
+		{Name: "sso", Value: "stale", Domain: "sso.localhost", Path: "/"},
+		{Name: "obsolete", Value: "old", Domain: "sso.localhost", Path: "/"},
 		{Name: "lms", Value: "retained", Domain: "127.0.0.1", Path: "/"},
-		{Name: "gateway", Value: "retained", Domain: "localhost", Path: "/"},
+		{Name: "gateway", Value: "retained", Domain: "gateway.localhost", Path: "/"},
 		{Name: "google", Value: "retained", Domain: ".google.com", Path: "/"},
 	}).Do(exec); err != nil {
 		t.Fatal(err)
@@ -209,7 +201,7 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 		)
 	}
 	if err := storage.SetCookies([]*network.CookieParam{
-		{Name: "sso", Value: "revoked", Domain: "127.0.0.2", Path: "/"},
+		{Name: "sso", Value: "revoked", Domain: "sso.localhost", Path: "/"},
 	}).Do(exec); err != nil {
 		t.Fatal(err)
 	}
