@@ -10,6 +10,7 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/storage"
+	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/cdproto/webauthn"
 	cd "github.com/chromedp/chromedp"
 )
@@ -23,21 +24,8 @@ func NewLMSAuthenticator(browser *Browser) *LMSAuthenticator {
 }
 
 func (i *LMSAuthenticator) Login(ctx context.Context, interactive bool) error {
-	return i.withAuth(
-		ctx,
-		interactive,
-		true,
-		func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
-			if interactive {
-				// An LMS session can remain valid after its SSO session expires.
-				// Force an explicit login through SSO without touching Google cookies.
-				if err := i.clearLMSCookies(tab); err != nil {
-					return err
-				}
-			}
-			return i.session(tab, interactive, stored)
-		},
-	)
+	_, err := i.ssoCookies(ctx, interactive)
+	return err
 }
 
 func (i *LMSAuthenticator) Status(ctx context.Context) (bool, error) {
@@ -49,94 +37,109 @@ func (i *LMSAuthenticator) Status(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 
-func (i *LMSAuthenticator) clearLMSCookies(tab context.Context) error {
-	origin, err := url.Parse(i.opts.LMSURL)
-	if err != nil {
-		return err
-	}
-	cookies, err := storage.GetCookies().Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
-	if err != nil {
-		return err
-	}
-	for _, cookie := range cookies {
-		if !ssoCookieDomain(origin.Hostname(), cookie.Domain) {
-			continue
-		}
-		deletion := network.DeleteCookies(cookie.Name).
-			WithDomain(cookie.Domain).
-			WithPath(cookie.Path)
-		if cookie.PartitionKey != nil && !cookie.PartitionKeyOpaque {
-			deletion = deletion.WithPartitionKey(cookie.PartitionKey)
-		}
-		if err := deletion.Do(tab); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// SSOCookies returns only the current SSO session. The caller must not
-// persist the snapshot: it can expire or rotate on either side of the bridge.
+// SSOCookies verifies that SSO alone can establish a new LMS session. An existing
+// LMS or university authentication session is not evidence that SSO is valid.
 func (i *LMSAuthenticator) SSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
 	return i.ssoCookies(ctx, false)
 }
 
-// RenewSSOCookies re-enters SSO even if the authentication profile still has
-// a valid LMS session. This is needed when SSO rejects a cookie whose browser
-// expiry has not yet passed.
+// RenewSSOCookies uses the same verification as SSOCookies: neither can bypass
+// SSO using an existing LMS session. Only refreshed SSO cookies are persisted.
 func (i *LMSAuthenticator) RenewSSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
-	return i.ssoCookies(ctx, true)
+	return i.ssoCookies(ctx, false)
 }
 
 func (i *LMSAuthenticator) ssoCookies(
 	ctx context.Context,
-	renew bool,
+	interactive bool,
 ) ([]*network.CookieParam, error) {
 	var result []*network.CookieParam
-	err := i.withAuth(
-		ctx,
-		false,
-		true,
-		func(tab context.Context, stored *credentials, _ webauthn.AuthenticatorID) error {
-			read := func() error {
-				cookies, err := storage.GetCookies().
-					Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
-				if err == nil {
-					result = ssoCookieParams(i.opts.SSOURL, cookies)
-				}
+	err := i.withSessionAuth(ctx, interactive, true, func(tab context.Context) error {
+		exec := cdp.WithExecutor(tab, cd.FromContext(tab).Browser)
+		cookies, err := storage.GetCookies().Do(exec)
+		if err != nil {
+			return err
+		}
+		// Match the content browser's starting state, without deleting or sharing
+		// provider sessions in the persistent authentication profile.
+		contextID, err := target.CreateBrowserContext().WithDisposeOnDetach(true).Do(exec)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			cleanup, cancel := context.WithTimeout(i.root, 5*time.Second)
+			defer cancel()
+			_ = target.DisposeBrowserContext(contextID).
+				Do(cdp.WithExecutor(cleanup, cd.FromContext(i.root).Browser))
+		}()
+		// Edge requires a window before a tab can be opened in a fresh context.
+		pageID, err := target.CreateTarget("about:blank").
+			WithBrowserContextID(contextID).WithNewWindow(true).Do(exec)
+		if err != nil {
+			return err
+		}
+		isolated, closeContext := cd.NewContext(tab, cd.WithTargetID(pageID))
+		defer closeContext()
+		if err := cd.Run(isolated); err != nil {
+			return err
+		}
+		params := ssoCookieParams(i.opts.SSOURL, cookies)
+		if len(params) > 0 {
+			if err := storage.SetCookies(params).
+				WithBrowserContextID(contextID).
+				Do(exec); err != nil {
 				return err
 			}
-			if !renew {
-				if err := i.session(tab, false, stored); err != nil {
-					return err
-				}
-				if err := read(); err != nil {
-					return err
-				}
-				if len(result) > 0 {
-					return nil
-				}
+		}
+		if err := cd.Run(isolated, cd.ActionFunc(func(page context.Context) error {
+			return i.authenticated(
+				page,
+				func(stored *credentials, _ webauthn.AuthenticatorID) error {
+					return i.session(page, interactive, stored)
+				},
+			)
+		})); err != nil {
+			return err
+		}
+		refreshed, err := storage.GetCookies().WithBrowserContextID(contextID).Do(exec)
+		if err != nil {
+			return err
+		}
+		params = ssoCookieParams(i.opts.SSOURL, refreshed)
+		if len(params) == 0 {
+			return Fail("authentication-required", "統合認証システムに再ログインしてください。")
+		}
+		// Replace only the SSO snapshot after successful verification. Finish
+		// this bounded commit even if the caller cancels halfway through it.
+		if err := tab.Err(); err != nil {
+			return err
+		}
+		commit, cancel := context.WithTimeout(i.root, 5*time.Second)
+		defer cancel()
+		origin, _ := url.Parse(i.opts.SSOURL)
+		for _, cookie := range cookies {
+			if !ssoCookieDomain(origin.Hostname(), cookie.Domain) {
+				continue
 			}
-			// The LMS session may survive SSO logout. Without a saved credential,
-			// do not destroy that still-valid session just to attempt a refresh.
-			if stored == nil {
-				return Fail("authentication-required", "統合認証システムに再ログインしてください。")
+			deletion := network.DeleteCookies(cookie.Name).
+				WithDomain(cookie.Domain).
+				WithPath(cookie.Path)
+			if cookie.PartitionKey != nil && !cookie.PartitionKeyOpaque {
+				deletion = deletion.WithPartitionKey(cookie.PartitionKey)
 			}
-			if err := i.clearLMSCookies(tab); err != nil {
+			if err := deletion.Do(
+				cdp.WithExecutor(commit, cd.FromContext(tab).Target),
+			); err != nil {
 				return err
 			}
-			if err := i.session(tab, false, stored); err != nil {
-				return err
-			}
-			if err := read(); err != nil {
-				return err
-			}
-			if len(result) == 0 {
-				return Fail("authentication-required", "統合認証システムに再ログインしてください。")
-			}
-			return nil
-		},
-	)
+		}
+		if err := storage.SetCookies(params).
+			Do(cdp.WithExecutor(commit, cd.FromContext(tab).Browser)); err != nil {
+			return err
+		}
+		result = params
+		return nil
+	})
 	return result, err
 }
 
@@ -160,5 +163,5 @@ func ssoCookieParams(rawURL string, cookies []*network.Cookie) []*network.Cookie
 
 func ssoCookieDomain(host, domain string) bool {
 	domain = strings.TrimPrefix(domain, ".")
-	return host == domain || strings.HasSuffix(host, "."+domain)
+	return domain != "" && (host == domain || strings.HasSuffix(host, "."+domain))
 }
