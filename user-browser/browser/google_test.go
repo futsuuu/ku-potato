@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"net/http"
@@ -150,10 +151,41 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 		fmt.Fprint(w, googleProfile("student@g.kogakuin.jp"))
 	}))
 	defer server.Close()
+	var driveAccount atomic.Value
+	driveAccount.Store("student@g.kogakuin.jp")
+	var initialized atomic.Int32
+	drive := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if driveAccount.Load().(string) == "" {
+			http.Redirect(w, r, server.URL+"/signin", http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/initialize-drive" {
+			initialized.Add(1)
+			http.SetCookie(w, &http.Cookie{
+				Name: "drive_session", Value: "ready", Path: "/", HttpOnly: true,
+				Expires: time.Now().Add(24 * time.Hour),
+			})
+			http.Redirect(w, r, "/drive/u/0/home", http.StatusFound)
+			return
+		}
+		if _, err := r.Cookie("drive_session"); err != nil {
+			// This document has the final URL and reaches readyState=complete,
+			// but the service session is not usable until the delayed redirect.
+			fmt.Fprint(
+				w,
+				`<script>setTimeout(() => location.assign('/initialize-drive'), 300)</script>`,
+			)
+			return
+		}
+		fmt.Fprint(w, googleProfile(driveAccount.Load().(string)))
+	}))
+	defer drive.Close()
 	opts := googleOptions(t)
 	opts.Executable = executable
 	g := newGoogle(t, opts)
 	g.origin = server.URL
+	g.driveOrigin = drive.URL
 	g.signin = server.URL + "/identifier"
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -212,6 +244,7 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	}
 	g = newGoogle(t, opts)
 	g.origin = server.URL
+	g.driveOrigin = drive.URL
 	if ok, err := g.Status(ctx); err != nil || !ok {
 		t.Fatal("session lost after restart", ok, err)
 	}
@@ -221,8 +254,13 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 		t.Fatal(err)
 	}
 	parsed, _ := url.Parse(server.URL)
-	if len(cookies) != 1 || cookies[0].Name != "session" {
-		t.Fatal("HTTP session was not restored")
+	names := []string{}
+	for _, cookie := range cookies {
+		names = append(names, cookie.Name)
+	}
+	slices.Sort(names)
+	if !reflect.DeepEqual(names, []string{"drive_session", "session"}) || initialized.Load() != 1 {
+		t.Fatal("Drive cookies exported before service login completed", names, initialized.Load())
 	}
 	snapshotPath := filepath.Join(opts.StateDir, "auth", "google", "cookies.json")
 	if _, err := os.Stat(snapshotPath); !os.IsNotExist(err) {
@@ -248,8 +286,21 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 			t.Fatal("Cookies did not read the current profile cookie")
 		}
 	}
+	if initialized.Load() != 1 {
+		t.Fatal("Drive service session was not reused")
+	}
 	if _, err := os.Stat(snapshotPath); !os.IsNotExist(err) {
 		t.Fatal("Google cookie snapshot was written", err)
+	}
+	for _, email := range []string{"student@gmail.com", ""} {
+		driveAccount.Store(email)
+		_, err := g.Cookies(ctx)
+		if failure, ok := errors.AsType[*Error](
+			err,
+		); !ok ||
+			failure.Reason != "authentication-required" {
+			t.Fatal("invalid Drive account was not classified as authentication-required", err)
+		}
 	}
 }
 

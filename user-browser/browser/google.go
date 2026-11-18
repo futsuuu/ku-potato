@@ -14,23 +14,25 @@ import (
 )
 
 type Google struct {
-	browser *Browser
-	origin  string
-	signin  string
+	browser     *Browser
+	origin      string
+	driveOrigin string
+	signin      string
 }
 
 func NewGoogle(browser *Browser) *Google {
 	return &Google{
-		browser: browser,
-		origin:  "https://myaccount.google.com",
-		signin:  "https://accounts.google.com/v3/signin/identifier",
+		browser:     browser,
+		origin:      "https://myaccount.google.com",
+		driveOrigin: "https://drive.google.com",
+		signin:      "https://accounts.google.com/v3/signin/identifier",
 	}
 }
 
-func (g *Google) accountExpression() string {
+func (g *Google) accountExpression(origin string) string {
 	// Read the active profile control, never remembered accounts or page text.
 	return `(() => {
-		if (document.readyState === 'loading' || location.origin !== ` + js(g.origin) + `) {
+		if (document.readyState === 'loading' || location.origin !== ` + js(origin) + `) {
 			return '';
 		}
 		for (const a of document.querySelectorAll('a[role="button"][aria-label][href]')) {
@@ -91,16 +93,16 @@ func (g *Google) verify(tab context.Context, interactive bool) error {
 		return err
 	}
 	if interactive {
-		return poll(tab, `(`+g.accountExpression()+`).endsWith('@g.kogakuin.jp')`)
+		return poll(tab, `(`+g.accountExpression(g.origin)+`).endsWith('@g.kogakuin.jp')`)
 	}
 	if err := poll(
 		tab,
-		`!!(`+g.accountExpression()+`) || (`+g.signedOutExpression()+`)`,
+		`!!(`+g.accountExpression(g.origin)+`) || (`+g.signedOutExpression()+`)`,
 	); err != nil {
 		return err
 	}
 	var email string
-	if err := cd.Run(tab, cd.Evaluate(g.accountExpression(), &email)); err != nil {
+	if err := cd.Run(tab, cd.Evaluate(g.accountExpression(g.origin), &email)); err != nil {
 		return err
 	}
 	if !strings.HasSuffix(email, "@g.kogakuin.jp") {
@@ -141,11 +143,35 @@ func (g *Google) Status(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 
-// Read current cookies only after verifying the active university account.
+// Drive may need a JavaScript service-login round trip even when My Account is
+// already authenticated. Wait for its active account control, not merely a URL
+// or readyState, which can also describe the intermediate redirect document.
+func (g *Google) prepareDriveSession(tab context.Context) error {
+	if err := cd.Run(tab, cd.Navigate(g.driveOrigin+"/drive/u/0/home")); err != nil {
+		return err
+	}
+	account := g.accountExpression(g.driveOrigin)
+	if err := poll(tab, `!!(`+account+`) || (`+g.signedOutExpression()+`)`); err != nil {
+		return err
+	}
+	var email string
+	if err := cd.Run(tab, cd.Evaluate(account, &email)); err != nil {
+		return err
+	}
+	if !strings.HasSuffix(email, "@g.kogakuin.jp") {
+		return Fail("authentication-required", "@g.kogakuin.jp のGoogleアカウントでDriveにログインしてください。")
+	}
+	return nil
+}
+
+// Read current cookies only after verifying the account and Drive service session.
 func (g *Google) sessionCookies(ctx context.Context) ([]*network.Cookie, error) {
 	var cookies []*network.Cookie
 	err := g.browser.withProviderAuth(ctx, false, false, true, func(tab context.Context) error {
 		if err := g.verify(tab, false); err != nil {
+			return err
+		}
+		if err := g.prepareDriveSession(tab); err != nil {
 			return err
 		}
 		var err error
