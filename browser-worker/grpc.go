@@ -287,7 +287,12 @@ func (s *Server) Download(
 		defer func() { _ = os.Remove(result.Path) }()
 	}
 	if result.Snapshot == nil {
-		result.Snapshot = &workerproto.Snapshot{}
+		// Before a listing exists, send the RPC error directly. A fabricated
+		// snapshot hides authentication failures behind a decoding error.
+		if err != nil {
+			return browserError(err)
+		}
+		return status.Error(codes.Internal, "missing browser download snapshot")
 	}
 	header := &workerproto.DownloadHeader{Snapshot: result.Snapshot}
 	if err == nil && result.Path == "" && result.URL == "" {

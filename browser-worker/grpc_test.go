@@ -24,10 +24,11 @@ import (
 )
 
 type fakeSource struct {
-	mu    sync.Mutex
-	calls int
-	path  string
-	fail  error
+	mu     sync.Mutex
+	calls  int
+	path   string
+	fail   error
+	result *browser.DownloadResult
 }
 
 func (s *fakeSource) Courses(context.Context) (*workerproto.CourseListing, error) {
@@ -68,6 +69,9 @@ func (s *fakeSource) Download(
 	string,
 	string,
 ) (browser.DownloadResult, error) {
+	if s.result != nil {
+		return *s.result, s.fail
+	}
 	if s.fail != nil {
 		return browser.DownloadResult{}, s.fail
 	}
@@ -210,6 +214,10 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 			ResourceId: &workerproto.ResourceId{Value: "SRS1"},
 		},
 	}
+	source.result = &browser.DownloadResult{Snapshot: &workerproto.Snapshot{
+		MaterialId:   &workerproto.MaterialId{Value: "SRY1"},
+		ResourceList: &workerproto.ResourceList{},
+	}}
 	failureStream, err := client.Download(
 		ctx,
 		&workerproto.DownloadRequest{
@@ -221,7 +229,7 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 		t.Fatal(err)
 	}
 	failurePart, err := failureStream.Recv()
-	if err != nil || failurePart.GetHeader().GetSnapshot() == nil ||
+	if err != nil || failurePart.GetHeader().GetSnapshot().GetMaterialId().GetValue() != "SRY1" ||
 		failurePart.GetHeader().
 			GetFailure().
 			GetReason() !=
@@ -230,6 +238,45 @@ func TestGRPCContractsAndTransfer(t *testing.T) {
 	}
 	if failurePart.GetHeader().GetFailure().GetResourceId().GetValue() != "SRS1" {
 		t.Fatalf("partial download failure lost its resource ID: %v", failurePart)
+	}
+	if _, err := failureStream.Recv(); !errors.Is(err, io.EOF) {
+		t.Fatalf("expected end of partial failure, got %v", err)
+	}
+	for _, test := range []struct {
+		name    string
+		failure error
+		code    codes.Code
+	}{
+		{"authentication", browser.Fail(workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED, "login required"), codes.FailedPrecondition},
+		{"source", browser.Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "source failed"), codes.FailedPrecondition},
+		{"cancellation", context.Canceled, codes.Canceled},
+		{"missing snapshot", nil, codes.Internal},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source.result = &browser.DownloadResult{}
+			source.fail = test.failure
+			stream, err := client.Download(ctx, &workerproto.DownloadRequest{
+				MaterialId: &workerproto.MaterialId{Value: "SRY1"},
+				ResourceId: &workerproto.ResourceId{Value: "SRS1"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			part, err := stream.Recv()
+			st := status.Convert(err)
+			if part != nil || st.Code() != test.code {
+				t.Fatalf("expected an RPC failure before any header, got %v %v", part, err)
+			}
+			if failure, ok := errors.AsType[*browser.Failure](test.failure); ok {
+				if len(st.Details()) != 1 ||
+					!proto.Equal(
+						st.Details()[0].(*workerproto.Failure),
+						(*workerproto.Failure)(failure),
+					) {
+					t.Fatalf("failure details lost: %v", st.Details())
+				}
+			}
+		})
 	}
 	if _, err := client.SetSSOCookies(
 		ctx,
