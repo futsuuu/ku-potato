@@ -35,13 +35,21 @@ func (g *Google) accountExpression(origin string) string {
 		if (document.readyState === 'loading' || location.origin !== ` + js(origin) + `) {
 			return '';
 		}
-		for (const a of document.querySelectorAll('a[role="button"][aria-label][href]')) {
-			const u = new URL(a.href);
-			if (u.origin !== 'https://accounts.google.com' || u.pathname !== '/SignOutOptions'
-				|| !a.getClientRects().length) {
+		for (const a of document.querySelectorAll('a[role="button"][aria-label]')) {
+			if (!a.getClientRects().length) continue;
+			const label = a.getAttribute('aria-label');
+			if (a.hasAttribute('href')) {
+				const u = new URL(a.href);
+				if (u.origin !== 'https://accounts.google.com' || u.pathname !== '/SignOutOptions') {
+					continue;
+				}
+			} else if (location.origin !== ` + js(g.driveOrigin) + `
+				|| !/^Google (?:Account|アカウント)\s*[:：]/i.test(label)) {
+				// Drive's active account button has no navigation URL. Do not
+				// mistake arbitrary email-labelled buttons for this control.
 				continue;
 			}
-			const emails = a.getAttribute('aria-label')
+			const emails = label
 				.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi) || [];
 			if (emails.length === 1) return emails[0].toLowerCase();
 		}

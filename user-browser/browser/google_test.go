@@ -178,7 +178,7 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 			)
 			return
 		}
-		fmt.Fprint(w, googleProfile(driveAccount.Load().(string)))
+		fmt.Fprint(w, driveProfile(driveAccount.Load().(string)))
 	}))
 	defer drive.Close()
 	opts := googleOptions(t)
@@ -308,6 +308,60 @@ func googleProfile(email string) string {
 	return `<a role="button" aria-label="Google Account: Student (` +
 		html.EscapeString(email) +
 		`)" href="https://accounts.google.com/SignOutOptions?authuser=0">Account</a>`
+}
+
+func driveProfile(email string) string {
+	return `<a role="button" aria-label="Google アカウント: Student (` +
+		html.EscapeString(email) + `)">Account</a>`
+}
+
+func TestDriveAccountControlWithoutHref(t *testing.T) {
+	var response atomic.Value
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, response.Load().(string))
+	}))
+	defer server.Close()
+	opts := googleOptions(t)
+	opts.Executable = testChrome(t)
+	g := newGoogle(t, opts)
+	g.driveOrigin = server.URL
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	for _, test := range []struct {
+		name, body, email string
+	}{
+		{"japanese", driveProfile("student@g.kogakuin.jp"), "student@g.kogakuin.jp"},
+		{"english", strings.Replace(driveProfile("student@g.kogakuin.jp"), "Google アカウント", "Google Account", 1), "student@g.kogakuin.jp"},
+		{"personal", driveProfile("student@gmail.com"), "student@gmail.com"},
+		{"hidden", `<div hidden>` + driveProfile("student@g.kogakuin.jp") + `</div>`, ""},
+		{"unrelated button", `<a role="button" aria-label="Open student@g.kogakuin.jp">File</a>`, ""},
+		{"remembered account", `<div aria-label="Google アカウント: student@g.kogakuin.jp">Remembered</div>`, ""},
+		{"untrusted link", strings.Replace(googleProfile("student@g.kogakuin.jp"), "https://accounts.google.com", "https://accounts.google.com.evil.test", 1), ""},
+		{"missing email", driveProfile("Student"), ""},
+		{"ambiguous email", driveProfile("first@g.kogakuin.jp second@g.kogakuin.jp"), ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response.Store(test.body)
+			var email string
+			err := g.browser.withProviderAuth(
+				ctx,
+				false,
+				false,
+				true,
+				func(tab context.Context) error {
+					return cd.Run(
+						tab,
+						cd.Navigate(server.URL),
+						cd.Evaluate(g.accountExpression(g.driveOrigin), &email),
+					)
+				},
+			)
+			if err != nil || email != test.email {
+				t.Fatal("incorrect Drive account control detection", email, err)
+			}
+		})
+	}
 }
 
 func TestGoogleRequiresActiveUniversityAccount(t *testing.T) {
