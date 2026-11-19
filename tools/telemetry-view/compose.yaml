@@ -1,0 +1,26 @@
+name: ku-potato-telemetry
+
+services:
+  lgtm:
+    image: docker.io/grafana/otel-lgtm:0.11.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - lgtm:/data
+
+  replay:
+    image: docker.io/otel/opentelemetry-collector-contrib:0.165.0
+    userns_mode: "keep-id:uid=10001,gid=10001"
+    command: ["--config=/etc/otelcol/config.yaml"]
+    depends_on:
+      - lgtm
+    volumes:
+      - ./replay.yaml:/etc/otelcol/config.yaml:ro
+      - type: bind
+        source: ${TELEMETRY_DIRECTORY}
+        target: /data
+        read_only: true
+    stop_grace_period: 30s
+
+volumes:
+  lgtm:

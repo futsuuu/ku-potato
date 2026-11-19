@@ -120,6 +120,10 @@ export default defineConfig({
         cache: false,
       },
       "format:rust:check": "cargo fmt --all --check",
+      "telemetry-view": {
+        command: "go run ./tools/telemetry-view",
+        cache: false,
+      },
       test: {
         command: [],
         dependsOn: ["desktop:frontend:test", "test:go", "test:rust", "tools:openapi-docs:test"],
