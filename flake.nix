@@ -23,6 +23,8 @@
             pkgs.sea-orm-cli
             pkgs.golangci-lint
             pkgs.protobuf
+            pkgs.podman
+            pkgs.podman-compose
             pkgs.llvmPackages_18.clang-tools
             nix-vite-plus.packages.${pkgs.stdenv.hostPlatform.system}.vp
             pkgs.chromium
