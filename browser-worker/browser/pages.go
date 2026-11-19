@@ -73,7 +73,7 @@ func (b *Browser) readCourses(ctx context.Context) (*workerproto.CourseListing, 
 		}
 		kind, weekday, period, err := parseCourseSchedule(entry.Category, entry.Period)
 		if err != nil {
-			slog.Error("unrecognized LMS value",
+			slog.ErrorContext(ctx, "unrecognized LMS value",
 				"id", id,
 				"field", "schedule",
 				"category", entry.Category,
@@ -167,7 +167,16 @@ func (b *Browser) readMaterials(
 	for _, raw := range folders {
 		date, err := parseCalendarDate(raw.Date)
 		if err != nil {
-			slog.Error("unrecognized LMS value", "id", id, "field", "class_date", "value", raw.Date)
+			slog.ErrorContext(
+				ctx,
+				"unrecognized LMS value",
+				"id",
+				id,
+				"field",
+				"class_date",
+				"value",
+				raw.Date,
+			)
 		}
 		calendar, err := calendarDate(date)
 		if err != nil {
@@ -189,7 +198,7 @@ func (b *Browser) readMaterials(
 			seen[entry.ID] = true
 			kind, err := parseType(entry.Type)
 			if err != nil {
-				slog.Error("unrecognized LMS value",
+				slog.ErrorContext(ctx, "unrecognized LMS value",
 					"id", entry.ID,
 					"field", "type",
 					"value", entry.Type,
@@ -198,7 +207,7 @@ func (b *Browser) readMaterials(
 			}
 			deadline, err := parseDeadline(entry.Deadline)
 			if err != nil {
-				slog.Error("unrecognized LMS value",
+				slog.ErrorContext(ctx, "unrecognized LMS value",
 					"id", entry.ID,
 					"field", "publication_deadline",
 					"value", entry.Deadline,
@@ -339,7 +348,16 @@ func (b *Browser) readResources(ctx context.Context) (*workerproto.ResourceList,
 		}
 		seen[id] = true
 		if entry.Kind != "ファイル資料" && entry.Kind != "外部資料" {
-			slog.Error("unrecognized LMS value", "id", id, "field", "type", "value", entry.Kind)
+			slog.ErrorContext(
+				ctx,
+				"unrecognized LMS value",
+				"id",
+				id,
+				"field",
+				"type",
+				"value",
+				entry.Kind,
+			)
 		}
 		item, err := resource(id, entry.Name, entry.Kind, rawURL)
 		if err != nil {

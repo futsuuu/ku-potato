@@ -8,6 +8,9 @@ import (
 
 	"github.com/futsuuu/ku-potato/browser-worker/browser"
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type result struct {
@@ -47,8 +50,9 @@ func (s *Scheduler) work() {
 			if err := t.ctx.Err(); err != nil {
 				t.result.err = err
 			} else {
+				ctx, span := otel.Tracer("browser-worker").Start(t.ctx, "browser.execute")
 				for attempt := range 3 {
-					t.result.value, t.result.err = t.run(t.ctx)
+					t.result.value, t.result.err = t.run(ctx)
 					var failure *browser.Failure
 					if t.key == "" || t.ctx.Err() != nil || attempt == 2 ||
 						!errors.As(t.result.err, &failure) ||
@@ -60,6 +64,10 @@ func (s *Scheduler) work() {
 					case <-time.After(time.Duration(attempt+1) * 2 * time.Second):
 					}
 				}
+				if t.result.err != nil {
+					span.SetStatus(codes.Error, "browser operation failed")
+				}
+				span.End()
 			}
 			t.cancel()
 			s.mu.Lock()
@@ -85,7 +93,10 @@ func (s *Scheduler) Run(
 		if key == "" {
 			execution, cancel = context.WithCancel(ctx)
 		} else {
-			execution, cancel = context.WithTimeout(s.root, 2*time.Minute)
+			execution, cancel = context.WithTimeout(
+				trace.ContextWithSpanContext(s.root, trace.SpanContextFromContext(ctx)),
+				2*time.Minute,
+			)
 		}
 		t = &task{ctx: execution, cancel: cancel, key: key, run: run, done: make(chan struct{})}
 		select {
