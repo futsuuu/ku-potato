@@ -9,6 +9,7 @@ import (
 
 	"github.com/futsuuu/ku-potato/browser-worker/browser"
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestSourceFailureRetriesOnlyInsideWorker(t *testing.T) {
@@ -26,6 +27,40 @@ func TestSourceFailureRetriesOnlyInsideWorker(t *testing.T) {
 	if err != nil || value != "retrieved" || calls != 2 {
 		t.Fatalf("worker did not retry: %v %v (%d calls)", value, err, calls)
 	}
+}
+
+func TestScheduledReadPreservesTraceWithoutRequestCancellation(t *testing.T) {
+	root, stop := context.WithCancel(t.Context())
+	defer stop()
+	s := NewScheduler(root, 1)
+	parent := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{1},
+		SpanID:     trace.SpanID{2},
+		TraceFlags: trace.FlagsSampled,
+	})
+	request, cancel := context.WithCancel(trace.ContextWithSpanContext(root, parent))
+	started := make(chan struct{})
+	finished := make(chan struct{})
+	executed := make(chan struct{})
+	go func() {
+		defer close(finished)
+		_, _ = s.Run(request, "courses", func(ctx context.Context) (any, error) {
+			defer close(executed)
+			close(started)
+			<-request.Done()
+			if ctx.Err() != nil {
+				t.Error("request cancellation canceled shared execution")
+			}
+			if trace.SpanContextFromContext(ctx).TraceID() != parent.TraceID() {
+				t.Error("shared execution lost the request trace")
+			}
+			return nil, nil
+		})
+	}()
+	<-started
+	cancel()
+	<-finished
+	<-executed
 }
 
 func TestDownloadIsNotRetried(t *testing.T) {
