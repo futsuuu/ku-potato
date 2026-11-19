@@ -6,3 +6,4 @@ pub mod http;
 pub mod model;
 pub mod operation;
 pub mod settings;
+pub mod telemetry;

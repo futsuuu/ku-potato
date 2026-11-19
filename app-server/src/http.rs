@@ -234,7 +234,7 @@ pub fn router(
             state.clone(),
             local_only,
         ))
-        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn(crate::telemetry::observe_http))
         .with_state(state)
 }
 
