@@ -104,6 +104,7 @@ impl tonic::service::Interceptor for Token {
         request
             .metadata_mut()
             .insert(self.header.clone(), self.value.clone());
+        crate::telemetry::inject_context(request.metadata_mut());
         Ok(request)
     }
 }
@@ -171,6 +172,7 @@ impl Client {
         }
     }
 
+    #[tracing::instrument(name = "browser.login", skip_all)]
     pub async fn login(&self, provider: Provider, interactive: bool) -> Result<(), Error> {
         self.user_browser
             .clone()
@@ -183,6 +185,7 @@ impl Client {
         Ok(())
     }
 
+    #[tracing::instrument(name = "browser.authentication_status", skip_all)]
     pub async fn authentication_status(
         &self,
         provider: Provider,
@@ -203,6 +206,7 @@ impl Client {
         })
     }
 
+    #[tracing::instrument(name = "browser.is_web_authn_credential_registered", skip_all)]
     pub async fn is_web_authn_credential_registered(&self) -> Result<bool, Error> {
         Ok(self
             .user_browser
@@ -214,6 +218,7 @@ impl Client {
             .registered)
     }
 
+    #[tracing::instrument(name = "browser.register_web_authn_credential", skip_all)]
     pub async fn register_web_authn_credential(&self, interactive: bool) -> Result<(), Error> {
         self.user_browser
             .clone()
@@ -223,6 +228,7 @@ impl Client {
         Ok(())
     }
 
+    #[tracing::instrument(name = "browser.delete_web_authn_credential", skip_all)]
     pub async fn delete_web_authn_credential(&self) -> Result<(), Error> {
         self.user_browser
             .clone()
@@ -273,6 +279,7 @@ impl Client {
         Err(Error::AuthenticationRequired(Provider::Lms))
     }
 
+    #[tracing::instrument(name = "browser.fetch_courses", skip_all)]
     pub async fn fetch_courses(&self) -> Result<crate::model::Snapshot, Error> {
         self.with_lms_session(|| async {
             let listing = self
@@ -291,6 +298,7 @@ impl Client {
         .await
     }
 
+    #[tracing::instrument(name = "browser.fetch_course_materials", skip_all)]
     pub async fn fetch_course_materials(
         &self,
         course: &crate::model::CourseId,
@@ -327,6 +335,7 @@ impl Client {
         .await
     }
 
+    #[tracing::instrument(name = "browser.fetch_material_contents", skip_all)]
     pub async fn fetch_material_contents(
         &self,
         material: &crate::model::MaterialId,
@@ -369,6 +378,7 @@ impl Client {
         .await
     }
 
+    #[tracing::instrument(name = "browser.download_resource", skip_all)]
     pub async fn download_resource(
         &self,
         material: &crate::model::MaterialId,
@@ -529,6 +539,7 @@ impl Client {
         })
     }
 
+    #[tracing::instrument(name = "browser.google_cookies", skip_all)]
     pub async fn google_cookies(&self) -> Result<Vec<protocol::user_browser::Cookie>, Error> {
         Ok(self
             .user_browser

@@ -1,4 +1,5 @@
 use futures_util::StreamExt as _;
+use tracing::Instrument as _;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -254,6 +255,7 @@ impl Coordinator {
                 result = tokio::time::timeout(timeout, operations.execute_locked(&request, &sender)) => result.unwrap_or(Err(Error::Timeout)),
             };
             if let Err(error) = &result {
+                tracing::Span::current().record("otel.status_code", "ERROR");
                 tracing::warn!(error = %error, "operation failed");
                 if let Some(provider) = error.authentication_provider() {
                     operations.set_authentication(provider, crate::model::Authentication::Unauthenticated).await;
@@ -261,7 +263,7 @@ impl Coordinator {
             }
             sender.send_replace(Update::Finished(result.map_err(|error| crate::error::Public::from(&error))));
             operations.active.lock().await.remove(&request);
-        });
+        }.instrument(tracing::info_span!("operation.execute", otel.status_code = tracing::field::Empty)));
         receiver
     }
 
@@ -279,32 +281,35 @@ impl Coordinator {
     ) -> Result<crate::model::SavedFile, Error> {
         let operations = self.clone();
         self.tasks
-            .spawn(async move {
-                let _guard = operations.file_persistence.lock().await;
-                let file = operations.files.save(source).await?;
-                match operations
-                    .archive
-                    .replace_saved_file(retrieval, &resource, &file)
-                    .await
-                {
-                    Ok(previous) => {
-                        if let Some(previous) = previous
-                            && previous.content_hash != file.content_hash
-                        {
-                            operations
-                                .remove_unreferenced_content(&previous.content_hash)
-                                .await;
+            .spawn(
+                async move {
+                    let _guard = operations.file_persistence.lock().await;
+                    let file = operations.files.save(source).await?;
+                    match operations
+                        .archive
+                        .replace_saved_file(retrieval, &resource, &file)
+                        .await
+                    {
+                        Ok(previous) => {
+                            if let Some(previous) = previous
+                                && previous.content_hash != file.content_hash
+                            {
+                                operations
+                                    .remove_unreferenced_content(&previous.content_hash)
+                                    .await;
+                            }
+                            Ok(file)
                         }
-                        Ok(file)
-                    }
-                    Err(error) => {
-                        operations
-                            .remove_unreferenced_content(&file.content_hash)
-                            .await;
-                        Err(error.into())
+                        Err(error) => {
+                            operations
+                                .remove_unreferenced_content(&file.content_hash)
+                                .await;
+                            Err(error.into())
+                        }
                     }
                 }
-            })
+                .instrument(tracing::info_span!("operation.save_resource_file")),
+            )
             .await?
     }
 

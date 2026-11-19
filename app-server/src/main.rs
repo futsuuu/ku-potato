@@ -2,13 +2,6 @@ use clap::Parser as _;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "ku_potato_server=info,tower_http=info".into()),
-        )
-        .with_writer(std::io::stderr)
-        .init();
     let arguments = ku_potato_server::settings::Arguments::parse();
     if let Some(ku_potato_server::settings::Command::Openapi { out }) = arguments.command {
         let document = format!(
@@ -22,8 +15,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         return Ok(());
     }
-    run_server(arguments).await?;
-    Ok(())
+    let defaults = ku_potato_server::settings::Directories::defaults()?;
+    let _lock = ku_potato_server::settings::acquire_server_lock(&defaults.state)?;
+    let directory = arguments
+        .state_dir
+        .as_deref()
+        .unwrap_or(&defaults.state)
+        .join("telemetry");
+    let providers = ku_potato_server::telemetry::init_telemetry(&directory)?;
+    let result = run_server(arguments, defaults).await;
+    if let Err(error) = &result {
+        tracing::error!(error = %error, "Server failed");
+    }
+    tokio::task::spawn_blocking(|| providers.shutdown()).await??;
+    result
 }
 
 enum ServerExit {
@@ -33,9 +38,8 @@ enum ServerExit {
 
 async fn run_server(
     arguments: ku_potato_server::settings::Arguments,
+    defaults: ku_potato_server::settings::Directories,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let defaults = ku_potato_server::settings::Directories::defaults()?;
-    let _lock = ku_potato_server::settings::acquire_server_lock(&defaults.state)?;
     let data = arguments.data_dir.unwrap_or(defaults.data);
     let state = arguments.state_dir.unwrap_or(defaults.state);
     let cache = arguments.cache_dir.unwrap_or(defaults.cache);
@@ -61,6 +65,8 @@ async fn run_server(
         ku_potato_server::browser::process::Service::UserBrowser,
         arguments.user_browser.as_deref(),
         &[
+            "-telemetry-dir".into(),
+            state.join("telemetry").to_string_lossy().into_owned(),
             "-state-dir".into(),
             state.to_string_lossy().into_owned(),
             "-cache-dir".into(),
@@ -74,6 +80,8 @@ async fn run_server(
         ku_potato_server::browser::process::Service::BrowserWorker,
         arguments.browser_worker.as_deref(),
         &[
+            "-telemetry-dir".into(),
+            state.join("telemetry").to_string_lossy().into_owned(),
             "-temp-dir".into(),
             process_temporary.path().to_string_lossy().into_owned(),
             "-chrome".into(),
