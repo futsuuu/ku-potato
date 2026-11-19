@@ -7,15 +7,19 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"github.com/futsuuu/ku-potato/internal/telemetry"
 	"github.com/futsuuu/ku-potato/user-browser"
 	chromedp "github.com/futsuuu/ku-potato/user-browser/browser"
 	userproto "github.com/futsuuu/ku-potato/user-browser/protocol"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -29,14 +33,27 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (err error) {
 	listen := flag.String("listen", "127.0.0.1:0", "local user browser listener")
 	state := flag.String("state-dir", "", "persistent authentication state directory")
 	cache := flag.String("cache-dir", "", "disposable user browser cache directory")
 	chrome := flag.String("chrome", "", "Chrome executable")
 	lmsURL := flag.String("lms-url", "https://study.ns.kogakuin.ac.jp", "LMS origin")
 	ssoURL := flag.String("sso-url", "https://slink.secioss.com", "SSO origin")
+	telemetryDirectory := flag.String("telemetry-dir", "", "telemetry recording directory")
 	flag.Parse()
+	shutdown, err := telemetry.Init(context.Background(), "user-browser", *telemetryDirectory)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			slog.Error("Service failed", "error", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err = errors.Join(err, shutdown(ctx))
+	}()
 	token := os.Getenv("KU_POTATO_USER_BROWSER_TOKEN")
 	if token == "" || *state == "" || *cache == "" {
 		return errors.New("missing user browser configuration")
@@ -64,19 +81,27 @@ func run() error {
 		return err
 	}
 	defer func() { _ = listener.Close() }()
-	server := grpc.NewServer(grpc.UnaryInterceptor(
-		func(ctx context.Context, req any, info *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
-			values, ok := metadata.FromIncomingContext(ctx)
-			if !ok || len(values.Get("x-ku-potato-user-browser-token")) != 1 ||
-				subtle.ConstantTimeCompare(
-					[]byte(values.Get("x-ku-potato-user-browser-token")[0]),
-					[]byte(token),
-				) != 1 {
-				return nil, status.Error(codes.Unauthenticated, "unauthorized user browser client")
-			}
-			return next(ctx, req)
-		},
-	))
+	server := grpc.NewServer(
+		grpc.WaitForHandlers(true),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(
+			telemetry.UnaryServerInterceptor(),
+			func(ctx context.Context, req any, info *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
+				values, ok := metadata.FromIncomingContext(ctx)
+				if !ok || len(values.Get("x-ku-potato-user-browser-token")) != 1 ||
+					subtle.ConstantTimeCompare(
+						[]byte(values.Get("x-ku-potato-user-browser-token")[0]),
+						[]byte(token),
+					) != 1 {
+					return nil, status.Error(
+						codes.Unauthenticated,
+						"unauthorized user browser client",
+					)
+				}
+				return next(ctx, req)
+			},
+		),
+	)
 	userproto.RegisterUserBrowserServer(server, userbrowser.NewServer(
 		chromedp.NewLMSAuthenticator(browser), chromedp.NewGoogle(browser),
 	))
@@ -84,6 +109,7 @@ func run() error {
 		return err
 	}
 	go func() { <-ctx.Done(); server.Stop() }()
+	slog.Info("gRPC server listening", "address", listener.Addr().String())
 	err = server.Serve(listener)
 	if errors.Is(err, grpc.ErrServerStopped) {
 		return nil
