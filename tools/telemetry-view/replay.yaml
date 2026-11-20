@@ -1,19 +1,22 @@
 receivers:
-  otlpjsonfile/traces:
-    include: [/data/*/traces.jsonl, /data/traces.jsonl]
+  filelog:
+    include:
+      - /data/*/traces.jsonl
+      - /data/traces.jsonl
+      - /data/*/metrics.jsonl
+      - /data/metrics.jsonl
+      - /data/*/logs.jsonl
+      - /data/logs.jsonl
     include_file_name: false
     start_at: beginning
     max_log_size: 16MiB
-  otlpjsonfile/metrics:
-    include: [/data/*/metrics.jsonl, /data/metrics.jsonl]
-    include_file_name: false
-    start_at: beginning
-    max_log_size: 16MiB
-  otlpjsonfile/logs:
-    include: [/data/*/logs.jsonl, /data/logs.jsonl]
-    include_file_name: false
-    start_at: beginning
-    max_log_size: 16MiB
+    max_concurrent_files: 1
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
+
+connectors:
+  otlp_json:
 
 processors:
   memory_limiter:
@@ -27,20 +30,28 @@ processors:
 exporters:
   otlphttp:
     endpoint: http://lgtm:4318
+    sending_queue:
+      block_on_overflow: true
+      num_consumers: 1
+      queue_size: 2
     retry_on_failure:
       max_elapsed_time: 0s
 
 service:
   pipelines:
+    logs/file:
+      receivers: [filelog]
+      processors: [memory_limiter]
+      exporters: [otlp_json]
     traces:
-      receivers: [otlpjsonfile/traces]
-      processors: [memory_limiter, batch]
+      receivers: [otlp_json]
+      processors: [batch]
       exporters: [otlphttp]
     metrics:
-      receivers: [otlpjsonfile/metrics]
-      processors: [memory_limiter, batch]
+      receivers: [otlp_json]
+      processors: [batch]
       exporters: [otlphttp]
     logs:
-      receivers: [otlpjsonfile/logs]
-      processors: [memory_limiter, batch]
+      receivers: [otlp_json]
+      processors: [batch]
       exporters: [otlphttp]
