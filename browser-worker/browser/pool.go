@@ -12,11 +12,12 @@ import (
 	cd "github.com/chromedp/chromedp"
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
 	"github.com/futsuuu/ku-potato/internal/processlifetime"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // The CDP target belongs to the server lifetime. Only the operation is cancelled.
 func operationContext(page, request context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(page)
+	ctx, cancel := context.WithCancel(trace.ContextWithSpan(page, trace.SpanFromContext(request)))
 	stop := context.AfterFunc(request, cancel)
 	if request.Err() != nil {
 		cancel()
