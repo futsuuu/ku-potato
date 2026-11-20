@@ -17,7 +17,45 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	cd "github.com/chromedp/chromedp"
 	workerproto "github.com/futsuuu/ku-potato/browser-worker/protocol"
+	"go.opentelemetry.io/otel/trace"
 )
+
+func TestOperationContextPreservesPageAndRequestSpan(t *testing.T) {
+	page, closePage := cd.NewContext(t.Context())
+	defer closePage()
+	span := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{1},
+		SpanID:  trace.SpanID{2},
+	})
+	request, cancel := context.WithCancel(trace.ContextWithSpanContext(t.Context(), span))
+	op, stop := operationContext(page, request)
+	defer stop()
+	if cd.FromContext(op) != cd.FromContext(page) {
+		t.Fatal("operation lost the page context")
+	}
+	if !trace.SpanContextFromContext(op).Equal(span) {
+		t.Fatal("operation lost the request span")
+	}
+	cancel()
+	select {
+	case <-op.Done():
+	case <-time.After(time.Second):
+		t.Fatal("request cancellation did not stop the operation")
+	}
+	if page.Err() != nil {
+		t.Fatal("request cancellation stopped the page")
+	}
+	op, stop = operationContext(page, t.Context())
+	stop()
+	if op.Err() == nil || page.Err() != nil {
+		t.Fatal("stopping the operation affected the page lifetime")
+	}
+	op, stop = operationContext(page, request)
+	defer stop()
+	if op.Err() == nil {
+		t.Fatal("already cancelled request was ignored")
+	}
+}
 
 func testChrome(t *testing.T) string {
 	t.Helper()
