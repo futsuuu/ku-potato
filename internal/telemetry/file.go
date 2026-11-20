@@ -18,6 +18,7 @@ import (
 type fileTransport struct {
 	directory string
 	mu        sync.Mutex
+	failures  map[string]error
 }
 
 func (t *fileTransport) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -57,6 +58,9 @@ func (t *fileTransport) RoundTrip(request *http.Request) (*http.Response, error)
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if err := t.failures[signal]; err != nil {
+		return nil, err
+	}
 	file, err := os.OpenFile(
 		filepath.Join(t.directory, signal+".jsonl"),
 		os.O_CREATE|os.O_APPEND|os.O_WRONLY,
@@ -65,7 +69,20 @@ func (t *fileTransport) RoundTrip(request *http.Request) (*http.Response, error)
 	if err != nil {
 		return nil, err
 	}
-	_, err = file.Write(append(data, '\n'))
+	info, err := file.Stat()
+	if err != nil {
+		return nil, errors.Join(err, file.Close())
+	}
+	n, err := file.Write(append(data, '\n'))
+	if err != nil && n > 0 {
+		if recovery := file.Truncate(info.Size()); recovery != nil {
+			err = errors.Join(err, fmt.Errorf("restore telemetry record boundary: %w", recovery))
+			if t.failures == nil {
+				t.failures = make(map[string]error)
+			}
+			t.failures[signal] = err
+		}
+	}
 	if err := errors.Join(err, file.Close()); err != nil {
 		return nil, err
 	}
