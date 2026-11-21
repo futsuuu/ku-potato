@@ -1,6 +1,5 @@
 [tools]
 go = "1.27.1"
 golangci-lint = "2.14.0"
-podman = "latest"
 protoc = "latest"
 "pypi:podman-compose" = "latest"
