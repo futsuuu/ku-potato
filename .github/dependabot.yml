@@ -1,5 +1,25 @@
 version: 2
 updates:
+  - package-ecosystem: npm
+    directory: /
+    commit-message:
+      prefix: "*"
+    schedule:
+      interval: weekly
+    groups:
+      pnpm:
+        patterns:
+          - "*"
+  - package-ecosystem: cargo
+    directory: /
+    commit-message:
+      prefix: "*"
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: /
     commit-message:
