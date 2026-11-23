@@ -30,7 +30,7 @@ export default defineConfig({
         "go build -o ./desktop/build/bin/ ./browser-worker/cmd/ku-potato-browser-worker",
       "browser-worker:proto:generate": "go run ./tools/proto-codegen",
       build: {
-        command: "node tools/wails.mjs build",
+        command: "WAILS_EXP_USE_WAKE=1 go tool wails3 build",
         cache: false,
         dependsOn: [
           "app-server:build",
@@ -90,7 +90,7 @@ export default defineConfig({
         dependsOn: ["desktop:frontend:api:generate", "desktop:bindings:generate"],
       },
       dev: {
-        command: "node tools/wails.mjs dev",
+        command: "WAILS_EXP_USE_WAKE=1 go tool wails3 dev",
         dependsOn: ["app-server:build", "browser-worker:build", "user-browser:build"],
         cache: false,
       },
