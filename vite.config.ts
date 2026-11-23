@@ -6,19 +6,24 @@ export default defineConfig({
     tasks: {
       "app-server:api:docs": {
         command:
-          "node tools/openapi-docs/generate.ts tools/api-codegen/openapi.generated.json docs/app-server-api",
+          "node app-server/tools/openapi-docs/generate.ts app-server/tools/api-codegen/openapi.generated.json app-server/docs/api",
         dependsOn: ["app-server:api:generate"],
       },
+      "app-server:api:docs:test": {
+        command: "vp test run",
+        cwd: "app-server/tools/openapi-docs",
+      },
       "app-server:api:generate":
-        "cargo run --locked --bin ku-potato-server -- openapi --out tools/api-codegen/openapi.generated.json",
-      "app-server:build": "node tools/build-server.mjs",
+        "cargo run --locked --bin ku-potato-server -- openapi --out app-server/tools/api-codegen/openapi.generated.json",
+      "app-server:build": "node app-server/tools/build-server.mjs",
       "app-server:db:check": {
         command: [],
-        dependsOn: ["app-server:db:entities:check", "tools:db-docs:test"],
+        dependsOn: ["app-server:db:entities:check", "app-server:db:docs:test"],
       },
-      "app-server:db:entities:check": "node tools/generate-entities.mjs --check",
-      "app-server:db:generate": "node tools/generate-entities.mjs",
-      "app-server:db:docs": "go run ./tools/db-docs",
+      "app-server:db:docs": "go run ./app-server/tools/db-docs",
+      "app-server:db:docs:test": "go test ./app-server/tools/db-docs",
+      "app-server:db:entities:check": "node app-server/tools/generate-entities.mjs --check",
+      "app-server:db:generate": "node app-server/tools/generate-entities.mjs",
       "app-server:dev": {
         command:
           "cargo run --locked --bin ku-potato-server -- --worker ./desktop/build/bin/ku-potato-browser-worker --user-browser ./desktop/build/bin/ku-potato-user-browser",
@@ -67,7 +72,7 @@ export default defineConfig({
       },
       "desktop:frontend:api:generate": {
         command: "node generate.mjs openapi.generated.json",
-        cwd: "tools/api-codegen",
+        cwd: "app-server/tools/api-codegen",
         dependsOn: ["app-server:api:generate"],
       },
       "desktop:frontend:build": {
@@ -126,7 +131,7 @@ export default defineConfig({
       },
       test: {
         command: [],
-        dependsOn: ["desktop:frontend:test", "test:go", "test:rust", "tools:openapi-docs:test"],
+        dependsOn: ["desktop:frontend:test", "test:go", "test:rust", "app-server:api:docs:test"],
       },
       "test:go": {
         command:
@@ -134,11 +139,6 @@ export default defineConfig({
         dependsOn: ["desktop:frontend:build"],
       },
       "test:rust": "cargo test --locked --workspace",
-      "tools:db-docs:test": "go test ./tools/db-docs",
-      "tools:openapi-docs:test": {
-        command: "vp test run",
-        cwd: "tools/openapi-docs",
-      },
       "user-browser:browser:test": "go test ./user-browser/browser/... -count=1 -v",
       "user-browser:build":
         "go build -o ./desktop/build/bin/ ./user-browser/cmd/ku-potato-user-browser",

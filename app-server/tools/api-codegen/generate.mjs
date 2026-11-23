@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import openapiTS, { astToString } from "openapi-typescript";
 
-const frontend = new URL("../../desktop/frontend/", import.meta.url);
+const frontend = new URL("../../../desktop/frontend/", import.meta.url);
 
 if (process.argv.length !== 3) {
   throw new Error("usage: node generate.mjs <openapi.json>");

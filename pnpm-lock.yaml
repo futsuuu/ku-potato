@@ -214,7 +214,7 @@ importers:
     devDependencies:
       '@ku-potato/api-codegen':
         specifier: workspace:*
-        version: link:../../tools/api-codegen
+        version: link:../../app-server/tools/api-codegen
       '@solidjs/vite-plugin':
         specifier: 3.0.1
         version: 3.0.1(@babel/core@7.29.7(supports-color@10.2.2))(@solidjs/start-devtools@1.0.0-next.2(@solidjs/web@2.0.0(solid-js@2.0.0))(solid-js@2.0.0))(@solidjs/web@2.0.0(solid-js@2.0.0))(@types/node@24.19.1)(@voidzero-dev/vite-plus-core@1.1.0(@types/node@24.19.1)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(jiti@2.7.0)(solid-js@2.0.0)(typescript@7.0.2)(yaml@2.9.1)
@@ -228,7 +228,7 @@ importers:
         specifier: ^30.1.2
         version: 30.1.2
 
-  tools/api-codegen:
+  app-server/tools/api-codegen:
     dependencies:
       openapi-typescript:
         specifier: 7.13.0
@@ -237,7 +237,7 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  tools/openapi-docs:
+  app-server/tools/openapi-docs:
     dependencies:
       '@scalar/openapi-to-markdown':
         specifier: 1.7.3

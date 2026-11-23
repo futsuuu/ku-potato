@@ -30,14 +30,14 @@ func TestAddCommentsCRLF(t *testing.T) {
 }
 
 func TestDocumentationMatchesSchema(t *testing.T) {
-	t.Chdir(filepath.Join("..", ".."))
+	t.Chdir(filepath.Join("..", "..", ".."))
 	t.Setenv("TBLS_DOC_PATH", "")
 
 	c, err := config.New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Load(".tbls.yml"); err != nil {
+	if err := c.Load("app-server/.tbls.yml"); err != nil {
 		t.Fatal(err)
 	}
 	document, err := analyze(filepath.Join(t.TempDir(), "schema.db"))
@@ -57,7 +57,7 @@ func TestDocumentationMatchesSchema(t *testing.T) {
 
 	output := t.TempDir()
 	t.Setenv("TBLS_DOC_PATH", output)
-	if err := run(".tbls.yml"); err != nil {
+	if err := run("app-server/.tbls.yml"); err != nil {
 		t.Fatal(err)
 	}
 	generated, err := os.ReadDir(output)

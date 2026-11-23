@@ -1,7 +1,7 @@
 packages:
   - desktop/frontend
-  - tools/api-codegen
-  - tools/openapi-docs
+  - app-server/tools/api-codegen
+  - app-server/tools/openapi-docs
 
 minimumReleaseAgeExclude:
   - "@solidjs/vite-plugin@3.0.1"

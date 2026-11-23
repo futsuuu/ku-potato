@@ -9,7 +9,7 @@ const check = process.argv[2] === "--check";
 assert.deepEqual(
   process.argv.slice(2),
   check ? ["--check"] : [],
-  "usage: node tools/generate-entities.mjs [--check]",
+  "usage: node app-server/tools/generate-entities.mjs [--check]",
 );
 const temporary = mkdtempSync(join(tmpdir(), "ku-potato-entities-"));
 try {

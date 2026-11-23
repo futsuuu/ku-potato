@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	if err := run(".tbls.yml"); err != nil {
+	if err := run("app-server/.tbls.yml"); err != nil {
 		log.Fatal(err)
 	}
 }
