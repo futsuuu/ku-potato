@@ -3,17 +3,21 @@ updates:
   - package-ecosystem: npm
     directory: /
     commit-message:
-      prefix: "*"
+      prefix: "*:"
     schedule:
       interval: weekly
     groups:
       pnpm:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: cargo
     directory: /
     commit-message:
-      prefix: "*"
+      prefix: "*:"
     schedule:
       interval: weekly
     groups:
