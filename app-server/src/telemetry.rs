@@ -250,7 +250,7 @@ mod tests {
                     let dispatch = tracing::dispatcher::get_default(Clone::clone);
                     tokio::spawn(
                         async {
-                            let mut token = crate::browser::Token::new(
+                            let mut token = crate::rpc::Token::new(
                                 "x-ku-potato-worker-token",
                                 "must-not-export-this-secret",
                             )

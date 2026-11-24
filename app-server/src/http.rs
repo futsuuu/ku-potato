@@ -14,7 +14,7 @@ enum Error {
     #[error("API endpoint not found")]
     NotFound,
     #[error(transparent)]
-    Browser(#[from] crate::browser::Error),
+    UserBrowser(#[from] crate::user_browser::Error),
     #[error(transparent)]
     Archive(#[from] crate::archive::Error),
     #[error(transparent)]
@@ -30,7 +30,7 @@ impl Error {
             Self::BodyTooLarge => crate::error::Reason::PayloadTooLarge,
             Self::Forbidden => crate::error::Reason::Forbidden,
             Self::NotFound => crate::error::Reason::NotFound,
-            Self::Browser(error) => return error.into(),
+            Self::UserBrowser(error) => return error.into(),
             Self::Archive(error) => return error.into(),
             Self::Files(error) => return error.into(),
             Self::Header(_) => {
@@ -388,7 +388,7 @@ async fn cached_lms(
     axum::Json(Data {
         data: state
             .operations
-            .cached_authentication(crate::browser::Provider::Lms)
+            .cached_authentication(crate::user_browser::Provider::Lms)
             .await,
     })
 }
@@ -403,7 +403,7 @@ async fn cached_google(
     axum::Json(Data {
         data: state
             .operations
-            .cached_authentication(crate::browser::Provider::Google)
+            .cached_authentication(crate::user_browser::Provider::Google)
             .await,
     })
 }
@@ -419,7 +419,7 @@ async fn registration(
         data: crate::model::Registration {
             registered: state
                 .operations
-                .browser
+                .user_browser
                 .is_web_authn_credential_registered()
                 .await?,
         },
@@ -438,7 +438,7 @@ async fn login(
     Ok(stream_operation(
         state.operations,
         crate::operation::Request::Login {
-            provider: crate::browser::Provider::Lms,
+            provider: crate::user_browser::Provider::Lms,
             interactive: input.interactive,
         },
     )
@@ -457,7 +457,7 @@ async fn google_login(
     Ok(stream_operation(
         state.operations,
         crate::operation::Request::Login {
-            provider: crate::browser::Provider::Google,
+            provider: crate::user_browser::Provider::Google,
             interactive: input.interactive,
         },
     )
@@ -473,7 +473,7 @@ async fn check(
 ) -> axum::response::Response {
     stream_operation(
         state.operations,
-        crate::operation::Request::CheckAuthentication(crate::browser::Provider::Lms),
+        crate::operation::Request::CheckAuthentication(crate::user_browser::Provider::Lms),
     )
     .await
 }
@@ -487,7 +487,7 @@ async fn google_check(
 ) -> axum::response::Response {
     stream_operation(
         state.operations,
-        crate::operation::Request::CheckAuthentication(crate::browser::Provider::Google),
+        crate::operation::Request::CheckAuthentication(crate::user_browser::Provider::Google),
     )
     .await
 }
@@ -944,7 +944,7 @@ mod tests {
 
     #[tokio::test]
     async fn generated_schemas_describe_every_feature_response() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = fixture.operations().await;
         let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
         for (method, path, body) in [
@@ -1075,7 +1075,7 @@ mod tests {
 
     #[tokio::test]
     async fn security_blocks_dns_rebinding_and_cross_origin_requests() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = fixture.operations().await;
         let router = super::router(operations, "127.0.0.1:8787".parse().unwrap());
         for (host, origin, site, status) in [
@@ -1172,7 +1172,7 @@ mod tests {
 
     #[tokio::test]
     async fn selectors_and_request_bodies_fail_before_starting_work() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = fixture.operations().await;
         let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
         for path in [
@@ -1236,7 +1236,7 @@ mod tests {
 
     #[tokio::test]
     async fn disconnecting_only_detaches_observation_and_equivalent_work_is_shared() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = fixture.operations().await;
         let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
         let initial = response(&router, "GET", "/courses?sync=true", &[], "").await;
@@ -1265,7 +1265,7 @@ mod tests {
 
     #[tokio::test]
     async fn files_support_head_ranges_and_conditional_requests() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = fixture.operations().await;
         let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
         stream(
@@ -1321,7 +1321,7 @@ mod tests {
 
     #[tokio::test]
     async fn failed_transfers_keep_retrieved_metadata_without_publishing_file_references() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         fixture
             .service
             .truncated
@@ -1348,7 +1348,7 @@ mod tests {
 
     #[tokio::test]
     async fn timeouts_terminate_observation_without_persisting_incomplete_work() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = std::sync::Arc::new(crate::operation::Coordinator::new(
             crate::archive::Store::open("sqlite::memory:")
                 .await
@@ -1358,7 +1358,8 @@ mod tests {
                 fixture.temporary.path(),
             )
             .unwrap(),
-            fixture.client.clone(),
+            fixture.browser_worker.clone(),
+            fixture.user_browser.clone(),
             crate::operation::Options {
                 temporary_directory: fixture.temporary.path().to_path_buf(),
                 job_timeout: std::time::Duration::from_millis(1),
@@ -1377,7 +1378,7 @@ mod tests {
 
     #[tokio::test]
     async fn assignments_deduplicate_history_and_synchronize_only_the_selected_lms_year() {
-        let fixture = crate::browser::tests::Fixture::new().await;
+        let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = fixture.operations().await;
         let make_course = |id: &str, year: i32| crate::model::Course {
             name: id.into(),
