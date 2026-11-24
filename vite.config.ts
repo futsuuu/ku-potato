@@ -4,17 +4,14 @@ import solidLint from "eslint-plugin-solid/configs/v2";
 export default defineConfig({
   run: {
     tasks: {
-      "app-server:api:docs": {
-        command:
-          "node app-server/tools/openapi-docs/generate.ts app-server/tools/api-codegen/openapi.generated.json app-server/docs/api",
-        dependsOn: ["app-server:api:generate"],
-      },
+      "app-server:api:docs":
+        "node app-server/tools/openapi-docs/generate.ts app-server/openapi.json app-server/docs/api",
       "app-server:api:docs:test": {
         command: "vp test run",
         cwd: "app-server/tools/openapi-docs",
       },
       "app-server:api:generate":
-        "cargo run --locked --bin ku-potato-server -- openapi --out app-server/tools/api-codegen/openapi.generated.json",
+        "cargo run --locked --bin ku-potato-server -- openapi --out app-server/openapi.json",
       "app-server:build": "node app-server/tools/build-server.mjs",
       "app-server:db:check": {
         command: [],
@@ -71,9 +68,8 @@ export default defineConfig({
         cwd: "desktop",
       },
       "desktop:frontend:api:generate": {
-        command: "node generate.mjs openapi.generated.json",
-        cwd: "app-server/tools/api-codegen",
-        dependsOn: ["app-server:api:generate"],
+        command: "node generate.mjs ../../../app-server/openapi.json",
+        cwd: "desktop/tools/generate-api-client",
       },
       "desktop:frontend:build": {
         command: [],
@@ -87,6 +83,7 @@ export default defineConfig({
       "desktop:frontend:test": {
         command: "vp test run",
         cwd: "desktop/frontend",
+        dependsOn: ["desktop:frontend:api:generate"],
       },
       "desktop:frontend:typecheck": {
         command: "tsc --noEmit",
@@ -95,7 +92,12 @@ export default defineConfig({
       },
       dev: {
         command: "WAILS_EXP_USE_WAKE=1 go tool wails3 dev",
-        dependsOn: ["app-server:build", "browser-worker:build", "user-browser:build"],
+        dependsOn: [
+          "app-server:build",
+          "browser-worker:build",
+          "desktop:frontend:api:generate",
+          "user-browser:build",
+        ],
         cache: false,
       },
       format: {
@@ -164,6 +166,6 @@ export default defineConfig({
     ignorePatterns: ["**/api.generated.ts", "**/bindings/**", "**/dist/**"],
   },
   fmt: {
-    ignorePatterns: ["**/*.md", "**/bindings/**", "**/dist/**"],
+    ignorePatterns: ["**/*.md", "**/bindings/**", "**/dist/**", "app-server/openapi.json"],
   },
 });
