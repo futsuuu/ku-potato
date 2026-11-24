@@ -3,6 +3,8 @@ packages:
   - desktop/tools/generate-api-client
   - app-server/tools/openapi-docs
 
+allowBuilds:
+  esbuild: true
 minimumReleaseAgeExclude:
   - "@solidjs/vite-plugin@3.0.1"
   - "@wailsio/runtime@3.1.0"
