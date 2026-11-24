@@ -103,7 +103,12 @@ jobs:
         run: brew install protobuf
       - name: Install Protobuf on Windows
         if: runner.os == 'Windows'
-        run: choco install protoc --yes --no-progress
+        shell: pwsh
+        run: |
+          winget install --id Google.Protobuf --exact --source winget --location "$env:RUNNER_TEMP\protobuf" --accept-package-agreements --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:RUNNER_TEMP\protobuf\bin" >> $env:GITHUB_PATH
+          & "$env:RUNNER_TEMP\protobuf\bin\protoc.exe" --version
       - name: Install Rust
         shell: bash
         run: rustup show
