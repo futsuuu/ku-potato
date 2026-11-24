@@ -108,12 +108,14 @@ it.each(["browser", "windows"])("keeps inner scrolling in %s", async (OS) => {
   if (OS === "browser") delete window._wails;
   else window._wails = { environment: { OS } };
   await mount(true);
-  expect(getComputedStyle(document.querySelector(".window-frame")!).height).toBe("100dvh");
+  expect(getComputedStyle(document.querySelector(".window-frame")!).height).toBe(
+    `${window.innerHeight}px`,
+  );
   const content = getComputedStyle(document.querySelector(".window-content")!);
   expect(content.height).toBe("100%");
   expect(content.overflow).toBe("auto");
   const layout = getComputedStyle(document.querySelector(".app-layout")!);
-  expect(layout.height).toBe("100dvh");
+  expect(layout.height).toBe(`${window.innerHeight}px`);
   expect(layout.overflow).toBe("hidden");
   expect(getComputedStyle(document.querySelector(".page-content")!).overflow).toBe("auto");
 });
