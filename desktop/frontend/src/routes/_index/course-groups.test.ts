@@ -1,6 +1,6 @@
 import { expect, it } from "vite-plus/test";
 import { groupCourses } from "./course-groups";
-import type { Schema } from "./api";
+import type { Schema } from "../../api";
 
 it("groups weekdays from Monday to Sunday and puts unscheduled courses last", () => {
   const course = (name: string, weekday?: number): Schema["Course"] => ({

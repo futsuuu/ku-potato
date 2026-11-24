@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
-import type { Schema } from "../api";
-import { formatDate } from "../format";
-import LmsHtmlContent from "./LmsHtmlContent";
+import type { Schema } from "../../api";
+import { formatDate } from "../../format";
+import LmsHtmlContent from "../../components/LmsHtmlContent";
 
 const statuses: Record<Schema["Report"]["status"], string> = {
   unviewed: "未閲覧",

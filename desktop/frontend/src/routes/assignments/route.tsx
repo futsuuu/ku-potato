@@ -1,13 +1,13 @@
 import { createEffect, createSignal, For, onCleanup } from "solid-js";
-import type { Result, Sync } from "../api";
-import { upcoming } from "../format";
-import { createOperation } from "../operation";
-import { coursePath, materialPath, useWorkspace } from "../workspace";
-import BudouxText from "../components/BudouxText";
-import MaterialSummary from "../components/MaterialSummary";
-import PageHeader from "../components/PageHeader";
-import Progress from "../components/Progress";
-import RefreshButton from "../components/RefreshButton";
+import type { Result, Sync } from "../../api";
+import { upcoming } from "../../format";
+import { createOperation } from "../../operation";
+import { coursePath, materialPath, useWorkspace } from "../../workspace";
+import BudouxText from "../../components/BudouxText";
+import MaterialSummary from "../../components/MaterialSummary";
+import PageHeader from "../../components/PageHeader";
+import Progress from "../../components/Progress";
+import RefreshButton from "../../components/RefreshButton";
 
 export default function Assignments() {
   const workspace = useWorkspace();

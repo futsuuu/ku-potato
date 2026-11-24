@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^\.{1,2}\/native$/,
+        find: /^(?:\.{1,2}\/)+native$/,
         replacement: fileURLToPath(new URL("./native.ts", import.meta.url)),
       },
     ],

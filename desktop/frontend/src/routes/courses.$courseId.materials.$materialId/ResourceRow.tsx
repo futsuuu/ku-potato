@@ -2,11 +2,11 @@ import { Show, untrack } from "solid-js";
 import Download from "@lucide/solid/icons/download";
 import ExternalLink from "@lucide/solid/icons/external-link";
 import type { JSX } from "@solidjs/web";
-import type { API, Schema } from "../api";
-import { createOperation } from "../operation";
-import { openExternal } from "../native";
-import Progress from "./Progress";
-import BudouxText from "./BudouxText";
+import type { API, Schema } from "../../api";
+import { createOperation } from "../../operation";
+import { openExternal } from "../../native";
+import Progress from "../../components/Progress";
+import BudouxText from "../../components/BudouxText";
 
 function ResourceActionButton(props: {
   disabled: boolean;

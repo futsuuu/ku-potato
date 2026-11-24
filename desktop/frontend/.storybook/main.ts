@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { StorybookConfig } from "storybook-solidjs-vite";
 
 export default {
-  stories: ["../src/components/**/*.stories.@(ts|tsx)"],
+  stories: ["../src/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-docs"],
   framework: {
     name: "storybook-solidjs-vite",

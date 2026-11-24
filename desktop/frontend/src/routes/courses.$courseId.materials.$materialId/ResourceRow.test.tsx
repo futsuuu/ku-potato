@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { render } from "@solidjs/web";
 import { afterEach, expect, it, vi } from "vite-plus/test";
-import { createAPI, type API, type Schema } from "../api";
+import { createAPI, type API, type Schema } from "../../api";
 import ResourceRow from "./ResourceRow";
 
 const { openExternal } = vi.hoisted(() => ({ openExternal: vi.fn() }));
-vi.mock("../native", () => ({ openExternal }));
+vi.mock("../../native", () => ({ openExternal }));
 
 const savedFile: Schema["SavedFile"] = {
   contentHash: "a".repeat(64),
