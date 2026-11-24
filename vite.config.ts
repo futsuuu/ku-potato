@@ -63,11 +63,11 @@ export default defineConfig({
       },
       "check:js": {
         command: "vp check --no-fmt",
-        dependsOn: ["desktop:frontend:api:generate", "desktop:bindings:generate"],
+        dependsOn: ["desktop:frontend:api:generate"],
       },
       "check:rust": "cargo clippy --locked --workspace --all-targets -- -D warnings",
       "desktop:bindings:generate": {
-        command: "go tool wails3 generate bindings -ts -d frontend/bindings .",
+        command: "go tool wails3 generate bindings -clean -ts -d frontend/bindings .",
         cwd: "desktop",
       },
       "desktop:frontend:api:generate": {
@@ -82,17 +82,16 @@ export default defineConfig({
       "desktop:frontend:bundle": {
         command: "vp build",
         cwd: "desktop/frontend",
-        dependsOn: ["desktop:frontend:api:generate", "desktop:bindings:generate"],
+        dependsOn: ["desktop:frontend:api:generate"],
       },
       "desktop:frontend:test": {
         command: "vp test run",
         cwd: "desktop/frontend",
-        dependsOn: ["desktop:bindings:generate"],
       },
       "desktop:frontend:typecheck": {
         command: "tsc --noEmit",
         cwd: "desktop/frontend",
-        dependsOn: ["desktop:frontend:api:generate", "desktop:bindings:generate"],
+        dependsOn: ["desktop:frontend:api:generate"],
       },
       dev: {
         command: "WAILS_EXP_USE_WAKE=1 go tool wails3 dev",
