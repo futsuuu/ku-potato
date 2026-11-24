@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@scalar/openapi-to-markdown": "1.7.3"
+    "@scalar/openapi-to-markdown": "1.7.11"
   },
   "devDependencies": {
-    "@scalar/openapi-types": "0.9.8"
+    "@scalar/openapi-types": "0.9.10"
   }
 }
