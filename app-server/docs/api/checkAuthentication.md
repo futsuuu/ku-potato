@@ -1,4 +1,4 @@
-# Check LMS authentication
+# Check Kogakuin SSO authentication
 
 - **Method:** `POST`
 - **Path:** `/auth/check`

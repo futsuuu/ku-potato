@@ -1,10 +1,10 @@
-# Read cached authentication state
+# Read cached Kogakuin SSO authentication state
 
 - **Method:** `GET`
 - **Path:** `/auth`
 - **Operation ID:** `getCachedAuthenticationState`
 
-Returns the last observed LMS authentication state without starting an authentication check.
+Returns the last observed Kogakuin SSO authentication state without starting an authentication check.
 
 ## Effective servers
 

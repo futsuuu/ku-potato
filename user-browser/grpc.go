@@ -16,7 +16,7 @@ type authentication interface {
 	Login(context.Context, bool) error
 	Status(context.Context) (bool, error)
 }
-type lmsAuthentication interface {
+type kogakuinSSOAuthentication interface {
 	authentication
 	RegisterWebAuthn(context.Context, bool) error
 	WebAuthnRegistrationStatus(context.Context) (chromedp.RegistrationResult, error)
@@ -31,12 +31,12 @@ type googleAuthentication interface {
 
 type Server struct {
 	userproto.UnimplementedUserBrowserServer
-	lms    lmsAuthentication
-	google googleAuthentication
+	kogakuinSSO kogakuinSSOAuthentication
+	google      googleAuthentication
 }
 
-func NewServer(lms lmsAuthentication, google googleAuthentication) *Server {
-	return &Server{lms: lms, google: google}
+func NewServer(kogakuinSSO kogakuinSSOAuthentication, google googleAuthentication) *Server {
+	return &Server{kogakuinSSO: kogakuinSSO, google: google}
 }
 
 func browserError(err error) error {
@@ -73,8 +73,8 @@ func browserError(err error) error {
 
 func (s *Server) provider(provider userproto.Provider) (authentication, error) {
 	switch provider {
-	case userproto.Provider_PROVIDER_LMS:
-		return s.lms, nil
+	case userproto.Provider_PROVIDER_KOGAKUIN_SSO:
+		return s.kogakuinSSO, nil
 	case userproto.Provider_PROVIDER_GOOGLE:
 		return s.google, nil
 	case userproto.Provider_PROVIDER_UNSPECIFIED:
@@ -111,19 +111,21 @@ func (s *Server) RegisterWebAuthn(
 	ctx context.Context,
 	request *userproto.InteractiveRequest,
 ) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, browserError(s.lms.RegisterWebAuthn(ctx, request.GetInteractive()))
+	return &emptypb.Empty{}, browserError(
+		s.kogakuinSSO.RegisterWebAuthn(ctx, request.GetInteractive()),
+	)
 }
 
 func (s *Server) WebAuthnRegistrationStatus(
 	ctx context.Context,
 	_ *emptypb.Empty,
 ) (*userproto.RegistrationStatus, error) {
-	result, err := s.lms.WebAuthnRegistrationStatus(ctx)
+	result, err := s.kogakuinSSO.WebAuthnRegistrationStatus(ctx)
 	return &userproto.RegistrationStatus{Registered: result.Registered}, browserError(err)
 }
 
 func (s *Server) DeleteWebAuthn(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, browserError(s.lms.DeleteWebAuthn(ctx))
+	return &emptypb.Empty{}, browserError(s.kogakuinSSO.DeleteWebAuthn(ctx))
 }
 
 func (s *Server) SSOCookies(
@@ -133,9 +135,9 @@ func (s *Server) SSOCookies(
 	var cookies []*network.CookieParam
 	var err error
 	if request.GetRenew() {
-		cookies, err = s.lms.RenewSSOCookies(ctx)
+		cookies, err = s.kogakuinSSO.RenewSSOCookies(ctx)
 	} else {
-		cookies, err = s.lms.SSOCookies(ctx)
+		cookies, err = s.kogakuinSSO.SSOCookies(ctx)
 	}
 	if err != nil {
 		return nil, browserError(err)

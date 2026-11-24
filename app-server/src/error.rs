@@ -68,7 +68,7 @@ impl From<&crate::browser_worker::Error> for Public {
             crate::browser_worker::Error::AuthenticationRequired => {
                 return Self {
                     reason: Reason::AuthenticationRequired,
-                    message: "Authentication is required".into(),
+                    message: "Kogakuin SSO authentication is required".into(),
                 };
             }
             crate::browser_worker::Error::Rpc { source }
@@ -141,7 +141,9 @@ impl From<&crate::user_browser::Error> for Public {
                 return Self {
                     reason: Reason::AuthenticationRequired,
                     message: match provider {
-                        crate::user_browser::Provider::Lms => "Authentication is required".into(),
+                        crate::user_browser::Provider::KogakuinSso => {
+                            "Kogakuin SSO authentication is required".into()
+                        }
                         crate::user_browser::Provider::Google => {
                             "Google authentication is required".into()
                         }

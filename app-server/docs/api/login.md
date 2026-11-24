@@ -1,4 +1,4 @@
-# Log in to LMS
+# Log in to Kogakuin SSO
 
 - **Method:** `POST`
 - **Path:** `/auth/login`

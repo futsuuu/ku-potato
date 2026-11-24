@@ -193,7 +193,7 @@ struct Documentation;
 fn routes() -> utoipa_axum::router::OpenApiRouter<State> {
     utoipa_axum::router::OpenApiRouter::with_openapi(<Documentation as utoipa::OpenApi>::openapi())
         .routes(utoipa_axum::routes!(health))
-        .routes(utoipa_axum::routes!(cached_lms))
+        .routes(utoipa_axum::routes!(cached_kogakuin_sso))
         .routes(utoipa_axum::routes!(cached_google))
         .routes(utoipa_axum::routes!(login))
         .routes(utoipa_axum::routes!(check))
@@ -379,16 +379,16 @@ async fn specification() -> axum::Json<utoipa::openapi::OpenApi> {
 }
 
 #[utoipa::path(get, path = "/auth", operation_id = "getCachedAuthenticationState",
-    summary = "Read cached authentication state",
-    description = "Returns the last observed LMS authentication state without starting an authentication check.",
+    summary = "Read cached Kogakuin SSO authentication state",
+    description = "Returns the last observed Kogakuin SSO authentication state without starting an authentication check.",
     responses((status = 200, body = Data<crate::model::Authentication>), (status = 403, body = ErrorBody)))]
-async fn cached_lms(
+async fn cached_kogakuin_sso(
     axum::extract::State(state): axum::extract::State<State>,
 ) -> axum::Json<Data<crate::model::Authentication>> {
     axum::Json(Data {
         data: state
             .operations
-            .cached_authentication(crate::user_browser::Provider::Lms)
+            .cached_authentication(crate::user_browser::Provider::KogakuinSso)
             .await,
     })
 }
@@ -427,7 +427,7 @@ async fn registration(
 }
 
 #[utoipa::path(post, path = "/auth/login", operation_id = "login", request_body = AuthenticationInput,
-    summary = "Log in to LMS",
+    summary = "Log in to Kogakuin SSO",
     description = STREAM_DESCRIPTION,
     responses((status = 200, body = [StreamEvent<crate::model::Authentication>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 413, body = ErrorBody)))]
 async fn login(
@@ -438,7 +438,7 @@ async fn login(
     Ok(stream_operation(
         state.operations,
         crate::operation::Request::Login {
-            provider: crate::user_browser::Provider::Lms,
+            provider: crate::user_browser::Provider::KogakuinSso,
             interactive: input.interactive,
         },
     )
@@ -465,7 +465,7 @@ async fn google_login(
 }
 
 #[utoipa::path(post, path = "/auth/check", operation_id = "checkAuthentication",
-    summary = "Check LMS authentication",
+    summary = "Check Kogakuin SSO authentication",
     description = STREAM_DESCRIPTION,
     responses((status = 200, body = [StreamEvent<crate::model::Authentication>], content_type = "text/event-stream"), (status = 403, body = ErrorBody)))]
 async fn check(
@@ -473,7 +473,7 @@ async fn check(
 ) -> axum::response::Response {
     stream_operation(
         state.operations,
-        crate::operation::Request::CheckAuthentication(crate::user_browser::Provider::Lms),
+        crate::operation::Request::CheckAuthentication(crate::user_browser::Provider::KogakuinSso),
     )
     .await
 }

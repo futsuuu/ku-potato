@@ -43,17 +43,30 @@ impl Error {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Provider {
-    Lms,
+    KogakuinSso,
     Google,
 }
 
 impl Provider {
     fn wire(self) -> i32 {
         match self {
-            Self::Lms => protocol::Provider::Lms.into(),
+            Self::KogakuinSso => protocol::Provider::KogakuinSso.into(),
             Self::Google => protocol::Provider::Google.into(),
         }
     }
+}
+
+#[test]
+fn providers_map_to_distinct_protocol_values() {
+    assert_eq!(
+        Provider::KogakuinSso.wire(),
+        i32::from(protocol::Provider::KogakuinSso)
+    );
+    assert_eq!(
+        Provider::Google.wire(),
+        i32::from(protocol::Provider::Google)
+    );
+    assert_ne!(Provider::KogakuinSso.wire(), Provider::Google.wire());
 }
 
 #[derive(Clone)]
@@ -83,7 +96,7 @@ impl Client {
             .clone()
             .sso_cookies(protocol::SsoCookiesRequest { renew })
             .await
-            .map_err(|status| map_status(status, Provider::Lms))?
+            .map_err(|status| map_status(status, Provider::KogakuinSso))?
             .into_inner()
             .cookies;
         for cookie in &cookies {
@@ -133,7 +146,7 @@ impl Client {
             .clone()
             .web_authn_registration_status(())
             .await
-            .map_err(|status| map_status(status, Provider::Lms))?
+            .map_err(|status| map_status(status, Provider::KogakuinSso))?
             .into_inner()
             .registered)
     }
@@ -144,7 +157,7 @@ impl Client {
             .clone()
             .register_web_authn(protocol::InteractiveRequest { interactive })
             .await
-            .map_err(|status| map_status(status, Provider::Lms))?;
+            .map_err(|status| map_status(status, Provider::KogakuinSso))?;
         Ok(())
     }
 
@@ -154,7 +167,7 @@ impl Client {
             .clone()
             .delete_web_authn(())
             .await
-            .map_err(|status| map_status(status, Provider::Lms))?;
+            .map_err(|status| map_status(status, Provider::KogakuinSso))?;
         Ok(())
     }
 
@@ -250,7 +263,7 @@ fn rpc_authentication_requires_typed_details_and_preserves_the_provider() {
         }],
     }
     .encode_to_vec();
-    for provider in [Provider::Lms, Provider::Google] {
+    for provider in [Provider::KogakuinSso, Provider::Google] {
         let status = tonic::Status::with_details(
             tonic::Code::FailedPrecondition,
             "Login required",
@@ -294,7 +307,7 @@ fn user_browser_failures_preserve_public_reasons_and_messages() {
                 failure.message,
                 details.into(),
             ),
-            Provider::Lms,
+            Provider::KogakuinSso,
         );
         let public = crate::error::Public::from(&error);
         assert_eq!(

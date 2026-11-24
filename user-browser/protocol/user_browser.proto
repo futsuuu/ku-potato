@@ -20,7 +20,7 @@ service UserBrowser {
 
 enum Provider {
   PROVIDER_UNSPECIFIED = 0;
-  PROVIDER_LMS = 1;
+  PROVIDER_KOGAKUIN_SSO = 1;
   PROVIDER_GOOGLE = 2;
 }
 message LoginRequest {

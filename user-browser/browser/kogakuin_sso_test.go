@@ -164,7 +164,7 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	}).Do(exec); err != nil {
 		t.Fatal(err)
 	}
-	auth := NewLMSAuthenticator(b)
+	auth := NewKogakuinSSO(b)
 	params, err := auth.RenewSSOCookies(ctx)
 	if err != nil || len(params) != 1 || params[0].Name != "sso" || params[0].Value != "fresh" {
 		t.Fatal("renewal did not produce a usable SSO-only session", params, err)
