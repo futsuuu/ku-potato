@@ -1,6 +1,6 @@
 import { createJSXDecorator, type Meta, type StoryObj } from "storybook-solidjs-vite";
 import { action } from "storybook/actions";
-import { createAPI, type Schema } from "../api";
+import { createAPI, type Schema } from "../../api";
 import ResourceRow from "./ResourceRow";
 
 const resource = {

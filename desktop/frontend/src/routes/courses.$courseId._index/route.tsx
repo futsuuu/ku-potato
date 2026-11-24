@@ -1,15 +1,15 @@
 import { createEffect, For, Show } from "solid-js";
 import { useParams } from "@solidjs/router";
-import type { Result, Sync } from "../../../api";
-import { formatDate } from "../../../format";
-import { createOperation } from "../../../operation";
-import { decodeRouteParam, materialPath, useWorkspace } from "../../../workspace";
-import MaterialSummary from "../../../components/MaterialSummary";
-import LmsHtmlContent from "../../../components/LmsHtmlContent";
-import BudouxText from "../../../components/BudouxText";
-import PageHeader from "../../../components/PageHeader";
-import Progress from "../../../components/Progress";
-import RefreshButton from "../../../components/RefreshButton";
+import type { Result, Sync } from "../../api";
+import { formatDate } from "../../format";
+import { createOperation } from "../../operation";
+import { decodeRouteParam, materialPath, useWorkspace } from "../../workspace";
+import MaterialSummary from "../../components/MaterialSummary";
+import LmsHtmlContent from "../../components/LmsHtmlContent";
+import BudouxText from "../../components/BudouxText";
+import PageHeader from "../../components/PageHeader";
+import Progress from "../../components/Progress";
+import RefreshButton from "../../components/RefreshButton";
 
 export default function Materials() {
   const workspace = useWorkspace();

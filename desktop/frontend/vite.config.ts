@@ -1,5 +1,7 @@
+import { fileURLToPath } from "node:url";
 import solid from "@solidjs/vite-plugin";
 import { defineConfig } from "vite-plus";
+import { FlatFileSystemRouter } from "filesystem-routing";
 import { fileRoutes } from "filesystem-routing/vite";
 import { fontAssets } from "./font-assets";
 
@@ -11,7 +13,12 @@ export default defineConfig({
         devtools: false,
       },
     }),
-    fileRoutes(),
+    fileRoutes({
+      router: new FlatFileSystemRouter({
+        dir: fileURLToPath(new URL("./src/routes", import.meta.url)),
+        extensions: ["ts", "tsx"],
+      }),
+    }),
   ],
   build: {
     assetsInlineLimit: 0,

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import type { Schema } from "../api";
+import type { Schema } from "../../api";
 import ReportContent from "./ReportContent";
 
 const report = {
