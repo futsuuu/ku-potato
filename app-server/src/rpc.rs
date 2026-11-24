@@ -251,7 +251,7 @@ pub(crate) mod tests {
             code: tonic::Code::FailedPrecondition as i32,
             message: "Login required".into(),
             details: vec![prost_types::Any {
-                type_url: "type.googleapis.com/kupotato.browser.v1.Failure".into(),
+                type_url: "type.googleapis.com/kupotato.browserworker.v1.Failure".into(),
                 value: failure.encode_to_vec(),
             }],
         };

@@ -1,5 +1,5 @@
 pub mod protocol {
-    tonic::include_proto!("kupotato.browser.v1");
+    tonic::include_proto!("kupotato.browserworker.v1");
 }
 mod decode;
 
@@ -468,7 +468,7 @@ fn map_status(status: tonic::Status) -> Error {
         && let Ok(details) = crate::rpc::Status::decode(status.details())
     {
         for detail in details.details {
-            if detail.type_url == "type.googleapis.com/kupotato.browser.v1.Failure"
+            if detail.type_url == "type.googleapis.com/kupotato.browserworker.v1.Failure"
                 && let Ok(failure) = protocol::Failure::decode(detail.value.as_slice())
             {
                 return decode::failure(failure);
@@ -523,7 +523,7 @@ fn browser_worker_failures_preserve_target_identifiers() {
             code: tonic::Code::FailedPrecondition as i32,
             message: failure.message.clone(),
             details: vec![prost_types::Any {
-                type_url: "type.googleapis.com/kupotato.browser.v1.Failure".into(),
+                type_url: "type.googleapis.com/kupotato.browserworker.v1.Failure".into(),
                 value: failure.encode_to_vec(),
             }],
         };
