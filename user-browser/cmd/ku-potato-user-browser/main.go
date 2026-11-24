@@ -103,7 +103,7 @@ func run() (err error) {
 		),
 	)
 	userproto.RegisterUserBrowserServer(server, userbrowser.NewServer(
-		chromedp.NewLMSAuthenticator(browser), chromedp.NewGoogle(browser),
+		chromedp.NewKogakuinSSO(browser), chromedp.NewGoogle(browser),
 	))
 	if _, err := fmt.Fprintln(os.Stdout, listener.Addr().String()); err != nil {
 		return err

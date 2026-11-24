@@ -15,20 +15,20 @@ import (
 	cd "github.com/chromedp/chromedp"
 )
 
-// LMSAuthenticator uses only the authentication profile. The content browser never
+// KogakuinSSO uses only the authentication profile. The content browser never
 // opens this profile or receives a WebAuthn private key.
-type LMSAuthenticator struct{ *Browser }
+type KogakuinSSO struct{ *Browser }
 
-func NewLMSAuthenticator(browser *Browser) *LMSAuthenticator {
-	return &LMSAuthenticator{Browser: browser}
+func NewKogakuinSSO(browser *Browser) *KogakuinSSO {
+	return &KogakuinSSO{Browser: browser}
 }
 
-func (i *LMSAuthenticator) Login(ctx context.Context, interactive bool) error {
+func (i *KogakuinSSO) Login(ctx context.Context, interactive bool) error {
 	_, err := i.ssoCookies(ctx, interactive)
 	return err
 }
 
-func (i *LMSAuthenticator) Status(ctx context.Context) (bool, error) {
+func (i *KogakuinSSO) Status(ctx context.Context) (bool, error) {
 	err := i.Login(ctx, false)
 	var failure *Error
 	if errors.As(err, &failure) && failure.Reason == "authentication-required" {
@@ -39,17 +39,17 @@ func (i *LMSAuthenticator) Status(ctx context.Context) (bool, error) {
 
 // SSOCookies verifies that SSO alone can establish a new LMS session. An existing
 // LMS or university authentication session is not evidence that SSO is valid.
-func (i *LMSAuthenticator) SSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
+func (i *KogakuinSSO) SSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
 	return i.ssoCookies(ctx, false)
 }
 
 // RenewSSOCookies uses the same verification as SSOCookies: neither can bypass
 // SSO using an existing LMS session. Only refreshed SSO cookies are persisted.
-func (i *LMSAuthenticator) RenewSSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
+func (i *KogakuinSSO) RenewSSOCookies(ctx context.Context) ([]*network.CookieParam, error) {
 	return i.ssoCookies(ctx, false)
 }
 
-func (i *LMSAuthenticator) ssoCookies(
+func (i *KogakuinSSO) ssoCookies(
 	ctx context.Context,
 	interactive bool,
 ) ([]*network.CookieParam, error) {

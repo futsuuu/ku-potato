@@ -60,11 +60,11 @@ func (f *fakeAuth) Cookies(ctx context.Context) ([]*network.CookieParam, error) 
 	return f.SSOCookies(ctx)
 }
 
-func newTestClient(t *testing.T, lms, google *fakeAuth) userproto.UserBrowserClient {
+func newTestClient(t *testing.T, kogakuinSSO, google *fakeAuth) userproto.UserBrowserClient {
 	t.Helper()
 	listener := bufconn.Listen(1 << 20)
 	server := grpc.NewServer()
-	userproto.RegisterUserBrowserServer(server, NewServer(lms, google))
+	userproto.RegisterUserBrowserServer(server, NewServer(kogakuinSSO, google))
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
 	conn, err := grpc.NewClient(
@@ -82,16 +82,21 @@ func newTestClient(t *testing.T, lms, google *fakeAuth) userproto.UserBrowserCli
 }
 
 func TestAuthenticationRPCs(t *testing.T) {
-	lms, google := &fakeAuth{}, &fakeAuth{}
-	client := newTestClient(t, lms, google)
+	kogakuinSSO, google := &fakeAuth{}, &fakeAuth{}
+	client := newTestClient(t, kogakuinSSO, google)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	for _, provider := range []userproto.Provider{userproto.Provider_PROVIDER_LMS, userproto.Provider_PROVIDER_GOOGLE} {
+	for _, provider := range []userproto.Provider{userproto.Provider_PROVIDER_KOGAKUIN_SSO, userproto.Provider_PROVIDER_GOOGLE} {
+		kogakuinSSO.interactive, google.interactive = false, false
 		if _, err := client.Login(
 			ctx,
 			&userproto.LoginRequest{Provider: provider, Interactive: true},
 		); err != nil {
 			t.Fatal(err)
+		}
+		if kogakuinSSO.interactive != (provider == userproto.Provider_PROVIDER_KOGAKUIN_SSO) ||
+			google.interactive != (provider == userproto.Provider_PROVIDER_GOOGLE) {
+			t.Fatal("login used the wrong authentication provider", provider)
 		}
 		result, err := client.Status(ctx, &userproto.ProviderRequest{Provider: provider})
 		if err != nil || !result.GetAuthenticated() {
@@ -121,7 +126,7 @@ func TestAuthenticationRPCs(t *testing.T) {
 	if err != nil || result.GetRegistered() {
 		t.Fatal(result, err)
 	}
-	if !lms.interactive || !google.interactive {
+	if !kogakuinSSO.interactive || !google.interactive {
 		t.Fatal("interactive flag lost")
 	}
 }
@@ -145,16 +150,16 @@ func TestCookieRPCsPreserveAttributesAndRenewal(t *testing.T) {
 			HasCrossSiteAncestor: true,
 		},
 	}
-	lms, google := &fakeAuth{
+	kogakuinSSO, google := &fakeAuth{
 		cookies: []*network.CookieParam{nil, cookie},
 	}, &fakeAuth{
 		cookies: []*network.CookieParam{cookie},
 	}
-	client := newTestClient(t, lms, google)
+	client := newTestClient(t, kogakuinSSO, google)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := client.SSOCookies(ctx, &userproto.SSOCookiesRequest{})
-	if err != nil || lms.renewed || len(result.GetCookies()) != 1 {
+	if err != nil || kogakuinSSO.renewed || len(result.GetCookies()) != 1 {
 		t.Fatal(result, err)
 	}
 	got := result.GetCookies()[0]
@@ -182,7 +187,7 @@ func TestCookieRPCsPreserveAttributesAndRenewal(t *testing.T) {
 		ctx,
 		&userproto.SSOCookiesRequest{Renew: true},
 	); err != nil ||
-		!lms.renewed {
+		!kogakuinSSO.renewed {
 		t.Fatal(err)
 	}
 	result, err = client.GoogleCookies(ctx, &emptypb.Empty{})

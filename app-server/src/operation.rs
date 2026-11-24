@@ -32,7 +32,7 @@ impl Error {
                 Some(*provider)
             }
             Self::BrowserWorker(crate::browser_worker::Error::AuthenticationRequired) => {
-                Some(crate::user_browser::Provider::Lms)
+                Some(crate::user_browser::Provider::KogakuinSso)
             }
             Self::Drive(crate::drive::Error::Download(google_drive::download::Error::Request(
                 google_drive::RequestError::AuthenticationRequired,
@@ -45,13 +45,13 @@ impl Error {
 #[test]
 fn only_authentication_failures_select_a_provider() {
     for provider in [
-        crate::user_browser::Provider::Lms,
+        crate::user_browser::Provider::KogakuinSso,
         crate::user_browser::Provider::Google,
     ] {
         let error = Error::from(crate::user_browser::Error::AuthenticationRequired(provider));
         assert_eq!(error.authentication_provider(), Some(provider));
         let error = match provider {
-            crate::user_browser::Provider::Lms => {
+            crate::user_browser::Provider::KogakuinSso => {
                 Error::from(crate::browser_worker::Error::AuthenticationRequired)
             }
             crate::user_browser::Provider::Google => Error::from(crate::drive::Error::from(
@@ -191,7 +191,7 @@ pub enum Update {
 
 #[derive(Default)]
 struct AuthenticationCache {
-    lms: crate::model::Authentication,
+    kogakuin_sso: crate::model::Authentication,
     google: crate::model::Authentication,
 }
 
@@ -248,7 +248,7 @@ impl Coordinator {
     ) -> crate::model::Authentication {
         let authentication = self.authentication.read().await;
         match provider {
-            crate::user_browser::Provider::Lms => authentication.lms,
+            crate::user_browser::Provider::KogakuinSso => authentication.kogakuin_sso,
             crate::user_browser::Provider::Google => authentication.google,
         }
     }
@@ -260,7 +260,7 @@ impl Coordinator {
     ) {
         let mut authentication = self.authentication.write().await;
         match provider {
-            crate::user_browser::Provider::Lms => authentication.lms = state,
+            crate::user_browser::Provider::KogakuinSso => authentication.kogakuin_sso = state,
             crate::user_browser::Provider::Google => authentication.google = state,
         }
     }
@@ -271,7 +271,7 @@ async fn cached_authentication_keeps_each_provider_independent() {
     let fixture = crate::rpc::tests::Fixture::new().await;
     let operations = fixture.operations().await;
     for provider in [
-        crate::user_browser::Provider::Lms,
+        crate::user_browser::Provider::KogakuinSso,
         crate::user_browser::Provider::Google,
     ] {
         assert!(matches!(
@@ -281,12 +281,12 @@ async fn cached_authentication_keeps_each_provider_independent() {
     }
     for (provider, other) in [
         (
-            crate::user_browser::Provider::Lms,
+            crate::user_browser::Provider::KogakuinSso,
             crate::user_browser::Provider::Google,
         ),
         (
             crate::user_browser::Provider::Google,
-            crate::user_browser::Provider::Lms,
+            crate::user_browser::Provider::KogakuinSso,
         ),
     ] {
         operations
@@ -667,7 +667,7 @@ impl Coordinator {
     ) -> Result<Option<crate::archive::ResourceRetrieval>, crate::archive::Error> {
         let retrieval = self.archive.append(snapshot).await?;
         self.set_authentication(
-            crate::user_browser::Provider::Lms,
+            crate::user_browser::Provider::KogakuinSso,
             crate::model::Authentication::Authenticated,
         )
         .await;
@@ -716,7 +716,7 @@ impl Coordinator {
                     .register_web_authn_credential(*interactive)
                     .await?;
                 self.set_authentication(
-                    crate::user_browser::Provider::Lms,
+                    crate::user_browser::Provider::KogakuinSso,
                     crate::model::Authentication::Authenticated,
                 )
                 .await;
@@ -893,7 +893,7 @@ impl Coordinator {
 }
 
 #[tokio::test]
-async fn google_download_authentication_failure_does_not_invalidate_lms() {
+async fn google_download_authentication_failure_does_not_invalidate_kogakuin_sso() {
     let fixture = crate::rpc::tests::Fixture::new().await;
     fixture
         .service
@@ -901,7 +901,7 @@ async fn google_download_authentication_failure_does_not_invalidate_lms() {
         .store(true, std::sync::atomic::Ordering::SeqCst);
     let operations = fixture.operations().await;
     for provider in [
-        crate::user_browser::Provider::Lms,
+        crate::user_browser::Provider::KogakuinSso,
         crate::user_browser::Provider::Google,
     ] {
         operations
@@ -923,7 +923,7 @@ async fn google_download_authentication_failure_does_not_invalidate_lms() {
     );
     assert!(matches!(
         operations
-            .cached_authentication(crate::user_browser::Provider::Lms)
+            .cached_authentication(crate::user_browser::Provider::KogakuinSso)
             .await,
         crate::model::Authentication::Authenticated
     ));

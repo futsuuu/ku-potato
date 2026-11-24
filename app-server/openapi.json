@@ -81,8 +81,8 @@
     },
     "/auth": {
       "get": {
-        "summary": "Read cached authentication state",
-        "description": "Returns the last observed LMS authentication state without starting an authentication check.",
+        "summary": "Read cached Kogakuin SSO authentication state",
+        "description": "Returns the last observed Kogakuin SSO authentication state without starting an authentication check.",
         "operationId": "getCachedAuthenticationState",
         "responses": {
           "200": {
@@ -108,7 +108,7 @@
     },
     "/auth/check": {
       "post": {
-        "summary": "Check LMS authentication",
+        "summary": "Check Kogakuin SSO authentication",
         "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "checkAuthentication",
         "responses": {
@@ -253,7 +253,7 @@
     },
     "/auth/login": {
       "post": {
-        "summary": "Log in to LMS",
+        "summary": "Log in to Kogakuin SSO",
         "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "login",
         "requestBody": {
