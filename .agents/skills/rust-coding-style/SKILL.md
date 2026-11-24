@@ -1,6 +1,6 @@
 ---
 name: rust-coding-style
-description: Use when writing, refactoring, or reviewing Rust code to apply naming, signature, type-path, and error-type conventions.
+description: Use when writing, refactoring, or reviewing Rust code to apply naming, signature, type-path, error-type, and test-placement conventions.
 ---
 
 # Rust coding style
@@ -18,6 +18,10 @@ description: Use when writing, refactoring, or reviewing Rust code to apply nami
 - Do not define `type` aliases or rename imports merely to shorten type names or generic expressions.
 - Do not use `pub use` to hide an internal module path. Define a type in the module that exposes it, or have callers write its full path.
 - Import traits needed for method resolution with `use ... as _`. Keep required associated type definitions; they are not convenience aliases.
+
+## Tests
+
+- Place unit tests near their implementations in the same module unless this causes compiler or Clippy warnings.
 
 ## Error types
 
