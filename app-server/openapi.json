@@ -1,0 +1,2930 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KU-POTATO HTTP API",
+    "description": "Single-account loopback API. Feature endpoints stream typed results, operation status, and progress using SSE. Replay the feature request to retry.",
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/assignments": {
+      "get": {
+        "summary": "Read or synchronize assignments",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "listAssignments",
+        "parameters": [
+          {
+            "name": "sync",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "auto reads saved data or starts synchronization; false reads only; true starts synchronization.",
+              "enum": [
+                "auto",
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "courseId",
+            "in": "query",
+            "description": "Repeat to select courses; omission uses the courses selected by the synchronization policy.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/CourseId"
+              },
+              "maxItems": 500
+            },
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Assignments"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth": {
+      "get": {
+        "summary": "Read cached authentication state",
+        "description": "Returns the last observed LMS authentication state without starting an authentication check.",
+        "operationId": "getCachedAuthenticationState",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Data_Authentication"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/check": {
+      "post": {
+        "summary": "Check LMS authentication",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "checkAuthentication",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Authentication"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/google": {
+      "get": {
+        "summary": "Read cached Google authentication state",
+        "description": "Returns the last observed Google authentication state without starting an authentication check.",
+        "operationId": "getCachedGoogleAuthenticationState",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Data_Authentication"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/google/check": {
+      "post": {
+        "summary": "Check the saved Google session",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "checkGoogleAuthentication",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Authentication"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/google/login": {
+      "post": {
+        "summary": "Log in to Google and save the session",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "googleLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthenticationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Authentication"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Log in to LMS",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthenticationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Authentication"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/webauthn": {
+      "get": {
+        "summary": "Read saved WebAuthn credential state",
+        "description": "Reports whether a saved virtual WebAuthn credential is registered.",
+        "operationId": "getWebAuthn",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Data_Registration"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Register virtual WebAuthn credential",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "registerWebAuthn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthenticationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Registration"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete saved WebAuthn credential",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "deleteWebAuthn",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Registration"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses": {
+      "get": {
+        "summary": "Read or synchronize courses",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "listCourses",
+        "parameters": [
+          {
+            "name": "sync",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "auto reads saved data or starts synchronization; false reads only; true starts synchronization.",
+              "enum": [
+                "auto",
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Vec_Course"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/materials": {
+      "get": {
+        "summary": "Read or synchronize course materials",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "listMaterials",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CourseId"
+            }
+          },
+          {
+            "name": "sync",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "auto reads saved data or starts synchronization; false reads only; true starts synchronization.",
+              "enum": [
+                "auto",
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_CourseMaterials"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "Check HTTP process",
+        "description": "Reports HTTP process availability without starting browser work.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/materials/{materialId}": {
+      "get": {
+        "summary": "Read or synchronize material details",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "getMaterial",
+        "parameters": [
+          {
+            "name": "materialId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MaterialId"
+            }
+          },
+          {
+            "name": "sync",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "auto reads saved data or starts synchronization; false reads only; true starts synchronization.",
+              "enum": [
+                "auto",
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Detail"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/materials/{materialId}/resources/{resourceId}/download": {
+      "post": {
+        "summary": "Acquire and save a resource",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "downloadResource",
+        "parameters": [
+          {
+            "name": "materialId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MaterialId"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_Download"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/materials/{materialId}/resources/{resourceId}/file": {
+      "get": {
+        "summary": "Serve a saved file",
+        "description": "Serves verified saved content with range requests and ETag conditionals. Does not download missing content.",
+        "operationId": "getSavedFile",
+        "parameters": [
+          {
+            "name": "materialId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MaterialId"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "description": "Byte range to retrieve.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-Range",
+            "in": "header",
+            "description": "Apply Range only if the saved file's ETag matches.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "description": "Return 304 if the saved file's ETag matches.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {},
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "416": {},
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read saved file headers",
+        "description": "Returns the same headers as a saved-file GET request without a response body.",
+        "operationId": "headSavedFile",
+        "parameters": [
+          {
+            "name": "materialId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MaterialId"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "description": "Byte range to retrieve.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-Range",
+            "in": "header",
+            "description": "Apply Range only if the saved file's ETag matches.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "description": "Return 304 if the saved file's ETag matches.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {},
+          "304": {},
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/materials/{materialId}/resources/{resourceId}/prepare": {
+      "post": {
+        "summary": "Materialize a saved resource for local clients",
+        "description": "Verifies and materializes saved content and returns its local filesystem path. Does not download missing content.",
+        "operationId": "prepareResource",
+        "parameters": [
+          {
+            "name": "materialId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MaterialId"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Data_ResourcePath"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "Read the generated OpenAPI document",
+        "description": "Generated from the same Rust routes and schemas used by this server.",
+        "operationId": "specification",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcademicYear": {
+        "type": "integer",
+        "format": "int32",
+        "maximum": 9999,
+        "minimum": 1
+      },
+      "Access": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "lmsCourseId",
+              "availability"
+            ],
+            "properties": {
+              "availability": {
+                "type": "string",
+                "enum": [
+                  "available"
+                ]
+              },
+              "lmsCourseId": {
+                "$ref": "#/components/schemas/CourseId"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "availability"
+            ],
+            "properties": {
+              "availability": {
+                "type": "string",
+                "enum": [
+                  "unavailable"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Assignment": {
+        "type": "object",
+        "required": [
+          "lmsCourseId",
+          "folderName",
+          "material"
+        ],
+        "properties": {
+          "folderName": {
+            "type": "string"
+          },
+          "lmsCourseId": {
+            "$ref": "#/components/schemas/CourseId"
+          },
+          "material": {
+            "$ref": "#/components/schemas/Material"
+          }
+        }
+      },
+      "Assignments": {
+        "type": "object",
+        "required": [
+          "assignments",
+          "failures"
+        ],
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Assignment"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseFailure"
+            }
+          }
+        }
+      },
+      "Authentication": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "authenticated"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "unauthenticated"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "AuthenticationInput": {
+        "type": "object",
+        "description": "Set interactive to allow manual authentication in a visible browser on the server machine.",
+        "properties": {
+          "interactive": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "Availability": {
+        "type": "string",
+        "enum": [
+          "available",
+          "unavailable"
+        ]
+      },
+      "BoardStatus": {
+        "type": "string",
+        "enum": [
+          "unposted",
+          "evaluated",
+          "unknown"
+        ]
+      },
+      "ContentHash": {
+        "type": "string",
+        "maxLength": 64,
+        "minLength": 64,
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "Correction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "correctionMode"
+            ],
+            "properties": {
+              "correctionMode": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "correctionMode"
+            ],
+            "properties": {
+              "correctionMode": {
+                "type": "string",
+                "enum": [
+                  "not-allowed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "correctionMode"
+            ],
+            "properties": {
+              "correctionMode": {
+                "type": "string",
+                "enum": [
+                  "unlimited"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "correctionLimit",
+              "correctionMode"
+            ],
+            "properties": {
+              "correctionLimit": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "correctionMode": {
+                "type": "string",
+                "enum": [
+                  "limited"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Course": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Access"
+          },
+          {
+            "$ref": "#/components/schemas/Schedule"
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "academicYear"
+            ],
+            "properties": {
+              "academicYear": {
+                "$ref": "#/components/schemas/AcademicYear"
+              },
+              "archived": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "CourseFailure": {
+        "type": "object",
+        "required": [
+          "lmsCourseId",
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/Public"
+          },
+          "lmsCourseId": {
+            "$ref": "#/components/schemas/CourseId"
+          }
+        }
+      },
+      "CourseId": {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+      },
+      "CourseMaterials": {
+        "type": "object",
+        "required": [
+          "lmsCourseId",
+          "folders"
+        ],
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Folder"
+            }
+          },
+          "lmsCourseId": {
+            "$ref": "#/components/schemas/CourseId"
+          }
+        }
+      },
+      "Data_Assignments": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "assignments",
+              "failures"
+            ],
+            "properties": {
+              "assignments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Assignment"
+                }
+              },
+              "failures": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CourseFailure"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Data_Authentication": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unknown"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "authenticated"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unauthenticated"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "Data_CourseMaterials": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "lmsCourseId",
+              "folders"
+            ],
+            "properties": {
+              "folders": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Folder"
+                }
+              },
+              "lmsCourseId": {
+                "$ref": "#/components/schemas/CourseId"
+              }
+            }
+          }
+        }
+      },
+      "Data_Detail": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "course",
+              "material",
+              "resources"
+            ],
+            "properties": {
+              "course": {
+                "$ref": "#/components/schemas/Course"
+              },
+              "material": {
+                "$ref": "#/components/schemas/Material"
+              },
+              "report": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Report"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Resource"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Data_Download": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "file",
+                  "downloadUrl",
+                  "type"
+                ],
+                "properties": {
+                  "downloadUrl": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "$ref": "#/components/schemas/SavedFile"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "file"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "url",
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "external"
+                    ]
+                  },
+                  "url": {
+                    "$ref": "#/components/schemas/WebUrl"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "Data_Registration": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "registered"
+            ],
+            "properties": {
+              "registered": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "Data_ResourcePath": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Data_Vec": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Access"
+                },
+                {
+                  "$ref": "#/components/schemas/Schedule"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "academicYear"
+                  ],
+                  "properties": {
+                    "academicYear": {
+                      "$ref": "#/components/schemas/AcademicYear"
+                    },
+                    "archived": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "Deadline": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "publicationDeadlineAt",
+              "publicationDeadlineKind"
+            ],
+            "properties": {
+              "publicationDeadlineAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "publicationDeadlineKind": {
+                "type": "string",
+                "enum": [
+                  "at"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "publicationDeadlineKind"
+            ],
+            "properties": {
+              "publicationDeadlineKind": {
+                "type": "string",
+                "enum": [
+                  "unlisted"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "publicationDeadlineKind"
+            ],
+            "properties": {
+              "publicationDeadlineKind": {
+                "type": "string",
+                "enum": [
+                  "closed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "publicationDeadlineKind"
+            ],
+            "properties": {
+              "publicationDeadlineKind": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Detail": {
+        "type": "object",
+        "required": [
+          "course",
+          "material",
+          "resources"
+        ],
+        "properties": {
+          "course": {
+            "$ref": "#/components/schemas/Course"
+          },
+          "material": {
+            "$ref": "#/components/schemas/Material"
+          },
+          "report": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Report"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Resource"
+            }
+          }
+        }
+      },
+      "DocumentStatus": {
+        "type": "string",
+        "enum": [
+          "unviewed",
+          "viewed",
+          "partially-viewed",
+          "unknown"
+        ]
+      },
+      "Download": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "file",
+              "downloadUrl",
+              "type"
+            ],
+            "properties": {
+              "downloadUrl": {
+                "type": "string"
+              },
+              "file": {
+                "$ref": "#/components/schemas/SavedFile"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "file"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "external"
+                ]
+              },
+              "url": {
+                "$ref": "#/components/schemas/WebUrl"
+              }
+            }
+          }
+        ]
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/Public"
+          }
+        }
+      },
+      "FeedbackStatus": {
+        "type": "string",
+        "enum": [
+          "unevaluated",
+          "evaluated",
+          "unknown"
+        ]
+      },
+      "Folder": {
+        "type": "object",
+        "required": [
+          "name",
+          "materials"
+        ],
+        "properties": {
+          "classDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "descriptionHtml": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "materials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Material"
+            }
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "Material": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MaterialKind"
+          },
+          {
+            "$ref": "#/components/schemas/Deadline"
+          },
+          {
+            "type": "object",
+            "required": [
+              "lmsMaterialId",
+              "name",
+              "materialLinkAvailable"
+            ],
+            "properties": {
+              "archived": {
+                "type": "boolean"
+              },
+              "lmsMaterialId": {
+                "$ref": "#/components/schemas/MaterialId"
+              },
+              "materialLinkAvailable": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "retrievedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "MaterialId": {
+        "type": "string",
+        "maxLength": 200,
+        "pattern": "^[A-Z]+[0-9]+$"
+      },
+      "MaterialKind": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "resourceAvailability",
+              "type"
+            ],
+            "properties": {
+              "resourceAvailability": {
+                "$ref": "#/components/schemas/Availability"
+              },
+              "status": {
+                "$ref": "#/components/schemas/DocumentStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "material"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/ReportStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "report"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/TestStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "test"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/QuestionnaireStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "questionnaire"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/TestStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "e-learning"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/BoardStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "board"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/FeedbackStatus"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "feedback"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "status": {
+                "$ref": "#/components/schemas/Unknown"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "OperationState": {
+        "type": "string",
+        "enum": [
+          "running",
+          "succeeded",
+          "blocked",
+          "failed"
+        ]
+      },
+      "OperationStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "attempt",
+          "progress"
+        ],
+        "properties": {
+          "attempt": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "progress": {
+            "$ref": "#/components/schemas/Progress"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationState"
+          }
+        }
+      },
+      "Progress": {
+        "type": "object",
+        "required": [
+          "stage",
+          "completed",
+          "total"
+        ],
+        "properties": {
+          "completed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lmsCourseId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CourseId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Public": {
+        "type": "object",
+        "required": [
+          "reason",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/Reason"
+          }
+        }
+      },
+      "QuestionnaireStatus": {
+        "type": "string",
+        "enum": [
+          "unanswered",
+          "answered",
+          "unknown"
+        ]
+      },
+      "Reason": {
+        "type": "string",
+        "enum": [
+          "invalid-input",
+          "payload-too-large",
+          "conflict",
+          "authentication-required",
+          "archive-data-missing",
+          "material-not-found",
+          "resource-not-found",
+          "course-not-found",
+          "unsupported-resource",
+          "source",
+          "timeout",
+          "internal",
+          "archive",
+          "authentication-storage",
+          "resource-storage",
+          "not-found",
+          "forbidden",
+          "browser-start"
+        ]
+      },
+      "Registration": {
+        "type": "object",
+        "required": [
+          "registered"
+        ],
+        "properties": {
+          "registered": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Report": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SubmissionPeriod"
+          },
+          {
+            "$ref": "#/components/schemas/Correction"
+          },
+          {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "fileAnswerAllowed": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "maxTotalFileBytes": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "minimum": 0
+              },
+              "promptHtml": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retrievedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "status": {
+                "$ref": "#/components/schemas/ReportStatus"
+              },
+              "textAnswerAllowed": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ReportStatus": {
+        "type": "string",
+        "enum": [
+          "unviewed",
+          "unsubmitted",
+          "submitted",
+          "resubmission-required",
+          "evaluated",
+          "unknown"
+        ]
+      },
+      "Resource": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResourceContent"
+          },
+          {
+            "type": "object",
+            "required": [
+              "lmsResourceId",
+              "name",
+              "status"
+            ],
+            "properties": {
+              "archived": {
+                "type": "boolean"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "firstViewedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "lmsResourceId": {
+                "$ref": "#/components/schemas/ResourceId"
+              },
+              "name": {
+                "type": "string"
+              },
+              "registeredOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "savedFile": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SavedFile"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "$ref": "#/components/schemas/ResourceStatus"
+              }
+            }
+          }
+        ]
+      },
+      "ResourceContent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "file"
+                ]
+              },
+              "url": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WebUrl"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "external"
+                ]
+              },
+              "url": {
+                "$ref": "#/components/schemas/WebUrl"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              },
+              "url": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WebUrl"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ResourceId": {
+        "type": "string",
+        "maxLength": 200,
+        "pattern": "^SRS[0-9]+$"
+      },
+      "ResourcePath": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "ResourceStatus": {
+        "type": "string",
+        "enum": [
+          "unviewed",
+          "viewed",
+          "unknown"
+        ]
+      },
+      "SavedFile": {
+        "type": "object",
+        "required": [
+          "contentHash",
+          "originalFilename",
+          "originalSize"
+        ],
+        "properties": {
+          "contentHash": {
+            "$ref": "#/components/schemas/ContentHash"
+          },
+          "originalFilename": {
+            "type": "string"
+          },
+          "originalSize": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "Schedule": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "weekday",
+              "period",
+              "type"
+            ],
+            "properties": {
+              "period": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "scheduled"
+                ]
+              },
+              "weekday": {
+                "$ref": "#/components/schemas/Weekday"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "other"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Stage": {
+        "type": "string",
+        "enum": [
+          "waiting",
+          "authenticating",
+          "registering",
+          "fetching-courses",
+          "fetching-materials",
+          "fetching-resources",
+          "downloading",
+          "saving",
+          "completed"
+        ]
+      },
+      "StreamEvent_Assignments": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_Assignments"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StreamEvent_Authentication": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_Authentication"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StreamEvent_CourseMaterials": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_CourseMaterials"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StreamEvent_Detail": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_Detail"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StreamEvent_Download": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_Download"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StreamEvent_Registration": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_Registration"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StreamEvent_Vec_Course": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_Vec"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "SubmissionPeriod": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubmissionWindow"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "submissionPeriodKind"
+                ],
+                "properties": {
+                  "submissionPeriodKind": {
+                    "type": "string",
+                    "enum": [
+                      "at"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "submissionPeriodKind"
+            ],
+            "properties": {
+              "submissionPeriodKind": {
+                "type": "string",
+                "enum": [
+                  "unlisted"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "submissionPeriodKind"
+            ],
+            "properties": {
+              "submissionPeriodKind": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "SubmissionWindow": {
+        "type": "object",
+        "properties": {
+          "submissionDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "submissionStartsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "TestStatus": {
+        "type": "string",
+        "enum": [
+          "not-started",
+          "in-progress",
+          "completed",
+          "unknown"
+        ]
+      },
+      "Unknown": {
+        "type": "string",
+        "enum": [
+          "unknown"
+        ]
+      },
+      "WebUrl": {
+        "type": "string",
+        "format": "uri"
+      },
+      "Weekday": {
+        "type": "integer",
+        "format": "int32",
+        "maximum": 7,
+        "minimum": 1
+      }
+    }
+  }
+}

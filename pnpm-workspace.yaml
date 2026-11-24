@@ -1,6 +1,6 @@
 packages:
   - desktop/frontend
-  - app-server/tools/api-codegen
+  - desktop/tools/generate-api-client
   - app-server/tools/openapi-docs
 
 minimumReleaseAgeExclude:

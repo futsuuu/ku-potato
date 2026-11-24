@@ -1,5 +1,5 @@
 {
-  "name": "@ku-potato/api-codegen",
+  "name": "@ku-potato/generate-api-client",
   "private": true,
   "type": "module",
   "scripts": {
