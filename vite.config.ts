@@ -79,6 +79,11 @@ export default defineConfig({
         cwd: "desktop/frontend",
         dependsOn: ["desktop:frontend:api:generate", "desktop:bindings:generate"],
       },
+      "desktop:frontend:storybook": {
+        command: "vp exec storybook dev --no-open",
+        cwd: "desktop/frontend",
+        cache: false,
+      },
       "desktop:frontend:test": {
         command: "vp test run",
         cwd: "desktop/frontend",
