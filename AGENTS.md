@@ -11,5 +11,6 @@
 
 ## Working conventions
 
+- This project has not been released yet. Do not preserve backward compatibility or add migration logic for breaking changes.
 - Keep Rust unit tests inline with their implementations. Subsystem integration tests go in its `tests/` directory.
 - Keep documentation minimal.
