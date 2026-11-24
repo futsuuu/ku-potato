@@ -1141,10 +1141,10 @@ type Cookie struct {
 	Path          string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
 	Secure        bool                   `protobuf:"varint,5,opt,name=secure,proto3" json:"secure,omitempty"`
 	HttpOnly      bool                   `protobuf:"varint,6,opt,name=http_only,json=httpOnly,proto3" json:"http_only,omitempty"`
-	SameSite      CookieSameSite         `protobuf:"varint,7,opt,name=same_site,json=sameSite,proto3,enum=kupotato.browser.v1.CookieSameSite" json:"same_site,omitempty"`
+	SameSite      CookieSameSite         `protobuf:"varint,7,opt,name=same_site,json=sameSite,proto3,enum=kupotato.browserworker.v1.CookieSameSite" json:"same_site,omitempty"`
 	Expires       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=expires,proto3" json:"expires,omitempty"`
-	Priority      CookiePriority         `protobuf:"varint,9,opt,name=priority,proto3,enum=kupotato.browser.v1.CookiePriority" json:"priority,omitempty"`
-	SourceScheme  CookieSourceScheme     `protobuf:"varint,10,opt,name=source_scheme,json=sourceScheme,proto3,enum=kupotato.browser.v1.CookieSourceScheme" json:"source_scheme,omitempty"`
+	Priority      CookiePriority         `protobuf:"varint,9,opt,name=priority,proto3,enum=kupotato.browserworker.v1.CookiePriority" json:"priority,omitempty"`
+	SourceScheme  CookieSourceScheme     `protobuf:"varint,10,opt,name=source_scheme,json=sourceScheme,proto3,enum=kupotato.browserworker.v1.CookieSourceScheme" json:"source_scheme,omitempty"`
 	SourcePort    int64                  `protobuf:"varint,11,opt,name=source_port,json=sourcePort,proto3" json:"source_port,omitempty"`
 	PartitionKey  *PartitionKey          `protobuf:"bytes,12,opt,name=partition_key,json=partitionKey,proto3" json:"partition_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1311,7 +1311,7 @@ func (x *SSOCookies) GetCookies() []*Cookie {
 
 type Failure struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
-	Reason  FailureReason          `protobuf:"varint,1,opt,name=reason,proto3,enum=kupotato.browser.v1.FailureReason" json:"reason,omitempty"`
+	Reason  FailureReason          `protobuf:"varint,1,opt,name=reason,proto3,enum=kupotato.browserworker.v1.FailureReason" json:"reason,omitempty"`
 	Message string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	// Types that are valid to be assigned to Target:
 	//
@@ -1681,8 +1681,8 @@ func (x *CourseListing) GetCourses() []*Course {
 
 type DocumentMaterial struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
-	Status               DocumentStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browser.v1.DocumentStatus" json:"status,omitempty"`
-	ResourceAvailability LinkAvailability       `protobuf:"varint,2,opt,name=resource_availability,json=resourceAvailability,proto3,enum=kupotato.browser.v1.LinkAvailability" json:"resource_availability,omitempty"`
+	Status               DocumentStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browserworker.v1.DocumentStatus" json:"status,omitempty"`
+	ResourceAvailability LinkAvailability       `protobuf:"varint,2,opt,name=resource_availability,json=resourceAvailability,proto3,enum=kupotato.browserworker.v1.LinkAvailability" json:"resource_availability,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1733,7 +1733,7 @@ func (x *DocumentMaterial) GetResourceAvailability() LinkAvailability {
 
 type ReportMaterial struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        ReportMaterialStatus   `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browser.v1.ReportMaterialStatus" json:"status,omitempty"`
+	Status        ReportMaterialStatus   `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browserworker.v1.ReportMaterialStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1777,7 +1777,7 @@ func (x *ReportMaterial) GetStatus() ReportMaterialStatus {
 
 type TestMaterial struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        TestStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browser.v1.TestStatus" json:"status,omitempty"`
+	Status        TestStatus             `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browserworker.v1.TestStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1821,7 +1821,7 @@ func (x *TestMaterial) GetStatus() TestStatus {
 
 type QuestionnaireMaterial struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        QuestionnaireStatus    `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browser.v1.QuestionnaireStatus" json:"status,omitempty"`
+	Status        QuestionnaireStatus    `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browserworker.v1.QuestionnaireStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1865,7 +1865,7 @@ func (x *QuestionnaireMaterial) GetStatus() QuestionnaireStatus {
 
 type ELearningMaterial struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        ELearningStatus        `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browser.v1.ELearningStatus" json:"status,omitempty"`
+	Status        ELearningStatus        `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browserworker.v1.ELearningStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1909,7 +1909,7 @@ func (x *ELearningMaterial) GetStatus() ELearningStatus {
 
 type BoardMaterial struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        BoardStatus            `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browser.v1.BoardStatus" json:"status,omitempty"`
+	Status        BoardStatus            `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browserworker.v1.BoardStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1953,7 +1953,7 @@ func (x *BoardMaterial) GetStatus() BoardStatus {
 
 type FeedbackMaterial struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        FeedbackStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browser.v1.FeedbackStatus" json:"status,omitempty"`
+	Status        FeedbackStatus         `protobuf:"varint,1,opt,name=status,proto3,enum=kupotato.browserworker.v1.FeedbackStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2591,7 +2591,7 @@ type Resource struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            *ResourceId            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Status        ResourceStatus         `protobuf:"varint,3,opt,name=status,proto3,enum=kupotato.browser.v1.ResourceStatus" json:"status,omitempty"`
+	Status        ResourceStatus         `protobuf:"varint,3,opt,name=status,proto3,enum=kupotato.browserworker.v1.ResourceStatus" json:"status,omitempty"`
 	RegisteredOn  *CalendarDate          `protobuf:"bytes,4,opt,name=registered_on,json=registeredOn,proto3" json:"registered_on,omitempty"`
 	FirstViewedOn *CalendarDate          `protobuf:"bytes,5,opt,name=first_viewed_on,json=firstViewedOn,proto3" json:"first_viewed_on,omitempty"`
 	Description   *string                `protobuf:"bytes,6,opt,name=description,proto3,oneof" json:"description,omitempty"`
@@ -3044,7 +3044,7 @@ func (*CorrectionPolicy_Limited) isCorrectionPolicy_Kind() {}
 type Report struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	PromptHtml        *string                `protobuf:"bytes,1,opt,name=prompt_html,json=promptHtml,proto3,oneof" json:"prompt_html,omitempty"`
-	Status            ReportStatus           `protobuf:"varint,2,opt,name=status,proto3,enum=kupotato.browser.v1.ReportStatus" json:"status,omitempty"`
+	Status            ReportStatus           `protobuf:"varint,2,opt,name=status,proto3,enum=kupotato.browserworker.v1.ReportStatus" json:"status,omitempty"`
 	SubmissionPeriod  *SubmissionPeriod      `protobuf:"bytes,3,opt,name=submission_period,json=submissionPeriod,proto3" json:"submission_period,omitempty"`
 	CorrectionPolicy  *CorrectionPolicy      `protobuf:"bytes,4,opt,name=correction_policy,json=correctionPolicy,proto3" json:"correction_policy,omitempty"`
 	TextAnswerAllowed *bool                  `protobuf:"varint,5,opt,name=text_answer_allowed,json=textAnswerAllowed,proto3,oneof" json:"text_answer_allowed,omitempty"`
@@ -3461,7 +3461,7 @@ var File_worker_proto protoreflect.FileDescriptor
 
 const file_worker_proto_rawDesc = "" +
 	"\n" +
-	"\fworker.proto\x12\x13kupotato.browser.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\" \n" +
+	"\fworker.proto\x12\x19kupotato.browserworker.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\" \n" +
 	"\bCourseId\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\"\"\n" +
 	"\n" +
@@ -3469,139 +3469,139 @@ const file_worker_proto_rawDesc = "" +
 	"\x05value\x18\x01 \x01(\tR\x05value\"\"\n" +
 	"\n" +
 	"ResourceId\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value\"N\n" +
-	"\x10MaterialsRequest\x12:\n" +
-	"\tcourse_id\x18\x01 \x01(\v2\x1d.kupotato.browser.v1.CourseIdR\bcourseId\"\xa3\x01\n" +
-	"\x10ResourcesRequest\x12@\n" +
-	"\vmaterial_id\x18\x01 \x01(\v2\x1f.kupotato.browser.v1.MaterialIdR\n" +
-	"materialId\x12M\n" +
-	"\x13preferred_course_id\x18\x02 \x01(\v2\x1d.kupotato.browser.v1.CourseIdR\x11preferredCourseId\"\xe4\x01\n" +
-	"\x0fDownloadRequest\x12@\n" +
-	"\vmaterial_id\x18\x01 \x01(\v2\x1f.kupotato.browser.v1.MaterialIdR\n" +
-	"materialId\x12@\n" +
-	"\vresource_id\x18\x02 \x01(\v2\x1f.kupotato.browser.v1.ResourceIdR\n" +
-	"resourceId\x12M\n" +
-	"\x13preferred_course_id\x18\x03 \x01(\v2\x1d.kupotato.browser.v1.CourseIdR\x11preferredCourseId\"k\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\"T\n" +
+	"\x10MaterialsRequest\x12@\n" +
+	"\tcourse_id\x18\x01 \x01(\v2#.kupotato.browserworker.v1.CourseIdR\bcourseId\"\xaf\x01\n" +
+	"\x10ResourcesRequest\x12F\n" +
+	"\vmaterial_id\x18\x01 \x01(\v2%.kupotato.browserworker.v1.MaterialIdR\n" +
+	"materialId\x12S\n" +
+	"\x13preferred_course_id\x18\x02 \x01(\v2#.kupotato.browserworker.v1.CourseIdR\x11preferredCourseId\"\xf6\x01\n" +
+	"\x0fDownloadRequest\x12F\n" +
+	"\vmaterial_id\x18\x01 \x01(\v2%.kupotato.browserworker.v1.MaterialIdR\n" +
+	"materialId\x12F\n" +
+	"\vresource_id\x18\x02 \x01(\v2%.kupotato.browserworker.v1.ResourceIdR\n" +
+	"resourceId\x12S\n" +
+	"\x13preferred_course_id\x18\x03 \x01(\v2#.kupotato.browserworker.v1.CourseIdR\x11preferredCourseId\"k\n" +
 	"\fPartitionKey\x12$\n" +
 	"\x0etop_level_site\x18\x01 \x01(\tR\ftopLevelSite\x125\n" +
-	"\x17has_cross_site_ancestor\x18\x02 \x01(\bR\x14hasCrossSiteAncestor\"\x83\x04\n" +
+	"\x17has_cross_site_ancestor\x18\x02 \x01(\bR\x14hasCrossSiteAncestor\"\x9b\x04\n" +
 	"\x06Cookie\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x16\n" +
 	"\x06domain\x18\x03 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04path\x18\x04 \x01(\tR\x04path\x12\x16\n" +
 	"\x06secure\x18\x05 \x01(\bR\x06secure\x12\x1b\n" +
-	"\thttp_only\x18\x06 \x01(\bR\bhttpOnly\x12@\n" +
-	"\tsame_site\x18\a \x01(\x0e2#.kupotato.browser.v1.CookieSameSiteR\bsameSite\x124\n" +
-	"\aexpires\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12?\n" +
-	"\bpriority\x18\t \x01(\x0e2#.kupotato.browser.v1.CookiePriorityR\bpriority\x12L\n" +
+	"\thttp_only\x18\x06 \x01(\bR\bhttpOnly\x12F\n" +
+	"\tsame_site\x18\a \x01(\x0e2).kupotato.browserworker.v1.CookieSameSiteR\bsameSite\x124\n" +
+	"\aexpires\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12E\n" +
+	"\bpriority\x18\t \x01(\x0e2).kupotato.browserworker.v1.CookiePriorityR\bpriority\x12R\n" +
 	"\rsource_scheme\x18\n" +
-	" \x01(\x0e2'.kupotato.browser.v1.CookieSourceSchemeR\fsourceScheme\x12\x1f\n" +
+	" \x01(\x0e2-.kupotato.browserworker.v1.CookieSourceSchemeR\fsourceScheme\x12\x1f\n" +
 	"\vsource_port\x18\v \x01(\x03R\n" +
-	"sourcePort\x12F\n" +
-	"\rpartition_key\x18\f \x01(\v2!.kupotato.browser.v1.PartitionKeyR\fpartitionKey\"C\n" +
+	"sourcePort\x12L\n" +
+	"\rpartition_key\x18\f \x01(\v2'.kupotato.browserworker.v1.PartitionKeyR\fpartitionKey\"I\n" +
 	"\n" +
-	"SSOCookies\x125\n" +
-	"\acookies\x18\x01 \x03(\v2\x1b.kupotato.browser.v1.CookieR\acookies\"\xaf\x02\n" +
-	"\aFailure\x12:\n" +
-	"\x06reason\x18\x01 \x01(\x0e2\".kupotato.browser.v1.FailureReasonR\x06reason\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12<\n" +
-	"\tcourse_id\x18\x03 \x01(\v2\x1d.kupotato.browser.v1.CourseIdH\x00R\bcourseId\x12B\n" +
-	"\vmaterial_id\x18\x04 \x01(\v2\x1f.kupotato.browser.v1.MaterialIdH\x00R\n" +
-	"materialId\x12B\n" +
-	"\vresource_id\x18\x05 \x01(\v2\x1f.kupotato.browser.v1.ResourceIdH\x00R\n" +
+	"SSOCookies\x12;\n" +
+	"\acookies\x18\x01 \x03(\v2!.kupotato.browserworker.v1.CookieR\acookies\"\xc7\x02\n" +
+	"\aFailure\x12@\n" +
+	"\x06reason\x18\x01 \x01(\x0e2(.kupotato.browserworker.v1.FailureReasonR\x06reason\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12B\n" +
+	"\tcourse_id\x18\x03 \x01(\v2#.kupotato.browserworker.v1.CourseIdH\x00R\bcourseId\x12H\n" +
+	"\vmaterial_id\x18\x04 \x01(\v2%.kupotato.browserworker.v1.MaterialIdH\x00R\n" +
+	"materialId\x12H\n" +
+	"\vresource_id\x18\x05 \x01(\v2%.kupotato.browserworker.v1.ResourceIdH\x00R\n" +
 	"resourceIdB\b\n" +
 	"\x06target\"<\n" +
 	"\bSchedule\x12\x18\n" +
 	"\aweekday\x18\x01 \x01(\x05R\aweekday\x12\x16\n" +
-	"\x06period\x18\x02 \x01(\x05R\x06period\"\xe1\x02\n" +
+	"\x06period\x18\x02 \x01(\x05R\x06period\"\xed\x02\n" +
 	"\x06Course\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12=\n" +
-	"\tavailable\x18\x02 \x01(\v2\x1d.kupotato.browser.v1.CourseIdH\x00R\tavailable\x12:\n" +
-	"\vunavailable\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\vunavailable\x12=\n" +
-	"\tscheduled\x18\x04 \x01(\v2\x1d.kupotato.browser.v1.ScheduleH\x01R\tscheduled\x12.\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12C\n" +
+	"\tavailable\x18\x02 \x01(\v2#.kupotato.browserworker.v1.CourseIdH\x00R\tavailable\x12:\n" +
+	"\vunavailable\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\vunavailable\x12C\n" +
+	"\tscheduled\x18\x04 \x01(\v2#.kupotato.browserworker.v1.ScheduleH\x01R\tscheduled\x12.\n" +
 	"\x05other\x18\x05 \x01(\v2\x16.google.protobuf.EmptyH\x01R\x05other\x12C\n" +
 	"\x10unknown_schedule\x18\x06 \x01(\v2\x16.google.protobuf.EmptyH\x01R\x0funknownScheduleB\b\n" +
 	"\x06accessB\n" +
 	"\n" +
-	"\bschedule\"k\n" +
+	"\bschedule\"q\n" +
 	"\rCourseListing\x12#\n" +
-	"\racademic_year\x18\x01 \x01(\x05R\facademicYear\x125\n" +
-	"\acourses\x18\x02 \x03(\v2\x1b.kupotato.browser.v1.CourseR\acourses\"\xab\x01\n" +
-	"\x10DocumentMaterial\x12;\n" +
-	"\x06status\x18\x01 \x01(\x0e2#.kupotato.browser.v1.DocumentStatusR\x06status\x12Z\n" +
-	"\x15resource_availability\x18\x02 \x01(\x0e2%.kupotato.browser.v1.LinkAvailabilityR\x14resourceAvailability\"S\n" +
-	"\x0eReportMaterial\x12A\n" +
-	"\x06status\x18\x01 \x01(\x0e2).kupotato.browser.v1.ReportMaterialStatusR\x06status\"G\n" +
-	"\fTestMaterial\x127\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x1f.kupotato.browser.v1.TestStatusR\x06status\"Y\n" +
-	"\x15QuestionnaireMaterial\x12@\n" +
-	"\x06status\x18\x01 \x01(\x0e2(.kupotato.browser.v1.QuestionnaireStatusR\x06status\"Q\n" +
-	"\x11ELearningMaterial\x12<\n" +
-	"\x06status\x18\x01 \x01(\x0e2$.kupotato.browser.v1.ELearningStatusR\x06status\"I\n" +
-	"\rBoardMaterial\x128\n" +
-	"\x06status\x18\x01 \x01(\x0e2 .kupotato.browser.v1.BoardStatusR\x06status\"O\n" +
-	"\x10FeedbackMaterial\x12;\n" +
-	"\x06status\x18\x01 \x01(\x0e2#.kupotato.browser.v1.FeedbackStatusR\x06status\"\xe8\x01\n" +
+	"\racademic_year\x18\x01 \x01(\x05R\facademicYear\x12;\n" +
+	"\acourses\x18\x02 \x03(\v2!.kupotato.browserworker.v1.CourseR\acourses\"\xb7\x01\n" +
+	"\x10DocumentMaterial\x12A\n" +
+	"\x06status\x18\x01 \x01(\x0e2).kupotato.browserworker.v1.DocumentStatusR\x06status\x12`\n" +
+	"\x15resource_availability\x18\x02 \x01(\x0e2+.kupotato.browserworker.v1.LinkAvailabilityR\x14resourceAvailability\"Y\n" +
+	"\x0eReportMaterial\x12G\n" +
+	"\x06status\x18\x01 \x01(\x0e2/.kupotato.browserworker.v1.ReportMaterialStatusR\x06status\"M\n" +
+	"\fTestMaterial\x12=\n" +
+	"\x06status\x18\x01 \x01(\x0e2%.kupotato.browserworker.v1.TestStatusR\x06status\"_\n" +
+	"\x15QuestionnaireMaterial\x12F\n" +
+	"\x06status\x18\x01 \x01(\x0e2..kupotato.browserworker.v1.QuestionnaireStatusR\x06status\"W\n" +
+	"\x11ELearningMaterial\x12B\n" +
+	"\x06status\x18\x01 \x01(\x0e2*.kupotato.browserworker.v1.ELearningStatusR\x06status\"O\n" +
+	"\rBoardMaterial\x12>\n" +
+	"\x06status\x18\x01 \x01(\x0e2&.kupotato.browserworker.v1.BoardStatusR\x06status\"U\n" +
+	"\x10FeedbackMaterial\x12A\n" +
+	"\x06status\x18\x01 \x01(\x0e2).kupotato.browserworker.v1.FeedbackStatusR\x06status\"\xe8\x01\n" +
 	"\x13PublicationDeadline\x12,\n" +
 	"\x02at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\x02at\x124\n" +
 	"\bunlisted\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\bunlisted\x120\n" +
 	"\x06closed\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x06closed\x122\n" +
 	"\aunknown\x18\x04 \x01(\v2\x16.google.protobuf.EmptyH\x00R\aunknownB\a\n" +
-	"\x05value\"\xfb\x05\n" +
-	"\bMaterial\x12/\n" +
-	"\x02id\x18\x01 \x01(\v2\x1f.kupotato.browser.v1.MaterialIdR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12[\n" +
-	"\x14publication_deadline\x18\x03 \x01(\v2(.kupotato.browser.v1.PublicationDeadlineR\x13publicationDeadline\x126\n" +
-	"\x17material_link_available\x18\x04 \x01(\bR\x15materialLinkAvailable\x12C\n" +
-	"\bdocument\x18\x05 \x01(\v2%.kupotato.browser.v1.DocumentMaterialH\x00R\bdocument\x12=\n" +
-	"\x06report\x18\x06 \x01(\v2#.kupotato.browser.v1.ReportMaterialH\x00R\x06report\x127\n" +
-	"\x04test\x18\a \x01(\v2!.kupotato.browser.v1.TestMaterialH\x00R\x04test\x12R\n" +
-	"\rquestionnaire\x18\b \x01(\v2*.kupotato.browser.v1.QuestionnaireMaterialH\x00R\rquestionnaire\x12G\n" +
+	"\x05value\"\xb1\x06\n" +
+	"\bMaterial\x125\n" +
+	"\x02id\x18\x01 \x01(\v2%.kupotato.browserworker.v1.MaterialIdR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12a\n" +
+	"\x14publication_deadline\x18\x03 \x01(\v2..kupotato.browserworker.v1.PublicationDeadlineR\x13publicationDeadline\x126\n" +
+	"\x17material_link_available\x18\x04 \x01(\bR\x15materialLinkAvailable\x12I\n" +
+	"\bdocument\x18\x05 \x01(\v2+.kupotato.browserworker.v1.DocumentMaterialH\x00R\bdocument\x12C\n" +
+	"\x06report\x18\x06 \x01(\v2).kupotato.browserworker.v1.ReportMaterialH\x00R\x06report\x12=\n" +
+	"\x04test\x18\a \x01(\v2'.kupotato.browserworker.v1.TestMaterialH\x00R\x04test\x12X\n" +
+	"\rquestionnaire\x18\b \x01(\v20.kupotato.browserworker.v1.QuestionnaireMaterialH\x00R\rquestionnaire\x12M\n" +
 	"\n" +
-	"e_learning\x18\t \x01(\v2&.kupotato.browser.v1.ELearningMaterialH\x00R\teLearning\x12:\n" +
+	"e_learning\x18\t \x01(\v2,.kupotato.browserworker.v1.ELearningMaterialH\x00R\teLearning\x12@\n" +
 	"\x05board\x18\n" +
-	" \x01(\v2\".kupotato.browser.v1.BoardMaterialH\x00R\x05board\x12C\n" +
-	"\bfeedback\x18\v \x01(\v2%.kupotato.browser.v1.FeedbackMaterialH\x00R\bfeedback\x122\n" +
+	" \x01(\v2(.kupotato.browserworker.v1.BoardMaterialH\x00R\x05board\x12I\n" +
+	"\bfeedback\x18\v \x01(\v2+.kupotato.browserworker.v1.FeedbackMaterialH\x00R\bfeedback\x122\n" +
 	"\aunknown\x18\f \x01(\v2\x16.google.protobuf.EmptyH\x00R\aunknownB\x06\n" +
 	"\x04kind\"J\n" +
 	"\fCalendarDate\x12\x12\n" +
 	"\x04year\x18\x01 \x01(\x05R\x04year\x12\x14\n" +
 	"\x05month\x18\x02 \x01(\x05R\x05month\x12\x10\n" +
-	"\x03day\x18\x03 \x01(\x05R\x03day\"\xe0\x01\n" +
+	"\x03day\x18\x03 \x01(\x05R\x03day\"\xec\x01\n" +
 	"\x06Folder\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12@\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12F\n" +
 	"\n" +
-	"class_date\x18\x02 \x01(\v2!.kupotato.browser.v1.CalendarDateR\tclassDate\x12.\n" +
-	"\x10description_html\x18\x03 \x01(\tH\x00R\x0fdescriptionHtml\x88\x01\x01\x12;\n" +
-	"\tmaterials\x18\x04 \x03(\v2\x1d.kupotato.browser.v1.MaterialR\tmaterialsB\x13\n" +
-	"\x11_description_html\"\x84\x01\n" +
-	"\x0fCourseMaterials\x12:\n" +
-	"\tcourse_id\x18\x01 \x01(\v2\x1d.kupotato.browser.v1.CourseIdR\bcourseId\x125\n" +
-	"\afolders\x18\x02 \x03(\v2\x1b.kupotato.browser.v1.FolderR\afolders\" \n" +
+	"class_date\x18\x02 \x01(\v2'.kupotato.browserworker.v1.CalendarDateR\tclassDate\x12.\n" +
+	"\x10description_html\x18\x03 \x01(\tH\x00R\x0fdescriptionHtml\x88\x01\x01\x12A\n" +
+	"\tmaterials\x18\x04 \x03(\v2#.kupotato.browserworker.v1.MaterialR\tmaterialsB\x13\n" +
+	"\x11_description_html\"\x90\x01\n" +
+	"\x0fCourseMaterials\x12@\n" +
+	"\tcourse_id\x18\x01 \x01(\v2#.kupotato.browserworker.v1.CourseIdR\bcourseId\x12;\n" +
+	"\afolders\x18\x02 \x03(\v2!.kupotato.browserworker.v1.FolderR\afolders\" \n" +
 	"\fResourceFile\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\"#\n" +
 	"\x0fResourceUnknown\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\"\x81\x04\n" +
-	"\bResource\x12/\n" +
-	"\x02id\x18\x01 \x01(\v2\x1f.kupotato.browser.v1.ResourceIdR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
-	"\x06status\x18\x03 \x01(\x0e2#.kupotato.browser.v1.ResourceStatusR\x06status\x12F\n" +
-	"\rregistered_on\x18\x04 \x01(\v2!.kupotato.browser.v1.CalendarDateR\fregisteredOn\x12I\n" +
-	"\x0ffirst_viewed_on\x18\x05 \x01(\v2!.kupotato.browser.v1.CalendarDateR\rfirstViewedOn\x12%\n" +
-	"\vdescription\x18\x06 \x01(\tH\x01R\vdescription\x88\x01\x01\x127\n" +
-	"\x04file\x18\a \x01(\v2!.kupotato.browser.v1.ResourceFileH\x00R\x04file\x12#\n" +
-	"\fexternal_url\x18\b \x01(\tH\x00R\vexternalUrl\x12@\n" +
-	"\aunknown\x18\t \x01(\v2$.kupotato.browser.v1.ResourceUnknownH\x00R\aunknownB\t\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"\xa5\x04\n" +
+	"\bResource\x125\n" +
+	"\x02id\x18\x01 \x01(\v2%.kupotato.browserworker.v1.ResourceIdR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12A\n" +
+	"\x06status\x18\x03 \x01(\x0e2).kupotato.browserworker.v1.ResourceStatusR\x06status\x12L\n" +
+	"\rregistered_on\x18\x04 \x01(\v2'.kupotato.browserworker.v1.CalendarDateR\fregisteredOn\x12O\n" +
+	"\x0ffirst_viewed_on\x18\x05 \x01(\v2'.kupotato.browserworker.v1.CalendarDateR\rfirstViewedOn\x12%\n" +
+	"\vdescription\x18\x06 \x01(\tH\x01R\vdescription\x88\x01\x01\x12=\n" +
+	"\x04file\x18\a \x01(\v2'.kupotato.browserworker.v1.ResourceFileH\x00R\x04file\x12#\n" +
+	"\fexternal_url\x18\b \x01(\tH\x00R\vexternalUrl\x12F\n" +
+	"\aunknown\x18\t \x01(\v2*.kupotato.browserworker.v1.ResourceUnknownH\x00R\aunknownB\t\n" +
 	"\acontentB\x0e\n" +
-	"\f_description\"K\n" +
-	"\fResourceList\x12;\n" +
-	"\tresources\x18\x01 \x03(\v2\x1d.kupotato.browser.v1.ResourceR\tresources\"~\n" +
+	"\f_description\"Q\n" +
+	"\fResourceList\x12A\n" +
+	"\tresources\x18\x01 \x03(\v2#.kupotato.browserworker.v1.ResourceR\tresources\"~\n" +
 	"\x10SubmissionWindow\x127\n" +
 	"\tstarts_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x121\n" +
-	"\x06due_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05dueAt\"\xbd\x01\n" +
-	"\x10SubmissionPeriod\x127\n" +
-	"\x02at\x18\x01 \x01(\v2%.kupotato.browser.v1.SubmissionWindowH\x00R\x02at\x124\n" +
+	"\x06due_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05dueAt\"\xc3\x01\n" +
+	"\x10SubmissionPeriod\x12=\n" +
+	"\x02at\x18\x01 \x01(\v2+.kupotato.browserworker.v1.SubmissionWindowH\x00R\x02at\x124\n" +
 	"\bunlisted\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\bunlisted\x122\n" +
 	"\aunknown\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\aunknownB\x06\n" +
 	"\x04kind\"\xdd\x01\n" +
@@ -3611,39 +3611,39 @@ const file_worker_proto_rawDesc = "" +
 	"notAllowed\x126\n" +
 	"\tunlimited\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\tunlimited\x12\x1a\n" +
 	"\alimited\x18\x04 \x01(\x03H\x00R\alimitedB\x06\n" +
-	"\x04kind\"\x8a\x04\n" +
+	"\x04kind\"\x9c\x04\n" +
 	"\x06Report\x12$\n" +
 	"\vprompt_html\x18\x01 \x01(\tH\x00R\n" +
-	"promptHtml\x88\x01\x01\x129\n" +
-	"\x06status\x18\x02 \x01(\x0e2!.kupotato.browser.v1.ReportStatusR\x06status\x12R\n" +
-	"\x11submission_period\x18\x03 \x01(\v2%.kupotato.browser.v1.SubmissionPeriodR\x10submissionPeriod\x12R\n" +
-	"\x11correction_policy\x18\x04 \x01(\v2%.kupotato.browser.v1.CorrectionPolicyR\x10correctionPolicy\x123\n" +
+	"promptHtml\x88\x01\x01\x12?\n" +
+	"\x06status\x18\x02 \x01(\x0e2'.kupotato.browserworker.v1.ReportStatusR\x06status\x12X\n" +
+	"\x11submission_period\x18\x03 \x01(\v2+.kupotato.browserworker.v1.SubmissionPeriodR\x10submissionPeriod\x12X\n" +
+	"\x11correction_policy\x18\x04 \x01(\v2+.kupotato.browserworker.v1.CorrectionPolicyR\x10correctionPolicy\x123\n" +
 	"\x13text_answer_allowed\x18\x05 \x01(\bH\x01R\x11textAnswerAllowed\x88\x01\x01\x123\n" +
 	"\x13file_answer_allowed\x18\x06 \x01(\bH\x02R\x11fileAnswerAllowed\x88\x01\x01\x124\n" +
 	"\x14max_total_file_bytes\x18\a \x01(\x03H\x03R\x11maxTotalFileBytes\x88\x01\x01B\x0e\n" +
 	"\f_prompt_htmlB\x16\n" +
 	"\x14_text_answer_allowedB\x16\n" +
 	"\x14_file_answer_allowedB\x17\n" +
-	"\x15_max_total_file_bytes\"\xf6\x02\n" +
+	"\x15_max_total_file_bytes\"\x94\x03\n" +
 	"\bSnapshot\x12#\n" +
-	"\racademic_year\x18\x01 \x01(\x05R\facademicYear\x125\n" +
-	"\acourses\x18\x02 \x03(\v2\x1b.kupotato.browser.v1.CourseR\acourses\x12O\n" +
-	"\x10course_materials\x18\x03 \x01(\v2$.kupotato.browser.v1.CourseMaterialsR\x0fcourseMaterials\x12@\n" +
-	"\vmaterial_id\x18\x04 \x01(\v2\x1f.kupotato.browser.v1.MaterialIdR\n" +
-	"materialId\x12F\n" +
-	"\rresource_list\x18\x05 \x01(\v2!.kupotato.browser.v1.ResourceListR\fresourceList\x123\n" +
-	"\x06report\x18\x06 \x01(\v2\x1b.kupotato.browser.v1.ReportR\x06report\"G\n" +
+	"\racademic_year\x18\x01 \x01(\x05R\facademicYear\x12;\n" +
+	"\acourses\x18\x02 \x03(\v2!.kupotato.browserworker.v1.CourseR\acourses\x12U\n" +
+	"\x10course_materials\x18\x03 \x01(\v2*.kupotato.browserworker.v1.CourseMaterialsR\x0fcourseMaterials\x12F\n" +
+	"\vmaterial_id\x18\x04 \x01(\v2%.kupotato.browserworker.v1.MaterialIdR\n" +
+	"materialId\x12L\n" +
+	"\rresource_list\x18\x05 \x01(\v2'.kupotato.browserworker.v1.ResourceListR\fresourceList\x129\n" +
+	"\x06report\x18\x06 \x01(\v2!.kupotato.browserworker.v1.ReportR\x06report\"G\n" +
 	"\fFileDownload\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x1b\n" +
-	"\tbyte_size\x18\x02 \x01(\x03R\bbyteSize\"\xee\x01\n" +
-	"\x0eDownloadHeader\x129\n" +
-	"\bsnapshot\x18\x01 \x01(\v2\x1d.kupotato.browser.v1.SnapshotR\bsnapshot\x127\n" +
-	"\x04file\x18\x02 \x01(\v2!.kupotato.browser.v1.FileDownloadH\x00R\x04file\x12#\n" +
-	"\fexternal_url\x18\x03 \x01(\tH\x00R\vexternalUrl\x128\n" +
-	"\afailure\x18\x04 \x01(\v2\x1c.kupotato.browser.v1.FailureH\x00R\afailureB\t\n" +
-	"\aoutcome\"m\n" +
-	"\fDownloadPart\x12=\n" +
-	"\x06header\x18\x01 \x01(\v2#.kupotato.browser.v1.DownloadHeaderH\x00R\x06header\x12\x16\n" +
+	"\tbyte_size\x18\x02 \x01(\x03R\bbyteSize\"\x80\x02\n" +
+	"\x0eDownloadHeader\x12?\n" +
+	"\bsnapshot\x18\x01 \x01(\v2#.kupotato.browserworker.v1.SnapshotR\bsnapshot\x12=\n" +
+	"\x04file\x18\x02 \x01(\v2'.kupotato.browserworker.v1.FileDownloadH\x00R\x04file\x12#\n" +
+	"\fexternal_url\x18\x03 \x01(\tH\x00R\vexternalUrl\x12>\n" +
+	"\afailure\x18\x04 \x01(\v2\".kupotato.browserworker.v1.FailureH\x00R\afailureB\t\n" +
+	"\aoutcome\"s\n" +
+	"\fDownloadPart\x12C\n" +
+	"\x06header\x18\x01 \x01(\v2).kupotato.browserworker.v1.DownloadHeaderH\x00R\x06header\x12\x16\n" +
 	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunkB\x06\n" +
 	"\x04part*\x84\x01\n" +
 	"\x0eCookieSameSite\x12 \n" +
@@ -3730,13 +3730,13 @@ const file_worker_proto_rawDesc = "" +
 	"\x17REPORT_STATUS_SUBMITTED\x10\x03\x12'\n" +
 	"#REPORT_STATUS_RESUBMISSION_REQUIRED\x10\x04\x12\x1b\n" +
 	"\x17REPORT_STATUS_EVALUATED\x10\x05\x12\x19\n" +
-	"\x15REPORT_STATUS_UNKNOWN\x10\x062\x9d\x03\n" +
-	"\rBrowserWorker\x12E\n" +
-	"\aCourses\x12\x16.google.protobuf.Empty\x1a\".kupotato.browser.v1.CourseListing\x12Q\n" +
-	"\tMaterials\x12%.kupotato.browser.v1.MaterialsRequest\x1a\x1d.kupotato.browser.v1.Snapshot\x12Q\n" +
-	"\tResources\x12%.kupotato.browser.v1.ResourcesRequest\x1a\x1d.kupotato.browser.v1.Snapshot\x12U\n" +
-	"\bDownload\x12$.kupotato.browser.v1.DownloadRequest\x1a!.kupotato.browser.v1.DownloadPart0\x01\x12H\n" +
-	"\rSetSSOCookies\x12\x1f.kupotato.browser.v1.SSOCookies\x1a\x16.google.protobuf.EmptyBBZ@github.com/futsuuu/ku-potato/browser-worker/protocol;workerprotob\x06proto3"
+	"\x15REPORT_STATUS_UNKNOWN\x10\x062\xcd\x03\n" +
+	"\rBrowserWorker\x12K\n" +
+	"\aCourses\x12\x16.google.protobuf.Empty\x1a(.kupotato.browserworker.v1.CourseListing\x12]\n" +
+	"\tMaterials\x12+.kupotato.browserworker.v1.MaterialsRequest\x1a#.kupotato.browserworker.v1.Snapshot\x12]\n" +
+	"\tResources\x12+.kupotato.browserworker.v1.ResourcesRequest\x1a#.kupotato.browserworker.v1.Snapshot\x12a\n" +
+	"\bDownload\x12*.kupotato.browserworker.v1.DownloadRequest\x1a'.kupotato.browserworker.v1.DownloadPart0\x01\x12N\n" +
+	"\rSetSSOCookies\x12%.kupotato.browserworker.v1.SSOCookies\x1a\x16.google.protobuf.EmptyBBZ@github.com/futsuuu/ku-potato/browser-worker/protocol;workerprotob\x06proto3"
 
 var (
 	file_worker_proto_rawDescOnce sync.Once
@@ -3753,146 +3753,146 @@ func file_worker_proto_rawDescGZIP() []byte {
 var file_worker_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
 var file_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_worker_proto_goTypes = []any{
-	(CookieSameSite)(0),           // 0: kupotato.browser.v1.CookieSameSite
-	(CookiePriority)(0),           // 1: kupotato.browser.v1.CookiePriority
-	(CookieSourceScheme)(0),       // 2: kupotato.browser.v1.CookieSourceScheme
-	(FailureReason)(0),            // 3: kupotato.browser.v1.FailureReason
-	(DocumentStatus)(0),           // 4: kupotato.browser.v1.DocumentStatus
-	(ReportMaterialStatus)(0),     // 5: kupotato.browser.v1.ReportMaterialStatus
-	(TestStatus)(0),               // 6: kupotato.browser.v1.TestStatus
-	(QuestionnaireStatus)(0),      // 7: kupotato.browser.v1.QuestionnaireStatus
-	(ELearningStatus)(0),          // 8: kupotato.browser.v1.ELearningStatus
-	(BoardStatus)(0),              // 9: kupotato.browser.v1.BoardStatus
-	(FeedbackStatus)(0),           // 10: kupotato.browser.v1.FeedbackStatus
-	(LinkAvailability)(0),         // 11: kupotato.browser.v1.LinkAvailability
-	(ResourceStatus)(0),           // 12: kupotato.browser.v1.ResourceStatus
-	(ReportStatus)(0),             // 13: kupotato.browser.v1.ReportStatus
-	(*CourseId)(nil),              // 14: kupotato.browser.v1.CourseId
-	(*MaterialId)(nil),            // 15: kupotato.browser.v1.MaterialId
-	(*ResourceId)(nil),            // 16: kupotato.browser.v1.ResourceId
-	(*MaterialsRequest)(nil),      // 17: kupotato.browser.v1.MaterialsRequest
-	(*ResourcesRequest)(nil),      // 18: kupotato.browser.v1.ResourcesRequest
-	(*DownloadRequest)(nil),       // 19: kupotato.browser.v1.DownloadRequest
-	(*PartitionKey)(nil),          // 20: kupotato.browser.v1.PartitionKey
-	(*Cookie)(nil),                // 21: kupotato.browser.v1.Cookie
-	(*SSOCookies)(nil),            // 22: kupotato.browser.v1.SSOCookies
-	(*Failure)(nil),               // 23: kupotato.browser.v1.Failure
-	(*Schedule)(nil),              // 24: kupotato.browser.v1.Schedule
-	(*Course)(nil),                // 25: kupotato.browser.v1.Course
-	(*CourseListing)(nil),         // 26: kupotato.browser.v1.CourseListing
-	(*DocumentMaterial)(nil),      // 27: kupotato.browser.v1.DocumentMaterial
-	(*ReportMaterial)(nil),        // 28: kupotato.browser.v1.ReportMaterial
-	(*TestMaterial)(nil),          // 29: kupotato.browser.v1.TestMaterial
-	(*QuestionnaireMaterial)(nil), // 30: kupotato.browser.v1.QuestionnaireMaterial
-	(*ELearningMaterial)(nil),     // 31: kupotato.browser.v1.ELearningMaterial
-	(*BoardMaterial)(nil),         // 32: kupotato.browser.v1.BoardMaterial
-	(*FeedbackMaterial)(nil),      // 33: kupotato.browser.v1.FeedbackMaterial
-	(*PublicationDeadline)(nil),   // 34: kupotato.browser.v1.PublicationDeadline
-	(*Material)(nil),              // 35: kupotato.browser.v1.Material
-	(*CalendarDate)(nil),          // 36: kupotato.browser.v1.CalendarDate
-	(*Folder)(nil),                // 37: kupotato.browser.v1.Folder
-	(*CourseMaterials)(nil),       // 38: kupotato.browser.v1.CourseMaterials
-	(*ResourceFile)(nil),          // 39: kupotato.browser.v1.ResourceFile
-	(*ResourceUnknown)(nil),       // 40: kupotato.browser.v1.ResourceUnknown
-	(*Resource)(nil),              // 41: kupotato.browser.v1.Resource
-	(*ResourceList)(nil),          // 42: kupotato.browser.v1.ResourceList
-	(*SubmissionWindow)(nil),      // 43: kupotato.browser.v1.SubmissionWindow
-	(*SubmissionPeriod)(nil),      // 44: kupotato.browser.v1.SubmissionPeriod
-	(*CorrectionPolicy)(nil),      // 45: kupotato.browser.v1.CorrectionPolicy
-	(*Report)(nil),                // 46: kupotato.browser.v1.Report
-	(*Snapshot)(nil),              // 47: kupotato.browser.v1.Snapshot
-	(*FileDownload)(nil),          // 48: kupotato.browser.v1.FileDownload
-	(*DownloadHeader)(nil),        // 49: kupotato.browser.v1.DownloadHeader
-	(*DownloadPart)(nil),          // 50: kupotato.browser.v1.DownloadPart
+	(CookieSameSite)(0),           // 0: kupotato.browserworker.v1.CookieSameSite
+	(CookiePriority)(0),           // 1: kupotato.browserworker.v1.CookiePriority
+	(CookieSourceScheme)(0),       // 2: kupotato.browserworker.v1.CookieSourceScheme
+	(FailureReason)(0),            // 3: kupotato.browserworker.v1.FailureReason
+	(DocumentStatus)(0),           // 4: kupotato.browserworker.v1.DocumentStatus
+	(ReportMaterialStatus)(0),     // 5: kupotato.browserworker.v1.ReportMaterialStatus
+	(TestStatus)(0),               // 6: kupotato.browserworker.v1.TestStatus
+	(QuestionnaireStatus)(0),      // 7: kupotato.browserworker.v1.QuestionnaireStatus
+	(ELearningStatus)(0),          // 8: kupotato.browserworker.v1.ELearningStatus
+	(BoardStatus)(0),              // 9: kupotato.browserworker.v1.BoardStatus
+	(FeedbackStatus)(0),           // 10: kupotato.browserworker.v1.FeedbackStatus
+	(LinkAvailability)(0),         // 11: kupotato.browserworker.v1.LinkAvailability
+	(ResourceStatus)(0),           // 12: kupotato.browserworker.v1.ResourceStatus
+	(ReportStatus)(0),             // 13: kupotato.browserworker.v1.ReportStatus
+	(*CourseId)(nil),              // 14: kupotato.browserworker.v1.CourseId
+	(*MaterialId)(nil),            // 15: kupotato.browserworker.v1.MaterialId
+	(*ResourceId)(nil),            // 16: kupotato.browserworker.v1.ResourceId
+	(*MaterialsRequest)(nil),      // 17: kupotato.browserworker.v1.MaterialsRequest
+	(*ResourcesRequest)(nil),      // 18: kupotato.browserworker.v1.ResourcesRequest
+	(*DownloadRequest)(nil),       // 19: kupotato.browserworker.v1.DownloadRequest
+	(*PartitionKey)(nil),          // 20: kupotato.browserworker.v1.PartitionKey
+	(*Cookie)(nil),                // 21: kupotato.browserworker.v1.Cookie
+	(*SSOCookies)(nil),            // 22: kupotato.browserworker.v1.SSOCookies
+	(*Failure)(nil),               // 23: kupotato.browserworker.v1.Failure
+	(*Schedule)(nil),              // 24: kupotato.browserworker.v1.Schedule
+	(*Course)(nil),                // 25: kupotato.browserworker.v1.Course
+	(*CourseListing)(nil),         // 26: kupotato.browserworker.v1.CourseListing
+	(*DocumentMaterial)(nil),      // 27: kupotato.browserworker.v1.DocumentMaterial
+	(*ReportMaterial)(nil),        // 28: kupotato.browserworker.v1.ReportMaterial
+	(*TestMaterial)(nil),          // 29: kupotato.browserworker.v1.TestMaterial
+	(*QuestionnaireMaterial)(nil), // 30: kupotato.browserworker.v1.QuestionnaireMaterial
+	(*ELearningMaterial)(nil),     // 31: kupotato.browserworker.v1.ELearningMaterial
+	(*BoardMaterial)(nil),         // 32: kupotato.browserworker.v1.BoardMaterial
+	(*FeedbackMaterial)(nil),      // 33: kupotato.browserworker.v1.FeedbackMaterial
+	(*PublicationDeadline)(nil),   // 34: kupotato.browserworker.v1.PublicationDeadline
+	(*Material)(nil),              // 35: kupotato.browserworker.v1.Material
+	(*CalendarDate)(nil),          // 36: kupotato.browserworker.v1.CalendarDate
+	(*Folder)(nil),                // 37: kupotato.browserworker.v1.Folder
+	(*CourseMaterials)(nil),       // 38: kupotato.browserworker.v1.CourseMaterials
+	(*ResourceFile)(nil),          // 39: kupotato.browserworker.v1.ResourceFile
+	(*ResourceUnknown)(nil),       // 40: kupotato.browserworker.v1.ResourceUnknown
+	(*Resource)(nil),              // 41: kupotato.browserworker.v1.Resource
+	(*ResourceList)(nil),          // 42: kupotato.browserworker.v1.ResourceList
+	(*SubmissionWindow)(nil),      // 43: kupotato.browserworker.v1.SubmissionWindow
+	(*SubmissionPeriod)(nil),      // 44: kupotato.browserworker.v1.SubmissionPeriod
+	(*CorrectionPolicy)(nil),      // 45: kupotato.browserworker.v1.CorrectionPolicy
+	(*Report)(nil),                // 46: kupotato.browserworker.v1.Report
+	(*Snapshot)(nil),              // 47: kupotato.browserworker.v1.Snapshot
+	(*FileDownload)(nil),          // 48: kupotato.browserworker.v1.FileDownload
+	(*DownloadHeader)(nil),        // 49: kupotato.browserworker.v1.DownloadHeader
+	(*DownloadPart)(nil),          // 50: kupotato.browserworker.v1.DownloadPart
 	(*timestamppb.Timestamp)(nil), // 51: google.protobuf.Timestamp
 	(*emptypb.Empty)(nil),         // 52: google.protobuf.Empty
 }
 var file_worker_proto_depIdxs = []int32{
-	14, // 0: kupotato.browser.v1.MaterialsRequest.course_id:type_name -> kupotato.browser.v1.CourseId
-	15, // 1: kupotato.browser.v1.ResourcesRequest.material_id:type_name -> kupotato.browser.v1.MaterialId
-	14, // 2: kupotato.browser.v1.ResourcesRequest.preferred_course_id:type_name -> kupotato.browser.v1.CourseId
-	15, // 3: kupotato.browser.v1.DownloadRequest.material_id:type_name -> kupotato.browser.v1.MaterialId
-	16, // 4: kupotato.browser.v1.DownloadRequest.resource_id:type_name -> kupotato.browser.v1.ResourceId
-	14, // 5: kupotato.browser.v1.DownloadRequest.preferred_course_id:type_name -> kupotato.browser.v1.CourseId
-	0,  // 6: kupotato.browser.v1.Cookie.same_site:type_name -> kupotato.browser.v1.CookieSameSite
-	51, // 7: kupotato.browser.v1.Cookie.expires:type_name -> google.protobuf.Timestamp
-	1,  // 8: kupotato.browser.v1.Cookie.priority:type_name -> kupotato.browser.v1.CookiePriority
-	2,  // 9: kupotato.browser.v1.Cookie.source_scheme:type_name -> kupotato.browser.v1.CookieSourceScheme
-	20, // 10: kupotato.browser.v1.Cookie.partition_key:type_name -> kupotato.browser.v1.PartitionKey
-	21, // 11: kupotato.browser.v1.SSOCookies.cookies:type_name -> kupotato.browser.v1.Cookie
-	3,  // 12: kupotato.browser.v1.Failure.reason:type_name -> kupotato.browser.v1.FailureReason
-	14, // 13: kupotato.browser.v1.Failure.course_id:type_name -> kupotato.browser.v1.CourseId
-	15, // 14: kupotato.browser.v1.Failure.material_id:type_name -> kupotato.browser.v1.MaterialId
-	16, // 15: kupotato.browser.v1.Failure.resource_id:type_name -> kupotato.browser.v1.ResourceId
-	14, // 16: kupotato.browser.v1.Course.available:type_name -> kupotato.browser.v1.CourseId
-	52, // 17: kupotato.browser.v1.Course.unavailable:type_name -> google.protobuf.Empty
-	24, // 18: kupotato.browser.v1.Course.scheduled:type_name -> kupotato.browser.v1.Schedule
-	52, // 19: kupotato.browser.v1.Course.other:type_name -> google.protobuf.Empty
-	52, // 20: kupotato.browser.v1.Course.unknown_schedule:type_name -> google.protobuf.Empty
-	25, // 21: kupotato.browser.v1.CourseListing.courses:type_name -> kupotato.browser.v1.Course
-	4,  // 22: kupotato.browser.v1.DocumentMaterial.status:type_name -> kupotato.browser.v1.DocumentStatus
-	11, // 23: kupotato.browser.v1.DocumentMaterial.resource_availability:type_name -> kupotato.browser.v1.LinkAvailability
-	5,  // 24: kupotato.browser.v1.ReportMaterial.status:type_name -> kupotato.browser.v1.ReportMaterialStatus
-	6,  // 25: kupotato.browser.v1.TestMaterial.status:type_name -> kupotato.browser.v1.TestStatus
-	7,  // 26: kupotato.browser.v1.QuestionnaireMaterial.status:type_name -> kupotato.browser.v1.QuestionnaireStatus
-	8,  // 27: kupotato.browser.v1.ELearningMaterial.status:type_name -> kupotato.browser.v1.ELearningStatus
-	9,  // 28: kupotato.browser.v1.BoardMaterial.status:type_name -> kupotato.browser.v1.BoardStatus
-	10, // 29: kupotato.browser.v1.FeedbackMaterial.status:type_name -> kupotato.browser.v1.FeedbackStatus
-	51, // 30: kupotato.browser.v1.PublicationDeadline.at:type_name -> google.protobuf.Timestamp
-	52, // 31: kupotato.browser.v1.PublicationDeadline.unlisted:type_name -> google.protobuf.Empty
-	52, // 32: kupotato.browser.v1.PublicationDeadline.closed:type_name -> google.protobuf.Empty
-	52, // 33: kupotato.browser.v1.PublicationDeadline.unknown:type_name -> google.protobuf.Empty
-	15, // 34: kupotato.browser.v1.Material.id:type_name -> kupotato.browser.v1.MaterialId
-	34, // 35: kupotato.browser.v1.Material.publication_deadline:type_name -> kupotato.browser.v1.PublicationDeadline
-	27, // 36: kupotato.browser.v1.Material.document:type_name -> kupotato.browser.v1.DocumentMaterial
-	28, // 37: kupotato.browser.v1.Material.report:type_name -> kupotato.browser.v1.ReportMaterial
-	29, // 38: kupotato.browser.v1.Material.test:type_name -> kupotato.browser.v1.TestMaterial
-	30, // 39: kupotato.browser.v1.Material.questionnaire:type_name -> kupotato.browser.v1.QuestionnaireMaterial
-	31, // 40: kupotato.browser.v1.Material.e_learning:type_name -> kupotato.browser.v1.ELearningMaterial
-	32, // 41: kupotato.browser.v1.Material.board:type_name -> kupotato.browser.v1.BoardMaterial
-	33, // 42: kupotato.browser.v1.Material.feedback:type_name -> kupotato.browser.v1.FeedbackMaterial
-	52, // 43: kupotato.browser.v1.Material.unknown:type_name -> google.protobuf.Empty
-	36, // 44: kupotato.browser.v1.Folder.class_date:type_name -> kupotato.browser.v1.CalendarDate
-	35, // 45: kupotato.browser.v1.Folder.materials:type_name -> kupotato.browser.v1.Material
-	14, // 46: kupotato.browser.v1.CourseMaterials.course_id:type_name -> kupotato.browser.v1.CourseId
-	37, // 47: kupotato.browser.v1.CourseMaterials.folders:type_name -> kupotato.browser.v1.Folder
-	16, // 48: kupotato.browser.v1.Resource.id:type_name -> kupotato.browser.v1.ResourceId
-	12, // 49: kupotato.browser.v1.Resource.status:type_name -> kupotato.browser.v1.ResourceStatus
-	36, // 50: kupotato.browser.v1.Resource.registered_on:type_name -> kupotato.browser.v1.CalendarDate
-	36, // 51: kupotato.browser.v1.Resource.first_viewed_on:type_name -> kupotato.browser.v1.CalendarDate
-	39, // 52: kupotato.browser.v1.Resource.file:type_name -> kupotato.browser.v1.ResourceFile
-	40, // 53: kupotato.browser.v1.Resource.unknown:type_name -> kupotato.browser.v1.ResourceUnknown
-	41, // 54: kupotato.browser.v1.ResourceList.resources:type_name -> kupotato.browser.v1.Resource
-	51, // 55: kupotato.browser.v1.SubmissionWindow.starts_at:type_name -> google.protobuf.Timestamp
-	51, // 56: kupotato.browser.v1.SubmissionWindow.due_at:type_name -> google.protobuf.Timestamp
-	43, // 57: kupotato.browser.v1.SubmissionPeriod.at:type_name -> kupotato.browser.v1.SubmissionWindow
-	52, // 58: kupotato.browser.v1.SubmissionPeriod.unlisted:type_name -> google.protobuf.Empty
-	52, // 59: kupotato.browser.v1.SubmissionPeriod.unknown:type_name -> google.protobuf.Empty
-	52, // 60: kupotato.browser.v1.CorrectionPolicy.unknown:type_name -> google.protobuf.Empty
-	52, // 61: kupotato.browser.v1.CorrectionPolicy.not_allowed:type_name -> google.protobuf.Empty
-	52, // 62: kupotato.browser.v1.CorrectionPolicy.unlimited:type_name -> google.protobuf.Empty
-	13, // 63: kupotato.browser.v1.Report.status:type_name -> kupotato.browser.v1.ReportStatus
-	44, // 64: kupotato.browser.v1.Report.submission_period:type_name -> kupotato.browser.v1.SubmissionPeriod
-	45, // 65: kupotato.browser.v1.Report.correction_policy:type_name -> kupotato.browser.v1.CorrectionPolicy
-	25, // 66: kupotato.browser.v1.Snapshot.courses:type_name -> kupotato.browser.v1.Course
-	38, // 67: kupotato.browser.v1.Snapshot.course_materials:type_name -> kupotato.browser.v1.CourseMaterials
-	15, // 68: kupotato.browser.v1.Snapshot.material_id:type_name -> kupotato.browser.v1.MaterialId
-	42, // 69: kupotato.browser.v1.Snapshot.resource_list:type_name -> kupotato.browser.v1.ResourceList
-	46, // 70: kupotato.browser.v1.Snapshot.report:type_name -> kupotato.browser.v1.Report
-	47, // 71: kupotato.browser.v1.DownloadHeader.snapshot:type_name -> kupotato.browser.v1.Snapshot
-	48, // 72: kupotato.browser.v1.DownloadHeader.file:type_name -> kupotato.browser.v1.FileDownload
-	23, // 73: kupotato.browser.v1.DownloadHeader.failure:type_name -> kupotato.browser.v1.Failure
-	49, // 74: kupotato.browser.v1.DownloadPart.header:type_name -> kupotato.browser.v1.DownloadHeader
-	52, // 75: kupotato.browser.v1.BrowserWorker.Courses:input_type -> google.protobuf.Empty
-	17, // 76: kupotato.browser.v1.BrowserWorker.Materials:input_type -> kupotato.browser.v1.MaterialsRequest
-	18, // 77: kupotato.browser.v1.BrowserWorker.Resources:input_type -> kupotato.browser.v1.ResourcesRequest
-	19, // 78: kupotato.browser.v1.BrowserWorker.Download:input_type -> kupotato.browser.v1.DownloadRequest
-	22, // 79: kupotato.browser.v1.BrowserWorker.SetSSOCookies:input_type -> kupotato.browser.v1.SSOCookies
-	26, // 80: kupotato.browser.v1.BrowserWorker.Courses:output_type -> kupotato.browser.v1.CourseListing
-	47, // 81: kupotato.browser.v1.BrowserWorker.Materials:output_type -> kupotato.browser.v1.Snapshot
-	47, // 82: kupotato.browser.v1.BrowserWorker.Resources:output_type -> kupotato.browser.v1.Snapshot
-	50, // 83: kupotato.browser.v1.BrowserWorker.Download:output_type -> kupotato.browser.v1.DownloadPart
-	52, // 84: kupotato.browser.v1.BrowserWorker.SetSSOCookies:output_type -> google.protobuf.Empty
+	14, // 0: kupotato.browserworker.v1.MaterialsRequest.course_id:type_name -> kupotato.browserworker.v1.CourseId
+	15, // 1: kupotato.browserworker.v1.ResourcesRequest.material_id:type_name -> kupotato.browserworker.v1.MaterialId
+	14, // 2: kupotato.browserworker.v1.ResourcesRequest.preferred_course_id:type_name -> kupotato.browserworker.v1.CourseId
+	15, // 3: kupotato.browserworker.v1.DownloadRequest.material_id:type_name -> kupotato.browserworker.v1.MaterialId
+	16, // 4: kupotato.browserworker.v1.DownloadRequest.resource_id:type_name -> kupotato.browserworker.v1.ResourceId
+	14, // 5: kupotato.browserworker.v1.DownloadRequest.preferred_course_id:type_name -> kupotato.browserworker.v1.CourseId
+	0,  // 6: kupotato.browserworker.v1.Cookie.same_site:type_name -> kupotato.browserworker.v1.CookieSameSite
+	51, // 7: kupotato.browserworker.v1.Cookie.expires:type_name -> google.protobuf.Timestamp
+	1,  // 8: kupotato.browserworker.v1.Cookie.priority:type_name -> kupotato.browserworker.v1.CookiePriority
+	2,  // 9: kupotato.browserworker.v1.Cookie.source_scheme:type_name -> kupotato.browserworker.v1.CookieSourceScheme
+	20, // 10: kupotato.browserworker.v1.Cookie.partition_key:type_name -> kupotato.browserworker.v1.PartitionKey
+	21, // 11: kupotato.browserworker.v1.SSOCookies.cookies:type_name -> kupotato.browserworker.v1.Cookie
+	3,  // 12: kupotato.browserworker.v1.Failure.reason:type_name -> kupotato.browserworker.v1.FailureReason
+	14, // 13: kupotato.browserworker.v1.Failure.course_id:type_name -> kupotato.browserworker.v1.CourseId
+	15, // 14: kupotato.browserworker.v1.Failure.material_id:type_name -> kupotato.browserworker.v1.MaterialId
+	16, // 15: kupotato.browserworker.v1.Failure.resource_id:type_name -> kupotato.browserworker.v1.ResourceId
+	14, // 16: kupotato.browserworker.v1.Course.available:type_name -> kupotato.browserworker.v1.CourseId
+	52, // 17: kupotato.browserworker.v1.Course.unavailable:type_name -> google.protobuf.Empty
+	24, // 18: kupotato.browserworker.v1.Course.scheduled:type_name -> kupotato.browserworker.v1.Schedule
+	52, // 19: kupotato.browserworker.v1.Course.other:type_name -> google.protobuf.Empty
+	52, // 20: kupotato.browserworker.v1.Course.unknown_schedule:type_name -> google.protobuf.Empty
+	25, // 21: kupotato.browserworker.v1.CourseListing.courses:type_name -> kupotato.browserworker.v1.Course
+	4,  // 22: kupotato.browserworker.v1.DocumentMaterial.status:type_name -> kupotato.browserworker.v1.DocumentStatus
+	11, // 23: kupotato.browserworker.v1.DocumentMaterial.resource_availability:type_name -> kupotato.browserworker.v1.LinkAvailability
+	5,  // 24: kupotato.browserworker.v1.ReportMaterial.status:type_name -> kupotato.browserworker.v1.ReportMaterialStatus
+	6,  // 25: kupotato.browserworker.v1.TestMaterial.status:type_name -> kupotato.browserworker.v1.TestStatus
+	7,  // 26: kupotato.browserworker.v1.QuestionnaireMaterial.status:type_name -> kupotato.browserworker.v1.QuestionnaireStatus
+	8,  // 27: kupotato.browserworker.v1.ELearningMaterial.status:type_name -> kupotato.browserworker.v1.ELearningStatus
+	9,  // 28: kupotato.browserworker.v1.BoardMaterial.status:type_name -> kupotato.browserworker.v1.BoardStatus
+	10, // 29: kupotato.browserworker.v1.FeedbackMaterial.status:type_name -> kupotato.browserworker.v1.FeedbackStatus
+	51, // 30: kupotato.browserworker.v1.PublicationDeadline.at:type_name -> google.protobuf.Timestamp
+	52, // 31: kupotato.browserworker.v1.PublicationDeadline.unlisted:type_name -> google.protobuf.Empty
+	52, // 32: kupotato.browserworker.v1.PublicationDeadline.closed:type_name -> google.protobuf.Empty
+	52, // 33: kupotato.browserworker.v1.PublicationDeadline.unknown:type_name -> google.protobuf.Empty
+	15, // 34: kupotato.browserworker.v1.Material.id:type_name -> kupotato.browserworker.v1.MaterialId
+	34, // 35: kupotato.browserworker.v1.Material.publication_deadline:type_name -> kupotato.browserworker.v1.PublicationDeadline
+	27, // 36: kupotato.browserworker.v1.Material.document:type_name -> kupotato.browserworker.v1.DocumentMaterial
+	28, // 37: kupotato.browserworker.v1.Material.report:type_name -> kupotato.browserworker.v1.ReportMaterial
+	29, // 38: kupotato.browserworker.v1.Material.test:type_name -> kupotato.browserworker.v1.TestMaterial
+	30, // 39: kupotato.browserworker.v1.Material.questionnaire:type_name -> kupotato.browserworker.v1.QuestionnaireMaterial
+	31, // 40: kupotato.browserworker.v1.Material.e_learning:type_name -> kupotato.browserworker.v1.ELearningMaterial
+	32, // 41: kupotato.browserworker.v1.Material.board:type_name -> kupotato.browserworker.v1.BoardMaterial
+	33, // 42: kupotato.browserworker.v1.Material.feedback:type_name -> kupotato.browserworker.v1.FeedbackMaterial
+	52, // 43: kupotato.browserworker.v1.Material.unknown:type_name -> google.protobuf.Empty
+	36, // 44: kupotato.browserworker.v1.Folder.class_date:type_name -> kupotato.browserworker.v1.CalendarDate
+	35, // 45: kupotato.browserworker.v1.Folder.materials:type_name -> kupotato.browserworker.v1.Material
+	14, // 46: kupotato.browserworker.v1.CourseMaterials.course_id:type_name -> kupotato.browserworker.v1.CourseId
+	37, // 47: kupotato.browserworker.v1.CourseMaterials.folders:type_name -> kupotato.browserworker.v1.Folder
+	16, // 48: kupotato.browserworker.v1.Resource.id:type_name -> kupotato.browserworker.v1.ResourceId
+	12, // 49: kupotato.browserworker.v1.Resource.status:type_name -> kupotato.browserworker.v1.ResourceStatus
+	36, // 50: kupotato.browserworker.v1.Resource.registered_on:type_name -> kupotato.browserworker.v1.CalendarDate
+	36, // 51: kupotato.browserworker.v1.Resource.first_viewed_on:type_name -> kupotato.browserworker.v1.CalendarDate
+	39, // 52: kupotato.browserworker.v1.Resource.file:type_name -> kupotato.browserworker.v1.ResourceFile
+	40, // 53: kupotato.browserworker.v1.Resource.unknown:type_name -> kupotato.browserworker.v1.ResourceUnknown
+	41, // 54: kupotato.browserworker.v1.ResourceList.resources:type_name -> kupotato.browserworker.v1.Resource
+	51, // 55: kupotato.browserworker.v1.SubmissionWindow.starts_at:type_name -> google.protobuf.Timestamp
+	51, // 56: kupotato.browserworker.v1.SubmissionWindow.due_at:type_name -> google.protobuf.Timestamp
+	43, // 57: kupotato.browserworker.v1.SubmissionPeriod.at:type_name -> kupotato.browserworker.v1.SubmissionWindow
+	52, // 58: kupotato.browserworker.v1.SubmissionPeriod.unlisted:type_name -> google.protobuf.Empty
+	52, // 59: kupotato.browserworker.v1.SubmissionPeriod.unknown:type_name -> google.protobuf.Empty
+	52, // 60: kupotato.browserworker.v1.CorrectionPolicy.unknown:type_name -> google.protobuf.Empty
+	52, // 61: kupotato.browserworker.v1.CorrectionPolicy.not_allowed:type_name -> google.protobuf.Empty
+	52, // 62: kupotato.browserworker.v1.CorrectionPolicy.unlimited:type_name -> google.protobuf.Empty
+	13, // 63: kupotato.browserworker.v1.Report.status:type_name -> kupotato.browserworker.v1.ReportStatus
+	44, // 64: kupotato.browserworker.v1.Report.submission_period:type_name -> kupotato.browserworker.v1.SubmissionPeriod
+	45, // 65: kupotato.browserworker.v1.Report.correction_policy:type_name -> kupotato.browserworker.v1.CorrectionPolicy
+	25, // 66: kupotato.browserworker.v1.Snapshot.courses:type_name -> kupotato.browserworker.v1.Course
+	38, // 67: kupotato.browserworker.v1.Snapshot.course_materials:type_name -> kupotato.browserworker.v1.CourseMaterials
+	15, // 68: kupotato.browserworker.v1.Snapshot.material_id:type_name -> kupotato.browserworker.v1.MaterialId
+	42, // 69: kupotato.browserworker.v1.Snapshot.resource_list:type_name -> kupotato.browserworker.v1.ResourceList
+	46, // 70: kupotato.browserworker.v1.Snapshot.report:type_name -> kupotato.browserworker.v1.Report
+	47, // 71: kupotato.browserworker.v1.DownloadHeader.snapshot:type_name -> kupotato.browserworker.v1.Snapshot
+	48, // 72: kupotato.browserworker.v1.DownloadHeader.file:type_name -> kupotato.browserworker.v1.FileDownload
+	23, // 73: kupotato.browserworker.v1.DownloadHeader.failure:type_name -> kupotato.browserworker.v1.Failure
+	49, // 74: kupotato.browserworker.v1.DownloadPart.header:type_name -> kupotato.browserworker.v1.DownloadHeader
+	52, // 75: kupotato.browserworker.v1.BrowserWorker.Courses:input_type -> google.protobuf.Empty
+	17, // 76: kupotato.browserworker.v1.BrowserWorker.Materials:input_type -> kupotato.browserworker.v1.MaterialsRequest
+	18, // 77: kupotato.browserworker.v1.BrowserWorker.Resources:input_type -> kupotato.browserworker.v1.ResourcesRequest
+	19, // 78: kupotato.browserworker.v1.BrowserWorker.Download:input_type -> kupotato.browserworker.v1.DownloadRequest
+	22, // 79: kupotato.browserworker.v1.BrowserWorker.SetSSOCookies:input_type -> kupotato.browserworker.v1.SSOCookies
+	26, // 80: kupotato.browserworker.v1.BrowserWorker.Courses:output_type -> kupotato.browserworker.v1.CourseListing
+	47, // 81: kupotato.browserworker.v1.BrowserWorker.Materials:output_type -> kupotato.browserworker.v1.Snapshot
+	47, // 82: kupotato.browserworker.v1.BrowserWorker.Resources:output_type -> kupotato.browserworker.v1.Snapshot
+	50, // 83: kupotato.browserworker.v1.BrowserWorker.Download:output_type -> kupotato.browserworker.v1.DownloadPart
+	52, // 84: kupotato.browserworker.v1.BrowserWorker.SetSSOCookies:output_type -> google.protobuf.Empty
 	80, // [80:85] is the sub-list for method output_type
 	75, // [75:80] is the sub-list for method input_type
 	75, // [75:75] is the sub-list for extension type_name

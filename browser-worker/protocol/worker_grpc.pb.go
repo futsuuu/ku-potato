@@ -20,11 +20,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BrowserWorker_Courses_FullMethodName       = "/kupotato.browser.v1.BrowserWorker/Courses"
-	BrowserWorker_Materials_FullMethodName     = "/kupotato.browser.v1.BrowserWorker/Materials"
-	BrowserWorker_Resources_FullMethodName     = "/kupotato.browser.v1.BrowserWorker/Resources"
-	BrowserWorker_Download_FullMethodName      = "/kupotato.browser.v1.BrowserWorker/Download"
-	BrowserWorker_SetSSOCookies_FullMethodName = "/kupotato.browser.v1.BrowserWorker/SetSSOCookies"
+	BrowserWorker_Courses_FullMethodName       = "/kupotato.browserworker.v1.BrowserWorker/Courses"
+	BrowserWorker_Materials_FullMethodName     = "/kupotato.browserworker.v1.BrowserWorker/Materials"
+	BrowserWorker_Resources_FullMethodName     = "/kupotato.browserworker.v1.BrowserWorker/Resources"
+	BrowserWorker_Download_FullMethodName      = "/kupotato.browserworker.v1.BrowserWorker/Download"
+	BrowserWorker_SetSSOCookies_FullMethodName = "/kupotato.browserworker.v1.BrowserWorker/SetSSOCookies"
 )
 
 // BrowserWorkerClient is the client API for BrowserWorker service.
@@ -247,7 +247,7 @@ func _BrowserWorker_SetSSOCookies_Handler(srv interface{}, ctx context.Context, 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BrowserWorker_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "kupotato.browser.v1.BrowserWorker",
+	ServiceName: "kupotato.browserworker.v1.BrowserWorker",
 	HandlerType: (*BrowserWorkerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

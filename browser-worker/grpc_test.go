@@ -97,6 +97,9 @@ func TestBrowserFailureUsesTypedDetails(t *testing.T) {
 	if st.Code() != codes.FailedPrecondition || len(st.Details()) != 1 {
 		t.Fatalf("unstructured failure: %v", st)
 	}
+	if got := st.Proto().GetDetails()[0].GetTypeUrl(); got != "type.googleapis.com/kupotato.browserworker.v1.Failure" {
+		t.Fatalf("unexpected failure type URL: %s", got)
+	}
 	failure, ok := st.Details()[0].(*workerproto.Failure)
 	if !ok || failure.Reason != workerproto.FailureReason_FAILURE_REASON_AUTHENTICATION_REQUIRED ||
 		failure.Message != "login: required" {
@@ -144,6 +147,9 @@ func TestBrowserFailurePreservesTargets(t *testing.T) {
 }
 
 func TestGRPCContractsAndTransfer(t *testing.T) {
+	if got := workerproto.BrowserWorker_ServiceDesc.ServiceName; got != "kupotato.browserworker.v1.BrowserWorker" {
+		t.Fatalf("unexpected service name: %s", got)
+	}
 	ctx := t.Context()
 	root := t.TempDir()
 	path := filepath.Join(root, "download")
