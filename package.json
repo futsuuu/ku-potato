@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "eslint-plugin-solid": "^0.18.1",
+    "@types/node": "^26.6.6",
+    "eslint-plugin-solid": "^0.20.1",
     "typescript": "~7.0.2",
-    "vite-plus": "1.1.0"
+    "vite-plus": "1.7.0"
   },
   "devEngines": {
     "runtime": {
