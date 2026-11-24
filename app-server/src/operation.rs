@@ -1,3 +1,5 @@
+mod session;
+
 use futures_util::StreamExt as _;
 use tracing::Instrument as _;
 
@@ -6,7 +8,11 @@ pub enum Error {
     #[error(transparent)]
     Archive(#[from] crate::archive::Error),
     #[error(transparent)]
-    Browser(#[from] crate::browser::Error),
+    BrowserWorker(#[from] crate::browser_worker::Error),
+    #[error(transparent)]
+    UserBrowser(#[from] crate::user_browser::Error),
+    #[error(transparent)]
+    Drive(#[from] crate::drive::Error),
     #[error(transparent)]
     Files(#[from] crate::files::Error),
     #[error("The operation timed out")]
@@ -20,23 +26,68 @@ pub enum Error {
 }
 
 impl Error {
-    pub fn authentication_provider(&self) -> Option<crate::browser::Provider> {
+    pub fn authentication_provider(&self) -> Option<crate::user_browser::Provider> {
         match self {
-            Self::Browser(crate::browser::Error::AuthenticationRequired(provider)) => {
+            Self::UserBrowser(crate::user_browser::Error::AuthenticationRequired(provider)) => {
                 Some(*provider)
             }
+            Self::BrowserWorker(crate::browser_worker::Error::AuthenticationRequired) => {
+                Some(crate::user_browser::Provider::Lms)
+            }
+            Self::Drive(crate::drive::Error::Download(google_drive::download::Error::Request(
+                google_drive::RequestError::AuthenticationRequired,
+            ))) => Some(crate::user_browser::Provider::Google),
             _ => None,
         }
+    }
+}
+
+#[test]
+fn only_authentication_failures_select_a_provider() {
+    for provider in [
+        crate::user_browser::Provider::Lms,
+        crate::user_browser::Provider::Google,
+    ] {
+        let error = Error::from(crate::user_browser::Error::AuthenticationRequired(provider));
+        assert_eq!(error.authentication_provider(), Some(provider));
+        let error = match provider {
+            crate::user_browser::Provider::Lms => {
+                Error::from(crate::browser_worker::Error::AuthenticationRequired)
+            }
+            crate::user_browser::Provider::Google => Error::from(crate::drive::Error::from(
+                google_drive::download::Error::Request(
+                    google_drive::RequestError::AuthenticationRequired,
+                ),
+            )),
+        };
+        assert_eq!(error.authentication_provider(), Some(provider));
+        assert_eq!(
+            crate::error::Public::from(&error).reason,
+            crate::error::Reason::AuthenticationRequired
+        );
+    }
+    for error in [
+        Error::from(crate::drive::Error::from(
+            google_drive::download::Error::Request(google_drive::RequestError::AccessDenied),
+        )),
+        Error::from(crate::archive::Error::Missing),
+        Error::from(crate::files::Error::Missing),
+        Error::Timeout,
+        Error::from(crate::user_browser::Error::AuthenticationStorage {
+            message: "Credential storage failed".into(),
+        }),
+    ] {
+        assert_eq!(error.authentication_provider(), None);
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Request {
     Login {
-        provider: crate::browser::Provider,
+        provider: crate::user_browser::Provider,
         interactive: bool,
     },
-    CheckAuthentication(crate::browser::Provider),
+    CheckAuthentication(crate::user_browser::Provider),
     RegisterWebAuthnCredential {
         interactive: bool,
     },
@@ -153,13 +204,15 @@ pub struct Options {
 pub struct Coordinator {
     pub archive: crate::archive::Store,
     pub files: crate::files::Store,
-    pub browser: crate::browser::Client,
+    browser_worker: crate::browser_worker::Client,
+    pub(crate) user_browser: crate::user_browser::Client,
     options: Options,
     active: tokio::sync::Mutex<
         std::collections::HashMap<Request, tokio::sync::watch::Receiver<Update>>,
     >,
     authentication: tokio::sync::RwLock<AuthenticationCache>,
     authentication_gate: tokio::sync::RwLock<()>,
+    session_refresh: tokio::sync::Mutex<()>,
     file_persistence: tokio::sync::Mutex<()>,
     tasks: tokio_util::task::TaskTracker,
     stop: tokio_util::sync::CancellationToken,
@@ -169,17 +222,20 @@ impl Coordinator {
     pub fn new(
         archive: crate::archive::Store,
         files: crate::files::Store,
-        browser: crate::browser::Client,
+        browser_worker: crate::browser_worker::Client,
+        user_browser: crate::user_browser::Client,
         options: Options,
     ) -> Self {
         Self {
             archive,
             files,
-            browser,
+            browser_worker,
+            user_browser,
             options,
             active: Default::default(),
             authentication: Default::default(),
             authentication_gate: Default::default(),
+            session_refresh: Default::default(),
             file_persistence: Default::default(),
             tasks: Default::default(),
             stop: Default::default(),
@@ -188,27 +244,70 @@ impl Coordinator {
 
     pub async fn cached_authentication(
         &self,
-        provider: crate::browser::Provider,
+        provider: crate::user_browser::Provider,
     ) -> crate::model::Authentication {
         let authentication = self.authentication.read().await;
         match provider {
-            crate::browser::Provider::Lms => authentication.lms,
-            crate::browser::Provider::Google => authentication.google,
+            crate::user_browser::Provider::Lms => authentication.lms,
+            crate::user_browser::Provider::Google => authentication.google,
         }
     }
 
     async fn set_authentication(
         &self,
-        provider: crate::browser::Provider,
+        provider: crate::user_browser::Provider,
         state: crate::model::Authentication,
     ) {
         let mut authentication = self.authentication.write().await;
         match provider {
-            crate::browser::Provider::Lms => authentication.lms = state,
-            crate::browser::Provider::Google => authentication.google = state,
+            crate::user_browser::Provider::Lms => authentication.lms = state,
+            crate::user_browser::Provider::Google => authentication.google = state,
         }
     }
+}
 
+#[tokio::test]
+async fn cached_authentication_keeps_each_provider_independent() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    let operations = fixture.operations().await;
+    for provider in [
+        crate::user_browser::Provider::Lms,
+        crate::user_browser::Provider::Google,
+    ] {
+        assert!(matches!(
+            operations.cached_authentication(provider).await,
+            crate::model::Authentication::Unknown
+        ));
+    }
+    for (provider, other) in [
+        (
+            crate::user_browser::Provider::Lms,
+            crate::user_browser::Provider::Google,
+        ),
+        (
+            crate::user_browser::Provider::Google,
+            crate::user_browser::Provider::Lms,
+        ),
+    ] {
+        operations
+            .set_authentication(other, crate::model::Authentication::Authenticated)
+            .await;
+        operations
+            .set_authentication(provider, crate::model::Authentication::Unauthenticated)
+            .await;
+        assert!(matches!(
+            operations.cached_authentication(provider).await,
+            crate::model::Authentication::Unauthenticated
+        ));
+        assert!(matches!(
+            operations.cached_authentication(other).await,
+            crate::model::Authentication::Authenticated
+        ));
+    }
+    operations.shutdown().await;
+}
+
+impl Coordinator {
     pub async fn observe_or_start(
         self: &std::sync::Arc<Self>,
         mut request: Request,
@@ -312,7 +411,178 @@ impl Coordinator {
             )
             .await?
     }
+}
 
+#[tokio::test]
+async fn file_replacement_removes_only_content_without_remaining_references() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    let operations = fixture.operations().await;
+    let retrieval = resource_retrieval(&operations).await;
+    let save = |resource: &str, content: &[u8]| {
+        operations.save_resource_file(
+            retrieval.clone(),
+            resource.to_owned().try_into().unwrap(),
+            source(content),
+        )
+    };
+    let original = save("SRS1", b"original").await.unwrap();
+    let same = save("SRS1", b"original").await.unwrap();
+    assert_eq!(original.content_hash, same.content_hash);
+    operations
+        .files
+        .materialize(original.clone())
+        .await
+        .unwrap();
+    save("SRS2", b"original").await.unwrap();
+    let updated = save("SRS1", b"updated").await.unwrap();
+    assert_ne!(original.content_hash, updated.content_hash);
+    operations
+        .files
+        .materialize(original.clone())
+        .await
+        .unwrap();
+    let (first, second) = tokio::join!(save("SRS1", b"final"), save("SRS2", b"updated"));
+    let first = first.unwrap();
+    let second = second.unwrap();
+    assert!(matches!(
+        operations.files.materialize(original.clone()).await,
+        Err(crate::files::Error::Missing)
+    ));
+    assert_eq!(
+        std::fs::read(operations.files.materialize(second).await.unwrap()).unwrap(),
+        b"updated"
+    );
+    assert_eq!(
+        std::fs::read(operations.files.materialize(first).await.unwrap()).unwrap(),
+        b"final"
+    );
+    assert!(
+        !operations
+            .archive
+            .references_content(&original.content_hash)
+            .await
+            .unwrap()
+    );
+    operations.shutdown().await;
+}
+
+#[tokio::test]
+async fn failed_file_replacements_discard_new_content_but_keep_shared_content() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    let operations = fixture.operations().await;
+    let retrieval = resource_retrieval(&operations).await;
+    let save = |retrieval: crate::archive::ResourceRetrieval, content: &[u8]| {
+        operations.save_resource_file(
+            retrieval,
+            "SRS1".to_owned().try_into().unwrap(),
+            source(content),
+        )
+    };
+    let missing = crate::archive::ResourceRetrieval {
+        id: "missing".into(),
+        ..retrieval.clone()
+    };
+    let original = save(retrieval, b"original").await.unwrap();
+    assert!(save(missing.clone(), b"orphan").await.is_err());
+    assert!(save(missing, b"original").await.is_err());
+    let saved = operations
+        .archive
+        .saved_file(
+            &"MAT1".to_owned().try_into().unwrap(),
+            &"SRS1".to_owned().try_into().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(saved.content_hash, original.content_hash);
+    assert_eq!(
+        std::fs::read(operations.files.materialize(saved).await.unwrap()).unwrap(),
+        b"original"
+    );
+    assert_eq!(
+        std::fs::read_dir(fixture.temporary.path().join("resources"))
+            .unwrap()
+            .count(),
+        1
+    );
+    operations.shutdown().await;
+}
+
+#[tokio::test]
+async fn file_persistence_finishes_after_its_observer_is_canceled() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    let operations = fixture.operations().await;
+    let retrieval = resource_retrieval(&operations).await;
+    let material: crate::model::MaterialId = "MAT1".to_owned().try_into().unwrap();
+    let resource: crate::model::ResourceId = "SRS1".to_owned().try_into().unwrap();
+    let guard = operations.file_persistence.lock().await;
+    let mut saving = Box::pin(operations.save_resource_file(
+        retrieval.clone(),
+        resource.clone(),
+        source(b"saved"),
+    ));
+    assert!(futures_util::poll!(saving.as_mut()).is_pending());
+    let mut failing = Box::pin(operations.save_resource_file(
+        crate::archive::ResourceRetrieval {
+            id: "missing".into(),
+            ..retrieval
+        },
+        resource.clone(),
+        source(b"orphan"),
+    ));
+    assert!(futures_util::poll!(failing.as_mut()).is_pending());
+    drop(saving);
+    drop(failing);
+    drop(guard);
+    operations.shutdown().await;
+    let saved = operations
+        .archive
+        .saved_file(&material, &resource)
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read(operations.files.materialize(saved).await.unwrap()).unwrap(),
+        b"saved"
+    );
+    assert_eq!(
+        std::fs::read_dir(fixture.temporary.path().join("resources"))
+            .unwrap()
+            .count(),
+        1
+    );
+}
+
+#[cfg(test)]
+fn source(content: &[u8]) -> crate::files::Source {
+    use std::io::Write as _;
+    let mut source = tempfile::NamedTempFile::new().unwrap();
+    source.write_all(content).unwrap();
+    crate::files::Source {
+        temporary_file: source,
+        original_filename: "file.txt".into(),
+    }
+}
+
+#[cfg(test)]
+async fn resource_retrieval(operations: &Coordinator) -> crate::archive::ResourceRetrieval {
+    let mut snapshot = operations
+        .browser_worker
+        .fetch_material_contents(&"MAT1".to_owned().try_into().unwrap(), None)
+        .await
+        .unwrap();
+    let resources = snapshot
+        .contents
+        .as_mut()
+        .unwrap()
+        .resources
+        .as_mut()
+        .unwrap();
+    let mut second = resources[0].clone();
+    second.id = "SRS2".to_owned().try_into().unwrap();
+    resources.push(second);
+    operations.archive.append(snapshot).await.unwrap().unwrap()
+}
+
+impl Coordinator {
     async fn remove_unreferenced_content(&self, hash: &crate::model::ContentHash) {
         let result = async {
             if !self.archive.references_content(hash).await? {
@@ -397,7 +667,7 @@ impl Coordinator {
     ) -> Result<Option<crate::archive::ResourceRetrieval>, crate::archive::Error> {
         let retrieval = self.archive.append(snapshot).await?;
         self.set_authentication(
-            crate::browser::Provider::Lms,
+            crate::user_browser::Provider::Lms,
             crate::model::Authentication::Authenticated,
         )
         .await;
@@ -408,8 +678,11 @@ impl Coordinator {
         &self,
         course: &crate::model::CourseId,
     ) -> Result<crate::model::CourseMaterials, Error> {
-        self.archive_snapshot(self.browser.fetch_course_materials(course).await?)
-            .await?;
+        self.archive_snapshot(
+            self.with_lms_session(|| self.browser_worker.fetch_course_materials(course))
+                .await?,
+        )
+        .await?;
         Ok(self.archive.course_materials(course).await?)
     }
 
@@ -424,7 +697,7 @@ impl Coordinator {
                 interactive,
             } => {
                 report_stage(sender, Stage::Authenticating);
-                self.browser.login(*provider, *interactive).await?;
+                self.user_browser.login(*provider, *interactive).await?;
                 self.set_authentication(*provider, crate::model::Authentication::Authenticated)
                     .await;
                 Ok(serde_json::to_value(
@@ -433,17 +706,17 @@ impl Coordinator {
             }
             Request::CheckAuthentication(provider) => {
                 report_stage(sender, Stage::Authenticating);
-                let state = self.browser.authentication_status(*provider).await?;
+                let state = self.user_browser.authentication_status(*provider).await?;
                 self.set_authentication(*provider, state).await;
                 Ok(serde_json::to_value(state)?)
             }
             Request::RegisterWebAuthnCredential { interactive } => {
                 report_stage(sender, Stage::Registering);
-                self.browser
+                self.user_browser
                     .register_web_authn_credential(*interactive)
                     .await?;
                 self.set_authentication(
-                    crate::browser::Provider::Lms,
+                    crate::user_browser::Provider::Lms,
                     crate::model::Authentication::Authenticated,
                 )
                 .await;
@@ -452,15 +725,18 @@ impl Coordinator {
                 })?)
             }
             Request::DeleteWebAuthnCredential => {
-                self.browser.delete_web_authn_credential().await?;
+                self.user_browser.delete_web_authn_credential().await?;
                 Ok(serde_json::to_value(crate::model::Registration {
                     registered: false,
                 })?)
             }
             Request::Courses(_) => {
                 report_stage(sender, Stage::FetchingCourses);
-                self.archive_snapshot(self.browser.fetch_courses().await?)
-                    .await?;
+                self.archive_snapshot(
+                    self.with_lms_session(|| self.browser_worker.fetch_courses())
+                        .await?,
+                )
+                .await?;
                 Ok(serde_json::to_value(self.archive.courses().await?)?)
             }
             Request::Materials { course, .. } => {
@@ -472,7 +748,9 @@ impl Coordinator {
             Request::Assignments { courses, .. } => {
                 let courses = if courses.is_empty() {
                     report_stage(sender, Stage::FetchingCourses);
-                    let snapshot = self.browser.fetch_courses().await?;
+                    let snapshot = self
+                        .with_lms_session(|| self.browser_worker.fetch_courses())
+                        .await?;
                     let courses = snapshot
                         .courses
                         .as_ref()
@@ -551,9 +829,11 @@ impl Coordinator {
                 report_stage(sender, Stage::FetchingResources);
                 let preferred = self.archive.find_course_for_material(material).await?;
                 self.archive_snapshot(
-                    self.browser
-                        .fetch_material_contents(material, preferred.as_ref())
-                        .await?,
+                    self.with_lms_session(|| {
+                        self.browser_worker
+                            .fetch_material_contents(material, preferred.as_ref())
+                    })
+                    .await?,
                 )
                 .await?;
                 Ok(serde_json::to_value(
@@ -563,49 +843,97 @@ impl Coordinator {
             Request::Download { material, resource } => {
                 report_stage(sender, Stage::Downloading);
                 let preferred = self.archive.find_course_for_material(material).await?;
-                let crate::browser::Download { snapshot, outcome } = self
-                    .browser
-                    .download_resource(material, resource, preferred.as_ref())
-                    .await?;
-                let retrieval = self.archive_snapshot(snapshot).await?;
-                let mut outcome = outcome?;
-                if let crate::browser::DownloadOutcome::ExternalUrl(url) = &outcome
-                    && let Some(destination) = crate::browser::drive::download_url(url)
-                {
-                    outcome = crate::browser::DownloadOutcome::File(
-                        crate::browser::drive::download_file(
-                            &self.browser,
-                            destination,
+                let crate::browser_worker::Download { snapshot, outcome } = self
+                    .with_lms_session(|| {
+                        self.browser_worker.download_resource(
+                            material,
+                            resource,
+                            preferred.as_ref(),
                             &self.options.temporary_directory,
                         )
-                        .await?,
-                    );
-                }
-                let result = match outcome {
-                    crate::browser::DownloadOutcome::ExternalUrl(url) => {
-                        crate::model::Download::External { url }
-                    }
-                    crate::browser::DownloadOutcome::File(source) => {
-                        report_stage(sender, Stage::Saving);
-                        let retrieval = retrieval
-                            .ok_or(Error::InvalidSnapshot("file without resource retrieval"))?;
-                        let file = self
-                            .save_resource_file(retrieval, resource.clone(), source)
-                            .await?;
-                        crate::model::Download::File {
-                            file,
-                            download_url: format!(
-                                "/materials/{}/resources/{}/file",
-                                material.as_ref(),
-                                resource.as_ref()
-                            ),
-                        }
+                    })
+                    .await?;
+                let retrieval = self.archive_snapshot(snapshot).await?;
+                let source = match outcome? {
+                    crate::browser_worker::DownloadOutcome::File(source) => source,
+                    crate::browser_worker::DownloadOutcome::ExternalUrl(url) => {
+                        let Some(destination) = google_drive::download_url(url.as_ref()) else {
+                            return Ok(serde_json::to_value(crate::model::Download::External {
+                                url,
+                            })?);
+                        };
+                        let cookies = self.user_browser.google_cookies().await?;
+                        let client = google_drive::Client::new(std::sync::Arc::new(cookies))
+                            .map_err(crate::drive::Error::Client)?;
+                        crate::drive::download_file(
+                            &client,
+                            &destination,
+                            &self.options.temporary_directory,
+                        )
+                        .await?
                     }
                 };
-                Ok(serde_json::to_value(result)?)
+                report_stage(sender, Stage::Saving);
+                let retrieval =
+                    retrieval.ok_or(Error::InvalidSnapshot("file without resource retrieval"))?;
+                let file = self
+                    .save_resource_file(retrieval, resource.clone(), source)
+                    .await?;
+                Ok(serde_json::to_value(crate::model::Download::File {
+                    file,
+                    download_url: format!(
+                        "/materials/{}/resources/{}/file",
+                        material.as_ref(),
+                        resource.as_ref()
+                    ),
+                })?)
             }
         }
     }
+}
+
+#[tokio::test]
+async fn google_download_authentication_failure_does_not_invalidate_lms() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    fixture
+        .service
+        .google_authentication_required
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let operations = fixture.operations().await;
+    for provider in [
+        crate::user_browser::Provider::Lms,
+        crate::user_browser::Provider::Google,
+    ] {
+        operations
+            .set_authentication(provider, crate::model::Authentication::Authenticated)
+            .await;
+    }
+    let mut updates = operations
+        .observe_or_start(Request::Download {
+            material: "MAT1".to_owned().try_into().unwrap(),
+            resource: "SRS1".to_owned().try_into().unwrap(),
+        })
+        .await;
+    updates
+        .wait_for(|update| matches!(update, Update::Finished(_)))
+        .await
+        .unwrap();
+    assert!(
+        matches!(&*updates.borrow(), Update::Finished(Err(error)) if error.reason == crate::error::Reason::AuthenticationRequired)
+    );
+    assert!(matches!(
+        operations
+            .cached_authentication(crate::user_browser::Provider::Lms)
+            .await,
+        crate::model::Authentication::Authenticated
+    ));
+    assert!(matches!(
+        operations
+            .cached_authentication(crate::user_browser::Provider::Google)
+            .await,
+        crate::model::Authentication::Unauthenticated
+    ));
+    operations.shutdown().await;
 }
 
 fn report_stage(sender: &tokio::sync::watch::Sender<Update>, stage: Stage) {
@@ -638,283 +966,5 @@ fn collect_assignments(
     crate::model::Assignments {
         assignments,
         failures,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn only_authentication_failures_select_a_provider() {
-        for provider in [
-            crate::browser::Provider::Lms,
-            crate::browser::Provider::Google,
-        ] {
-            let error = super::Error::from(crate::browser::Error::AuthenticationRequired(provider));
-            assert_eq!(error.authentication_provider(), Some(provider));
-        }
-        for error in [
-            super::Error::from(crate::archive::Error::Missing),
-            super::Error::from(crate::files::Error::Missing),
-            super::Error::Timeout,
-            super::Error::from(crate::browser::Error::AuthenticationStorage {
-                message: "Credential storage failed".into(),
-            }),
-        ] {
-            assert_eq!(error.authentication_provider(), None);
-        }
-    }
-
-    #[tokio::test]
-    async fn cached_authentication_keeps_each_provider_independent() {
-        let fixture = crate::browser::tests::Fixture::new().await;
-        let operations = fixture.operations().await;
-        for provider in [
-            crate::browser::Provider::Lms,
-            crate::browser::Provider::Google,
-        ] {
-            assert!(matches!(
-                operations.cached_authentication(provider).await,
-                crate::model::Authentication::Unknown
-            ));
-        }
-        for (provider, other) in [
-            (
-                crate::browser::Provider::Lms,
-                crate::browser::Provider::Google,
-            ),
-            (
-                crate::browser::Provider::Google,
-                crate::browser::Provider::Lms,
-            ),
-        ] {
-            operations
-                .set_authentication(other, crate::model::Authentication::Authenticated)
-                .await;
-            operations
-                .set_authentication(provider, crate::model::Authentication::Unauthenticated)
-                .await;
-            assert!(matches!(
-                operations.cached_authentication(provider).await,
-                crate::model::Authentication::Unauthenticated
-            ));
-            assert!(matches!(
-                operations.cached_authentication(other).await,
-                crate::model::Authentication::Authenticated
-            ));
-        }
-        operations.shutdown().await;
-    }
-
-    fn source(content: &[u8]) -> crate::files::Source {
-        use std::io::Write as _;
-        let mut source = tempfile::NamedTempFile::new().unwrap();
-        source.write_all(content).unwrap();
-        crate::files::Source {
-            temporary_file: source,
-            original_filename: "file.txt".into(),
-        }
-    }
-
-    async fn resource_retrieval(
-        operations: &super::Coordinator,
-    ) -> crate::archive::ResourceRetrieval {
-        let mut snapshot = operations
-            .browser
-            .fetch_material_contents(&"MAT1".to_owned().try_into().unwrap(), None)
-            .await
-            .unwrap();
-        let resources = snapshot
-            .contents
-            .as_mut()
-            .unwrap()
-            .resources
-            .as_mut()
-            .unwrap();
-        let mut second = resources[0].clone();
-        second.id = "SRS2".to_owned().try_into().unwrap();
-        resources.push(second);
-        operations.archive.append(snapshot).await.unwrap().unwrap()
-    }
-
-    #[tokio::test]
-    async fn file_replacement_removes_only_content_without_remaining_references() {
-        let fixture = crate::browser::tests::Fixture::new().await;
-        let operations = fixture.operations().await;
-        let retrieval = resource_retrieval(&operations).await;
-        let save = |resource: &str, content: &[u8]| {
-            operations.save_resource_file(
-                retrieval.clone(),
-                resource.to_owned().try_into().unwrap(),
-                source(content),
-            )
-        };
-        let original = save("SRS1", b"original").await.unwrap();
-        let same = save("SRS1", b"original").await.unwrap();
-        assert_eq!(original.content_hash, same.content_hash);
-        operations
-            .files
-            .materialize(original.clone())
-            .await
-            .unwrap();
-        save("SRS2", b"original").await.unwrap();
-        let updated = save("SRS1", b"updated").await.unwrap();
-        assert_ne!(original.content_hash, updated.content_hash);
-        operations
-            .files
-            .materialize(original.clone())
-            .await
-            .unwrap();
-        let (first, second) = tokio::join!(save("SRS1", b"final"), save("SRS2", b"updated"));
-        let first = first.unwrap();
-        let second = second.unwrap();
-        assert!(matches!(
-            operations.files.materialize(original.clone()).await,
-            Err(crate::files::Error::Missing)
-        ));
-        assert_eq!(
-            std::fs::read(operations.files.materialize(second).await.unwrap()).unwrap(),
-            b"updated"
-        );
-        assert_eq!(
-            std::fs::read(operations.files.materialize(first).await.unwrap()).unwrap(),
-            b"final"
-        );
-        assert!(
-            !operations
-                .archive
-                .references_content(&original.content_hash)
-                .await
-                .unwrap()
-        );
-        operations.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn failed_file_replacements_discard_new_content_but_keep_shared_content() {
-        let fixture = crate::browser::tests::Fixture::new().await;
-        let operations = fixture.operations().await;
-        let retrieval = resource_retrieval(&operations).await;
-        let save = |retrieval: crate::archive::ResourceRetrieval, content: &[u8]| {
-            operations.save_resource_file(
-                retrieval,
-                "SRS1".to_owned().try_into().unwrap(),
-                source(content),
-            )
-        };
-        let missing = crate::archive::ResourceRetrieval {
-            id: "missing".into(),
-            ..retrieval.clone()
-        };
-        let original = save(retrieval, b"original").await.unwrap();
-        assert!(save(missing.clone(), b"orphan").await.is_err());
-        assert!(save(missing, b"original").await.is_err());
-        let saved = operations
-            .archive
-            .saved_file(
-                &"MAT1".to_owned().try_into().unwrap(),
-                &"SRS1".to_owned().try_into().unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(saved.content_hash, original.content_hash);
-        assert_eq!(
-            std::fs::read(operations.files.materialize(saved).await.unwrap()).unwrap(),
-            b"original"
-        );
-        assert_eq!(
-            std::fs::read_dir(fixture.temporary.path().join("resources"))
-                .unwrap()
-                .count(),
-            1
-        );
-        operations.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn file_persistence_finishes_after_its_observer_is_canceled() {
-        let fixture = crate::browser::tests::Fixture::new().await;
-        let operations = fixture.operations().await;
-        let retrieval = resource_retrieval(&operations).await;
-        let material: crate::model::MaterialId = "MAT1".to_owned().try_into().unwrap();
-        let resource: crate::model::ResourceId = "SRS1".to_owned().try_into().unwrap();
-        let guard = operations.file_persistence.lock().await;
-        let mut saving = Box::pin(operations.save_resource_file(
-            retrieval.clone(),
-            resource.clone(),
-            source(b"saved"),
-        ));
-        assert!(futures_util::poll!(saving.as_mut()).is_pending());
-        let mut failing = Box::pin(operations.save_resource_file(
-            crate::archive::ResourceRetrieval {
-                id: "missing".into(),
-                ..retrieval
-            },
-            resource.clone(),
-            source(b"orphan"),
-        ));
-        assert!(futures_util::poll!(failing.as_mut()).is_pending());
-        drop(saving);
-        drop(failing);
-        drop(guard);
-        operations.shutdown().await;
-        let saved = operations
-            .archive
-            .saved_file(&material, &resource)
-            .await
-            .unwrap();
-        assert_eq!(
-            std::fs::read(operations.files.materialize(saved).await.unwrap()).unwrap(),
-            b"saved"
-        );
-        assert_eq!(
-            std::fs::read_dir(fixture.temporary.path().join("resources"))
-                .unwrap()
-                .count(),
-            1
-        );
-    }
-
-    #[tokio::test]
-    async fn google_download_authentication_failure_does_not_invalidate_lms() {
-        let fixture = crate::browser::tests::Fixture::new().await;
-        fixture
-            .service
-            .google_authentication_required
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-        let operations = fixture.operations().await;
-        for provider in [
-            crate::browser::Provider::Lms,
-            crate::browser::Provider::Google,
-        ] {
-            operations
-                .set_authentication(provider, crate::model::Authentication::Authenticated)
-                .await;
-        }
-        let mut updates = operations
-            .observe_or_start(super::Request::Download {
-                material: "MAT1".to_owned().try_into().unwrap(),
-                resource: "SRS1".to_owned().try_into().unwrap(),
-            })
-            .await;
-        updates
-            .wait_for(|update| matches!(update, super::Update::Finished(_)))
-            .await
-            .unwrap();
-        assert!(
-            matches!(&*updates.borrow(), super::Update::Finished(Err(error)) if error.reason == crate::error::Reason::AuthenticationRequired)
-        );
-        assert!(matches!(
-            operations
-                .cached_authentication(crate::browser::Provider::Lms)
-                .await,
-            crate::model::Authentication::Authenticated
-        ));
-        assert!(matches!(
-            operations
-                .cached_authentication(crate::browser::Provider::Google)
-                .await,
-            crate::model::Authentication::Unauthenticated
-        ));
-        operations.shutdown().await;
     }
 }

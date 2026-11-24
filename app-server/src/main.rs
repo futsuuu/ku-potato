@@ -61,8 +61,8 @@ async fn run_server(
         .chrome
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let mut user_browser = ku_potato_server::browser::process::Child::start(
-        ku_potato_server::browser::process::Service::UserBrowser,
+    let mut user_browser = ku_potato_server::process::Child::start(
+        ku_potato_server::process::Service::UserBrowser,
         arguments.user_browser.as_deref(),
         &[
             "-telemetry-dir".into(),
@@ -76,8 +76,8 @@ async fn run_server(
         ],
     )
     .await?;
-    let browser_worker = ku_potato_server::browser::process::Child::start(
-        ku_potato_server::browser::process::Service::BrowserWorker,
+    let browser_worker = ku_potato_server::process::Child::start(
+        ku_potato_server::process::Service::BrowserWorker,
         arguments.browser_worker.as_deref(),
         &[
             "-telemetry-dir".into(),
@@ -98,15 +98,11 @@ async fn run_server(
             return Err(error.into());
         }
     };
-    let browser = ku_potato_server::browser::Client::new(
-        browser_worker.connection.clone(),
-        user_browser.connection.clone(),
-        process_temporary.path().to_path_buf(),
-    );
     let operations = std::sync::Arc::new(ku_potato_server::operation::Coordinator::new(
         archive,
         files,
-        browser,
+        ku_potato_server::browser_worker::Client::new(browser_worker.connection.clone()),
+        ku_potato_server::user_browser::Client::new(user_browser.connection.clone()),
         ku_potato_server::operation::Options {
             temporary_directory: process_temporary.path().to_path_buf(),
             job_timeout: arguments.job_timeout,

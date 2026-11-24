@@ -29,7 +29,7 @@ struct Configuration {
 pub struct Child {
     process: tokio::process::Child,
     input: Option<tokio::process::ChildStdin>,
-    pub connection: super::Connection,
+    pub connection: crate::rpc::Connection,
 }
 
 impl Child {
@@ -115,9 +115,9 @@ impl Child {
         Ok(Self {
             process,
             input,
-            connection: super::Connection {
+            connection: crate::rpc::Connection {
                 channel,
-                token: super::Token::new(configuration.token_header, &secret)?,
+                token: crate::rpc::Token::new(configuration.token_header, &secret)?,
             },
         })
     }
