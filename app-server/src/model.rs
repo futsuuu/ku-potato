@@ -547,6 +547,7 @@ pub struct Resource {
 
 #[derive(utoipa::ToSchema, Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[schema(example = json!({ "id": "drive_file-123" }))]
 pub struct GoogleDriveFile {
     pub id: GoogleDriveFileId,
     #[serde(default, skip_serializing_if = "Option::is_none")]

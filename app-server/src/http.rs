@@ -151,6 +151,7 @@ struct ResourceIdentifiers {
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
+#[schema(example = json!({ "url": "https://drive.google.com/file/d/drive_file-123/view" }))]
 struct GoogleDriveDownloadInput {
     url: crate::model::GoogleDriveUrl,
 }
@@ -793,7 +794,7 @@ async fn serve_file(
     params(("materialId" = crate::model::MaterialId, Path), ("resourceId" = crate::model::ResourceId, Path), ("Range" = Option<String>, Header, description = "Byte range to retrieve."), ("If-Range" = Option<String>, Header, description = "Apply Range only if the saved file's ETag matches."), ("If-None-Match" = Option<String>, Header, description = "Return 304 if the saved file's ETag matches.")),
     summary = "Read saved file headers",
     description = "Returns the same headers as a saved-file GET request without a response body.",
-    responses((status = 200), (status = 304), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+    responses((status = 200), (status = 304), (status = 400), (status = 403), (status = 404), (status = 500)))]
 async fn head_file(
     state: axum::extract::State<State>,
     path: axum::extract::Path<ResourceIdentifiers>,
@@ -865,7 +866,7 @@ async fn google_drive_file(
         ("Range" = Option<String>, Header), ("If-Range" = Option<String>, Header), ("If-None-Match" = Option<String>, Header)),
     summary = "Read saved Google Drive file headers",
     description = "Returns the same headers as a Google Drive saved-file GET request without a response body.",
-    responses((status = 200), (status = 206), (status = 304), (status = 416), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+    responses((status = 200), (status = 206), (status = 304), (status = 416), (status = 400), (status = 403), (status = 404), (status = 500)))]
 async fn google_drive_head_file(
     state: axum::extract::State<State>,
     path: axum::extract::Path<crate::model::GoogleDriveFileId>,
@@ -1163,6 +1164,45 @@ mod tests {
                 .to_string()
                 .contains("\"publicationDeadline\"")
         );
+    }
+
+    #[test]
+    fn head_response_schemas_never_declare_response_bodies() {
+        let document = serde_json::to_value(super::openapi()).unwrap();
+        for path in [
+            "/materials/{materialId}/resources/{resourceId}/file",
+            "/google-drive/files/{fileId}/file",
+        ] {
+            let responses = document["paths"][path]["head"]["responses"]
+                .as_object()
+                .unwrap();
+            for (status, response) in responses {
+                assert!(response.get("content").is_none(), "HEAD {path}: {status}");
+            }
+            for status in ["400", "403", "404", "500"] {
+                assert!(responses.contains_key(status));
+                assert_eq!(
+                    document["paths"][path]["get"]["responses"][status]["content"]["application/json"]
+                        ["schema"]["$ref"],
+                    "#/components/schemas/ErrorBody"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn google_drive_schema_examples_pass_schema_and_input_validation() {
+        let document = serde_json::to_value(super::openapi()).unwrap();
+        let schemas = &document["components"]["schemas"];
+        let _: super::GoogleDriveDownloadInput =
+            serde_json::from_value(schemas["GoogleDriveDownloadInput"]["example"].clone()).unwrap();
+        let _: crate::model::GoogleDriveFile =
+            serde_json::from_value(schemas["GoogleDriveFile"]["example"].clone()).unwrap();
+        for name in ["GoogleDriveDownloadInput", "GoogleDriveFile"] {
+            let validator =
+                validator(serde_json::json!({ "$ref": format!("#/components/schemas/{name}") }));
+            assert!(validator.is_valid(&schemas[name]["example"]), "{name}");
+        }
     }
 
     #[tokio::test]

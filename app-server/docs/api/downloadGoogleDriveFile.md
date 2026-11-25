@@ -20,6 +20,14 @@ schema: [GoogleDriveDownloadInput](schemas/GoogleDriveDownloadInput.md), no addi
 
 - **`url` (required)**: `string`, format: `uri`
 
+**Example:**
+
+```json
+{
+  "url": "https://drive.google.com/file/d/drive_file-123/view"
+}
+```
+
 ## Responses
 
 ### 200

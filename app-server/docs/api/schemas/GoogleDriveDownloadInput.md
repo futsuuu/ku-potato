@@ -8,7 +8,7 @@
 
 ```json
 {
-  "url": "https://example.com"
+  "url": "https://drive.google.com/file/d/drive_file-123/view"
 }
 ```
 

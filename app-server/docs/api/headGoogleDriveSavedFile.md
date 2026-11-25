@@ -28,19 +28,14 @@ Returns the same headers as a Google Drive saved-file GET request without a resp
 
 ### 304
 
-### 400, 403, 404, 500
+### 400
 
-- `400`
-- `403`
-- `404`
-- `500`
+### 403
 
-**Content type:** `application/json`
-
-schema: [ErrorBody](schemas/ErrorBody.md)
-
-- **`error` (required)**: [Public](schemas/Public.md)
+### 404
 
 ### 416
+
+### 500
 
 [API index](README.md)

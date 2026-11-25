@@ -756,43 +756,11 @@
           "200": {},
           "206": {},
           "304": {},
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
+          "400": {},
+          "403": {},
+          "404": {},
           "416": {},
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
+          "500": {}
         }
       }
     },
@@ -1188,42 +1156,10 @@
         "responses": {
           "200": {},
           "304": {},
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
+          "400": {},
+          "403": {},
+          "404": {},
+          "500": {}
         }
       }
     },
@@ -2145,7 +2081,10 @@
             "$ref": "#/components/schemas/GoogleDriveUrl"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "url": "https://drive.google.com/file/d/drive_file-123/view"
+        }
       },
       "GoogleDriveFile": {
         "type": "object",
@@ -2166,6 +2105,9 @@
               }
             ]
           }
+        },
+        "example": {
+          "id": "drive_file-123"
         }
       },
       "GoogleDriveFileId": {
