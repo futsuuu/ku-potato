@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "saved_files")]
+#[sea_orm(table_name = "lms_saved_files")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, column_type = "Text")]
     pub lms_material_id: String,
@@ -23,35 +23,39 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::material_resource_retrievals::Entity",
+        belongs_to = "super::lms_material_resource_retrievals::Entity",
         from = "(Column::ResourceRetrievalId, Column::LmsMaterialId)",
-        to = "(super::material_resource_retrievals::Column::Id, super::material_resource_retrievals::Column::LmsMaterialId)",
+        to = "(super::lms_material_resource_retrievals::Column::Id, super::lms_material_resource_retrievals::Column::LmsMaterialId)",
         on_update = "NoAction",
         on_delete = "NoAction"
     )]
-    MaterialResourceRetrievals,
+    LmsMaterialResourceRetrievals,
     #[sea_orm(
-        belongs_to = "super::material_resources::Entity",
+        belongs_to = "super::lms_material_resources::Entity",
         from = "(Column::ResourceRetrievalId, Column::LmsResourceId)",
-        to = "(super::material_resources::Column::RetrievalId, super::material_resources::Column::LmsResourceId)",
+        to = "(super::lms_material_resources::Column::RetrievalId, super::lms_material_resources::Column::LmsResourceId)",
         on_update = "NoAction",
         on_delete = "NoAction"
     )]
-    MaterialResources,
+    LmsMaterialResources,
 }
 
-impl Related<super::material_resources::Entity> for Entity {
+impl Related<super::lms_material_resources::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::MaterialResources.def()
+        Relation::LmsMaterialResources.def()
     }
 }
 
-impl Related<super::material_resource_retrievals::Entity> for Entity {
+impl Related<super::lms_material_resource_retrievals::Entity> for Entity {
     fn to() -> RelationDef {
-        super::material_resources::Relation::MaterialResourceRetrievals.def()
+        super::lms_material_resources::Relation::LmsMaterialResourceRetrievals.def()
     }
     fn via() -> Option<RelationDef> {
-        Some(super::material_resources::Relation::SavedFiles.def().rev())
+        Some(
+            super::lms_material_resources::Relation::LmsSavedFiles
+                .def()
+                .rev(),
+        )
     }
 }
 

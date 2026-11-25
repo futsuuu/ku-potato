@@ -23,7 +23,7 @@ pub fn date(value: Option<String>) -> Result<Option<chrono::NaiveDate>, super::E
         .transpose()
 }
 
-impl super::entity::courses::Model {
+impl super::entity::lms_courses::Model {
     pub fn into_course(
         self,
         year: i64,
@@ -60,10 +60,10 @@ impl super::entity::courses::Model {
     }
 }
 
-impl TryFrom<super::entity::course_materials::Model> for crate::model::Material {
+impl TryFrom<super::entity::lms_course_materials::Model> for crate::model::Material {
     type Error = super::Error;
 
-    fn try_from(row: super::entity::course_materials::Model) -> Result<Self, Self::Error> {
+    fn try_from(row: super::entity::lms_course_materials::Model) -> Result<Self, Self::Error> {
         let kind = serde_json::from_value(
             serde_json::json!({ "type": row.r#type, "status": row.status, "resourceAvailability": row.resource_availability }),
         )?;
@@ -91,10 +91,10 @@ impl TryFrom<super::entity::course_materials::Model> for crate::model::Material 
     }
 }
 
-impl TryFrom<super::entity::material_resources::Model> for crate::model::Resource {
+impl TryFrom<super::entity::lms_material_resources::Model> for crate::model::Resource {
     type Error = super::Error;
 
-    fn try_from(row: super::entity::material_resources::Model) -> Result<Self, Self::Error> {
+    fn try_from(row: super::entity::lms_material_resources::Model) -> Result<Self, Self::Error> {
         Ok(Self {
             id: row.lms_resource_id.try_into()?,
             name: row.name,
@@ -112,10 +112,10 @@ impl TryFrom<super::entity::material_resources::Model> for crate::model::Resourc
     }
 }
 
-impl TryFrom<super::entity::saved_files::Model> for crate::model::SavedFile {
+impl TryFrom<super::entity::lms_saved_files::Model> for crate::model::SavedFile {
     type Error = super::Error;
 
-    fn try_from(row: super::entity::saved_files::Model) -> Result<Self, Self::Error> {
+    fn try_from(row: super::entity::lms_saved_files::Model) -> Result<Self, Self::Error> {
         Ok(Self {
             content_hash: row.content_hash.try_into()?,
             original_filename: row.original_filename,
@@ -142,10 +142,10 @@ impl TryFrom<super::entity::google_drive_saved_files::Model> for crate::model::S
     }
 }
 
-impl TryFrom<super::entity::report_details::Model> for crate::model::Report {
+impl TryFrom<super::entity::lms_report_details::Model> for crate::model::Report {
     type Error = super::Error;
 
-    fn try_from(row: super::entity::report_details::Model) -> Result<Self, Self::Error> {
+    fn try_from(row: super::entity::lms_report_details::Model) -> Result<Self, Self::Error> {
         Ok(serde_json::from_value(serde_json::json!({
             "promptHtml": row.prompt_html, "status": row.status,
             "submissionPeriodKind": row.submission_period_kind,
@@ -159,7 +159,7 @@ impl TryFrom<super::entity::report_details::Model> for crate::model::Report {
     }
 }
 
-impl From<crate::model::Course> for super::entity::courses::ActiveModel {
+impl From<crate::model::Course> for super::entity::lms_courses::ActiveModel {
     fn from(course: crate::model::Course) -> Self {
         let schedule = match course.schedule {
             crate::model::Schedule::Scheduled { weekday, period } => Self {
@@ -200,7 +200,7 @@ impl From<crate::model::Course> for super::entity::courses::ActiveModel {
     }
 }
 
-impl TryFrom<crate::model::Material> for super::entity::course_materials::ActiveModel {
+impl TryFrom<crate::model::Material> for super::entity::lms_course_materials::ActiveModel {
     type Error = super::Error;
 
     fn try_from(material: crate::model::Material) -> Result<Self, Self::Error> {
@@ -251,7 +251,7 @@ impl TryFrom<crate::model::Material> for super::entity::course_materials::Active
     }
 }
 
-impl TryFrom<crate::model::Resource> for super::entity::material_resources::ActiveModel {
+impl TryFrom<crate::model::Resource> for super::entity::lms_material_resources::ActiveModel {
     type Error = super::Error;
 
     fn try_from(resource: crate::model::Resource) -> Result<Self, Self::Error> {
@@ -288,7 +288,7 @@ impl TryFrom<crate::model::Resource> for super::entity::material_resources::Acti
     }
 }
 
-impl TryFrom<crate::model::Report> for super::entity::report_details::ActiveModel {
+impl TryFrom<crate::model::Report> for super::entity::lms_report_details::ActiveModel {
     type Error = super::Error;
 
     fn try_from(report: crate::model::Report) -> Result<Self, Self::Error> {
@@ -388,7 +388,7 @@ mod tests {
                     archived: false,
                 };
                 let expected = serde_json::to_value(&course).unwrap();
-                let row = crate::archive::entity::courses::ActiveModel {
+                let row = crate::archive::entity::lms_courses::ActiveModel {
                     retrieval_id: sea_orm::ActiveValue::Set("retrieval".into()),
                     position: sea_orm::ActiveValue::Set(0),
                     ..course.into()
@@ -426,7 +426,7 @@ mod tests {
                 archived: false,
             };
             let expected = serde_json::to_value(&material).unwrap();
-            let row = crate::archive::entity::course_materials::ActiveModel {
+            let row = crate::archive::entity::lms_course_materials::ActiveModel {
                 retrieval_id: sea_orm::ActiveValue::Set("retrieval".into()),
                 position: sea_orm::ActiveValue::Set(0),
                 folder_position: sea_orm::ActiveValue::Set(0),
@@ -466,7 +466,7 @@ mod tests {
                 google_drive_file: None,
             };
             let expected = serde_json::to_value(&resource).unwrap();
-            let row = crate::archive::entity::material_resources::ActiveModel {
+            let row = crate::archive::entity::lms_material_resources::ActiveModel {
                 retrieval_id: sea_orm::ActiveValue::Set("retrieval".into()),
                 position: sea_orm::ActiveValue::Set(0),
                 ..resource.try_into().unwrap()
@@ -510,7 +510,7 @@ mod tests {
                     retrieved_at: None,
                 };
                 let expected = serde_json::to_value(&report).unwrap();
-                let row = crate::archive::entity::report_details::ActiveModel {
+                let row = crate::archive::entity::lms_report_details::ActiveModel {
                     retrieval_id: sea_orm::ActiveValue::Set("retrieval".into()),
                     ..report.try_into().unwrap()
                 }

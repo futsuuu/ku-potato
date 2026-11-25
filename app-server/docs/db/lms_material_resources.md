@@ -1,4 +1,4 @@
-# material_resources
+# lms_material_resources
 
 ## Description
 
@@ -8,9 +8,9 @@
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE material_resources (
+CREATE TABLE lms_material_resources (
     -- 資料一覧のスナップショット。ファイルや外部リンクの情報を取得時点のまま保持する
-    retrieval_id TEXT NOT NULL REFERENCES material_resource_retrievals(id), -- 資料一覧の取得ID
+    retrieval_id TEXT NOT NULL REFERENCES lms_material_resource_retrievals(id), -- 資料一覧の取得ID
     position INTEGER NOT NULL, -- 取得した一覧内の表示順（0始まり）
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID。同じ取得内で一意
     name TEXT NOT NULL, -- 資料名
@@ -31,9 +31,9 @@ CREATE TABLE material_resources (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | TEXT |  | false | [saved_files](saved_files.md) | [material_resource_retrievals](material_resource_retrievals.md) | 資料一覧の取得ID |
+| retrieval_id | TEXT |  | false | [lms_saved_files](lms_saved_files.md) | [lms_material_resource_retrievals](lms_material_resource_retrievals.md) | 資料一覧の取得ID |
 | position | INTEGER |  | false |  |  | 取得した一覧内の表示順（0始まり） |
-| lms_resource_id | TEXT |  | false | [saved_files](saved_files.md) |  | LMSの資料ID。同じ取得内で一意 |
+| lms_resource_id | TEXT |  | false | [lms_saved_files](lms_saved_files.md) |  | LMSの資料ID。同じ取得内で一意 |
 | name | TEXT |  | false |  |  | 資料名 |
 | type | TEXT |  | false |  |  | 資料種別：file（ファイル）、external（外部リンク）、unknown（不明） |
 | status | TEXT |  | false |  |  | 閲覧状態：unviewed（未閲覧）、viewed（閲覧済み）、unknown（不明） |
@@ -48,9 +48,9 @@ CREATE TABLE material_resources (
 | ---- | ---- | ---------- |
 | retrieval_id | PRIMARY KEY | PRIMARY KEY (retrieval_id) |
 | position | PRIMARY KEY | PRIMARY KEY (position) |
-| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
-| sqlite_autoindex_material_resources_2 | UNIQUE | UNIQUE (retrieval_id, lms_resource_id) |
-| sqlite_autoindex_material_resources_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
+| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES lms_material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
+| sqlite_autoindex_lms_material_resources_2 | UNIQUE | UNIQUE (retrieval_id, lms_resource_id) |
+| sqlite_autoindex_lms_material_resources_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
 | - | CHECK | CHECK (type IN ('file', 'external', 'unknown')) |
 | - | CHECK | CHECK (status IN ('unviewed', 'viewed', 'unknown')) |
 | - | CHECK | CHECK (type != 'external' OR url IS NOT NULL) |
@@ -59,19 +59,19 @@ CREATE TABLE material_resources (
 
 | Name | Definition |
 | ---- | ---------- |
-| resources_resource_retrieval | CREATE INDEX resources_resource_retrieval ON material_resources(lms_resource_id, retrieval_id) |
-| sqlite_autoindex_material_resources_2 | UNIQUE (retrieval_id, lms_resource_id) |
-| sqlite_autoindex_material_resources_1 | PRIMARY KEY (retrieval_id, position) |
+| lms_resources_resource_retrieval | CREATE INDEX lms_resources_resource_retrieval ON lms_material_resources(lms_resource_id, retrieval_id) |
+| sqlite_autoindex_lms_material_resources_2 | UNIQUE (retrieval_id, lms_resource_id) |
+| sqlite_autoindex_lms_material_resources_1 | PRIMARY KEY (retrieval_id, position) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"material_resources" |o--|| "material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"saved_files" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_material_resources" |o--|| "lms_material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES lms_material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_saved_files" }o--|| "lms_material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES lms_material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"material_resources" {
+"lms_material_resources" {
   TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_resource_id
@@ -83,14 +83,14 @@ erDiagram
   TEXT description
   TEXT url
 }
-"material_resource_retrievals" {
+"lms_material_resource_retrievals" {
   TEXT id PK
   INTEGER retrieved_at
   INTEGER timestamp_millis
   INTEGER timestamp_counter
   TEXT lms_material_id
 }
-"saved_files" {
+"lms_saved_files" {
   TEXT lms_material_id PK
   TEXT lms_resource_id PK
   TEXT content_hash

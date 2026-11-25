@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "report_detail_retrievals")]
+#[sea_orm(table_name = "lms_report_detail_retrievals")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, column_type = "Text")]
     pub id: String,
@@ -16,13 +16,13 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_one = "super::report_details::Entity")]
-    ReportDetails,
+    #[sea_orm(has_one = "super::lms_report_details::Entity")]
+    LmsReportDetails,
 }
 
-impl Related<super::report_details::Entity> for Entity {
+impl Related<super::lms_report_details::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::ReportDetails.def()
+        Relation::LmsReportDetails.def()
     }
 }
 

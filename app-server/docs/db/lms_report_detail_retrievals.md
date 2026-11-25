@@ -1,4 +1,4 @@
-# report_detail_retrievals
+# lms_report_detail_retrievals
 
 ## Description
 
@@ -8,7 +8,7 @@
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE report_detail_retrievals (
+CREATE TABLE lms_report_detail_retrievals (
     -- レポート教材ごとの詳細の取得履歴。取得ごとに追記する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
     retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
@@ -24,7 +24,7 @@ CREATE TABLE report_detail_retrievals (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | TEXT |  | false | [report_details](report_details.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
+| id | TEXT |  | false | [lms_report_details](lms_report_details.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
 | retrieved_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒）。表示用の日時 |
 | timestamp_millis | INTEGER |  | false |  |  | 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する |
 | timestamp_counter | INTEGER |  | false |  |  | 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める |
@@ -35,7 +35,7 @@ CREATE TABLE report_detail_retrievals (
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | id | PRIMARY KEY | PRIMARY KEY (id) |
-| sqlite_autoindex_report_detail_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
+| sqlite_autoindex_lms_report_detail_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
 | - | CHECK | CHECK (retrieved_at >= 0) |
 | - | CHECK | CHECK (timestamp_millis >= retrieved_at) |
 | - | CHECK | CHECK (timestamp_counter >= 0) |
@@ -44,24 +44,24 @@ CREATE TABLE report_detail_retrievals (
 
 | Name | Definition |
 | ---- | ---------- |
-| report_retrievals_material | CREATE INDEX report_retrievals_material ON report_detail_retrievals(lms_material_id, timestamp_millis, timestamp_counter, id) |
-| sqlite_autoindex_report_detail_retrievals_1 | PRIMARY KEY (id) |
+| lms_report_retrievals_material | CREATE INDEX lms_report_retrievals_material ON lms_report_detail_retrievals(lms_material_id, timestamp_millis, timestamp_counter, id) |
+| sqlite_autoindex_lms_report_detail_retrievals_1 | PRIMARY KEY (id) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"report_details" |o--|| "report_detail_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_report_details" |o--|| "lms_report_detail_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES lms_report_detail_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"report_detail_retrievals" {
+"lms_report_detail_retrievals" {
   TEXT id PK
   INTEGER retrieved_at
   INTEGER timestamp_millis
   INTEGER timestamp_counter
   TEXT lms_material_id
 }
-"report_details" {
+"lms_report_details" {
   TEXT retrieval_id PK
   TEXT prompt_html
   TEXT status

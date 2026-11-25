@@ -1,4 +1,4 @@
-# course_materials
+# lms_course_materials
 
 ## Description
 
@@ -8,7 +8,7 @@
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE course_materials (
+CREATE TABLE lms_course_materials (
     -- 教材一覧のスナップショット。教材の種類・状態・公開期限と所属フォルダーを保持する
     retrieval_id TEXT NOT NULL, -- 教材一覧の取得ID
     position INTEGER NOT NULL, -- 全フォルダーを通した教材の表示順（0始まり）
@@ -33,7 +33,7 @@ CREATE TABLE course_materials (
     ),
     PRIMARY KEY (retrieval_id, position),
     UNIQUE (retrieval_id, lms_material_id),
-    FOREIGN KEY (retrieval_id, folder_position) REFERENCES course_material_folders(retrieval_id, position)
+    FOREIGN KEY (retrieval_id, folder_position) REFERENCES lms_course_material_folders(retrieval_id, position)
 )
 ```
 
@@ -43,9 +43,9 @@ CREATE TABLE course_materials (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | TEXT |  | false |  | [course_material_folders](course_material_folders.md) | 教材一覧の取得ID |
+| retrieval_id | TEXT |  | false |  | [lms_course_material_folders](lms_course_material_folders.md) | 教材一覧の取得ID |
 | position | INTEGER |  | false |  |  | 全フォルダーを通した教材の表示順（0始まり） |
-| folder_position | INTEGER |  | false |  | [course_material_folders](course_material_folders.md) | 同じ取得内の所属フォルダーの表示順 |
+| folder_position | INTEGER |  | false |  | [lms_course_material_folders](lms_course_material_folders.md) | 同じ取得内の所属フォルダーの表示順 |
 | lms_material_id | TEXT |  | false |  |  | LMSの教材ID。同じ取得内で一意 |
 | name | TEXT |  | false |  |  | 教材名 |
 | type | TEXT |  | false |  |  | 教材種別：material、report、test、questionnaire、e-learning、board、feedback、unknown |
@@ -61,9 +61,9 @@ CREATE TABLE course_materials (
 | ---- | ---- | ---------- |
 | retrieval_id | PRIMARY KEY | PRIMARY KEY (retrieval_id) |
 | position | PRIMARY KEY | PRIMARY KEY (position) |
-| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id, folder_position) REFERENCES course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
-| sqlite_autoindex_course_materials_2 | UNIQUE | UNIQUE (retrieval_id, lms_material_id) |
-| sqlite_autoindex_course_materials_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
+| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id, folder_position) REFERENCES lms_course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
+| sqlite_autoindex_lms_course_materials_2 | UNIQUE | UNIQUE (retrieval_id, lms_material_id) |
+| sqlite_autoindex_lms_course_materials_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
 | - | CHECK | CHECK (type IN ('material', 'report', 'test', 'questionnaire', 'e-learning', 'board', 'feedback', 'unknown')) |
 | - | CHECK | CHECK (material_link_available IN (0, 1)) |
 | - | CHECK | CHECK (publication_deadline_kind IN ('at', 'unlisted', 'closed', 'unknown')) |
@@ -75,18 +75,18 @@ CREATE TABLE course_materials (
 
 | Name | Definition |
 | ---- | ---------- |
-| materials_material_retrieval | CREATE INDEX materials_material_retrieval ON course_materials(lms_material_id, retrieval_id) |
-| sqlite_autoindex_course_materials_2 | UNIQUE (retrieval_id, lms_material_id) |
-| sqlite_autoindex_course_materials_1 | PRIMARY KEY (retrieval_id, position) |
+| lms_materials_material_retrieval | CREATE INDEX lms_materials_material_retrieval ON lms_course_materials(lms_material_id, retrieval_id) |
+| sqlite_autoindex_lms_course_materials_2 | UNIQUE (retrieval_id, lms_material_id) |
+| sqlite_autoindex_lms_course_materials_1 | PRIMARY KEY (retrieval_id, position) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"course_materials" }o--|| "course_material_folders" : "FOREIGN KEY (retrieval_id, folder_position) REFERENCES course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_course_materials" }o--|| "lms_course_material_folders" : "FOREIGN KEY (retrieval_id, folder_position) REFERENCES lms_course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"course_materials" {
+"lms_course_materials" {
   TEXT retrieval_id PK
   INTEGER position PK
   INTEGER folder_position FK
@@ -99,7 +99,7 @@ erDiagram
   INTEGER publication_deadline_at
   TEXT resource_availability
 }
-"course_material_folders" {
+"lms_course_material_folders" {
   TEXT retrieval_id PK
   INTEGER position PK
   TEXT name
