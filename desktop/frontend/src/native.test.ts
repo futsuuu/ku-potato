@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { Browser } from "@wailsio/runtime";
-import { OpenResource, ServerURL } from "../bindings/github.com/futsuuu/ku-potato/desktop/app";
+import {
+  OpenGoogleDriveFile,
+  OpenResource,
+  ServerURL,
+} from "../bindings/github.com/futsuuu/ku-potato/desktop/app";
 import { createAPI } from "./api";
 import { isDesktop, isWindowsDesktop, openExternal, serverURL } from "./native";
 
@@ -9,6 +13,7 @@ vi.mock("@wailsio/runtime", () => ({ Browser: { OpenURL: vi.fn(async () => {}) }
 vi.mock("../bindings/github.com/futsuuu/ku-potato/desktop/app", () => ({
   ServerURL: vi.fn(async () => "http://127.0.0.1:8787"),
   OpenResource: vi.fn(async () => {}),
+  OpenGoogleDriveFile: vi.fn(async () => {}),
 }));
 
 afterEach(() => {
@@ -81,6 +86,24 @@ it("downloads the saved file in a browser without requesting a server launch or 
   expect(link.download).toBe("");
   expect(fetch).not.toHaveBeenCalled();
   expect(OpenResource).not.toHaveBeenCalled();
+});
+
+it("opens Google Drive files through their dedicated native bridge", async () => {
+  window._wails = { environment: { OS: "linux" } };
+  const fetch = vi.spyOn(globalThis, "fetch");
+  await createAPI(await serverURL()).googleDrive.openFile("drive_file");
+  expect(OpenGoogleDriveFile).toHaveBeenCalledExactlyOnceWith("drive_file");
+  expect(OpenResource).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("uses the Google Drive file endpoint outside desktop", async () => {
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  await createAPI("/api/").googleDrive.openFile("drive_file");
+  expect(click).toHaveBeenCalledOnce();
+  const link = click.mock.instances[0] as HTMLAnchorElement;
+  expect(link.getAttribute("href")).toBe("/api/google-drive/files/drive_file/file");
+  expect(OpenGoogleDriveFile).not.toHaveBeenCalled();
 });
 
 it("does not treat browser globals without a native transport as a desktop bridge", async () => {

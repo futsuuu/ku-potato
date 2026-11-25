@@ -96,14 +96,14 @@ export const NeverCompletes: Story = {
 export const LongName: Story = {
   args: { resource: { ...resource, name: "非常に長いファイル名の講義資料".repeat(30) + ".pdf" } },
 };
-export const ArchivedExternalFile: Story = {
+export const ArchivedGoogleDriveFile: Story = {
   args: {
     resource: {
       ...resource,
       type: "external",
-      url: "https://example.com/reference",
+      url: "https://drive.google.com/file/d/drive_file/view",
       archived: true,
-      savedFile: file,
+      googleDriveFile: { id: "drive_file", savedFile: file },
     },
   },
 };
