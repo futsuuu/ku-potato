@@ -247,7 +247,29 @@ pub async fn material_detail(
             }
             let mut resource: crate::model::Resource = row.try_into()?;
             resource.archived = material.archived || index != 0;
-            resource.saved_file = saved.get(resource.id.as_ref()).cloned();
+            match &resource.content {
+                crate::model::ResourceContent::File { .. } => {
+                    resource.saved_file = saved.get(resource.id.as_ref()).cloned();
+                }
+                crate::model::ResourceContent::External { url } => {
+                    if let Ok(url) =
+                        crate::model::GoogleDriveUrl::try_from(url.as_ref().to_string())
+                    {
+                        let id = url.file_id();
+                        let saved_file =
+                            super::entity::google_drive_saved_files::Entity::find_by_id(
+                                id.as_ref(),
+                            )
+                            .one(connection)
+                            .await?
+                            .map(TryInto::try_into)
+                            .transpose()?;
+                        resource.google_drive_file =
+                            Some(crate::model::GoogleDriveFile { id, saved_file });
+                    }
+                }
+                crate::model::ResourceContent::Unknown { .. } => (),
+            }
             resources.push(resource);
         }
     }

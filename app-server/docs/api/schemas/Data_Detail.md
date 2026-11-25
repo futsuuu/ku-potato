@@ -1,4 +1,4 @@
-# Data_Detail
+# Data\_Detail
 
 **Type:** `object`
 

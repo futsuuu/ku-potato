@@ -26,7 +26,7 @@ Returns SSE status events followed by exactly one result or error event, then cl
 
 **Content type:** `text/event-stream`
 
-array of [StreamEvent_CourseMaterials](schemas/StreamEvent_CourseMaterials.md)
+array of [StreamEvent\_CourseMaterials](schemas/StreamEvent_CourseMaterials.md)
 
 ### 400, 403
 

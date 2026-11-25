@@ -1,4 +1,4 @@
-# StreamEvent_Download
+# StreamEvent\_Download
 
 **One of:**
 
@@ -6,7 +6,7 @@
   - **`data` (required)**: [OperationStatus](OperationStatus.md)
   - **`event` (required)**: `string`, possible values: `"status"`
 - `object`
-  - **`data` (required)**: [Data_Download](Data_Download.md)
+  - **`data` (required)**: [Data\_Download](Data_Download.md)
   - **`event` (required)**: `string`, possible values: `"result"`
 - `object`
   - **`data` (required)**: [ErrorBody](ErrorBody.md)

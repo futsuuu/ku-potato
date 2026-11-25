@@ -16,7 +16,7 @@ Reports whether a saved virtual WebAuthn credential is registered.
 
 **Content type:** `application/json`
 
-schema: [Data_Registration](schemas/Data_Registration.md)
+schema: [Data\_Registration](schemas/Data_Registration.md)
 
 - **`data` (required)**: `object`
   - **`registered` (required)**: `boolean`

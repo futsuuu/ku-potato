@@ -28,7 +28,7 @@ Set interactive to allow manual authentication in a visible browser on the serve
 
 **Content type:** `text/event-stream`
 
-array of [StreamEvent_Authentication](schemas/StreamEvent_Authentication.md)
+array of [StreamEvent\_Authentication](schemas/StreamEvent_Authentication.md)
 
 ### 400, 403, 413
 

@@ -16,7 +16,7 @@ Returns the last observed Google authentication state without starting an authen
 
 **Content type:** `application/json`
 
-schema: [Data_Authentication](schemas/Data_Authentication.md)
+schema: [Data\_Authentication](schemas/Data_Authentication.md)
 
 - **`data` (required)**
 

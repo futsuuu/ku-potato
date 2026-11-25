@@ -342,6 +342,7 @@ fn resource(value: super::protocol::Resource) -> Result<crate::model::Resource, 
         first_viewed_on: date(value.first_viewed_on)?,
         description: value.description,
         saved_file: None,
+        google_drive_file: None,
         archived: false,
     })
 }

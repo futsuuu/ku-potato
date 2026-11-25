@@ -1,4 +1,4 @@
-# Acquire and save a resource
+# Acquire and save an LMS file or return an external link
 
 - **Method:** `POST`
 - **Path:** `/materials/{materialId}/resources/{resourceId}/download`
@@ -21,7 +21,7 @@ Returns SSE status events followed by exactly one result or error event, then cl
 
 **Content type:** `text/event-stream`
 
-array of [StreamEvent_Download](schemas/StreamEvent_Download.md)
+array of [StreamEvent\_Download](schemas/StreamEvent_Download.md)
 
 ### 400, 403
 

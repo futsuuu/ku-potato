@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS material_resources (
 );
 CREATE INDEX IF NOT EXISTS resources_resource_retrieval ON material_resources(lms_resource_id, retrieval_id);
 CREATE TABLE IF NOT EXISTS saved_files (
-    -- 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
+    -- LMSのファイル資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
     lms_material_id TEXT NOT NULL, -- LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID
     content_hash TEXT NOT NULL, -- 原本のSHA-256。同じ内容を複数資料から参照できる
@@ -126,6 +126,17 @@ CREATE TABLE IF NOT EXISTS saved_files (
     FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)
 );
 CREATE INDEX IF NOT EXISTS saved_files_content_hash ON saved_files(content_hash);
+
+CREATE TABLE IF NOT EXISTS google_drive_saved_files (
+    -- Google Driveのファイルごとの現在の保存ファイル。LMSの取得履歴とは独立して保持する
+    file_id TEXT PRIMARY KEY NOT NULL CHECK (length(file_id) BETWEEN 1 AND 256 AND file_id NOT GLOB '*[^A-Za-z0-9_-]*'), -- Google DriveのファイルID。同じファイルへの複数のリンクで保存情報を共有する
+    content_hash TEXT NOT NULL, -- 原本のSHA-256
+    original_filename TEXT NOT NULL, -- 保存ファイルの元のファイル名
+    original_size INTEGER NOT NULL CHECK (original_size >= 0), -- 保存時の圧縮を行う前の原本サイズ（バイト）
+    timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= 0), -- 最後に保存が成功した際の論理タイムスタンプのミリ秒部分
+    timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0) -- 論理タイムスタンプの同一ミリ秒内の連番
+);
+CREATE INDEX IF NOT EXISTS google_drive_saved_files_content_hash ON google_drive_saved_files(content_hash);
 
 CREATE TABLE IF NOT EXISTS report_detail_retrievals (
     -- レポート教材ごとの詳細の取得履歴。取得ごとに追記する

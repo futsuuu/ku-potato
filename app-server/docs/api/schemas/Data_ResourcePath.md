@@ -1,4 +1,4 @@
-# Data_ResourcePath
+# Data\_ResourcePath
 
 **Type:** `object`
 
