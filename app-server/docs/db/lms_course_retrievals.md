@@ -1,20 +1,20 @@
-# course_material_retrievals
+# lms_course_retrievals
 
 ## Description
 
-講義ごとの教材一覧の取得履歴。空の一覧を取得した場合も記録する
+年度ごとの講義一覧の取得履歴。取得ごとに追記し、過去の一覧を保持する
 
 <details>
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE course_material_retrievals (
-    -- 講義ごとの教材一覧の取得履歴。空の一覧を取得した場合も記録する
+CREATE TABLE lms_course_retrievals (
+    -- 年度ごとの講義一覧の取得履歴。取得ごとに追記し、過去の一覧を保持する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
     retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
     timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= retrieved_at), -- 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する
     timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める
-    lms_course_id TEXT NOT NULL -- 取得対象のLMS講義ID
+    academic_year INTEGER NOT NULL CHECK (academic_year BETWEEN 1 AND 9999) -- 対象の学年度（1〜9999）
 )
 ```
 
@@ -24,49 +24,53 @@ CREATE TABLE course_material_retrievals (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | TEXT |  | false | [course_material_folders](course_material_folders.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
+| id | TEXT |  | false | [lms_courses](lms_courses.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
 | retrieved_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒）。表示用の日時 |
 | timestamp_millis | INTEGER |  | false |  |  | 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する |
 | timestamp_counter | INTEGER |  | false |  |  | 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める |
-| lms_course_id | TEXT |  | false |  |  | 取得対象のLMS講義ID |
+| academic_year | INTEGER |  | false |  |  | 対象の学年度（1〜9999） |
 
 ## Constraints
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | id | PRIMARY KEY | PRIMARY KEY (id) |
-| sqlite_autoindex_course_material_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
+| sqlite_autoindex_lms_course_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
 | - | CHECK | CHECK (retrieved_at >= 0) |
 | - | CHECK | CHECK (timestamp_millis >= retrieved_at) |
 | - | CHECK | CHECK (timestamp_counter >= 0) |
+| - | CHECK | CHECK (academic_year BETWEEN 1 AND 9999) |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
-| material_retrievals_course | CREATE INDEX material_retrievals_course ON course_material_retrievals(lms_course_id, timestamp_millis, timestamp_counter, id) |
-| sqlite_autoindex_course_material_retrievals_1 | PRIMARY KEY (id) |
+| lms_course_retrievals_year | CREATE INDEX lms_course_retrievals_year ON lms_course_retrievals(academic_year, timestamp_millis, timestamp_counter, id) |
+| sqlite_autoindex_lms_course_retrievals_1 | PRIMARY KEY (id) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"course_material_folders" |o--|| "course_material_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES course_material_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_courses" |o--|| "lms_course_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES lms_course_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"course_material_retrievals" {
+"lms_course_retrievals" {
   TEXT id PK
   INTEGER retrieved_at
   INTEGER timestamp_millis
   INTEGER timestamp_counter
-  TEXT lms_course_id
+  INTEGER academic_year
 }
-"course_material_folders" {
+"lms_courses" {
   TEXT retrieval_id PK
   INTEGER position PK
+  TEXT lms_course_id
   TEXT name
-  TEXT class_date
-  TEXT description_html
+  TEXT availability
+  TEXT type
+  INTEGER weekday
+  INTEGER period
 }
 ```
 

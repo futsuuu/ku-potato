@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "course_material_retrievals")]
+#[sea_orm(table_name = "lms_course_material_retrievals")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, column_type = "Text")]
     pub id: String,
@@ -16,23 +16,23 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::course_material_folders::Entity")]
-    CourseMaterialFolders,
+    #[sea_orm(has_many = "super::lms_course_material_folders::Entity")]
+    LmsCourseMaterialFolders,
 }
 
-impl Related<super::course_material_folders::Entity> for Entity {
+impl Related<super::lms_course_material_folders::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::CourseMaterialFolders.def()
+        Relation::LmsCourseMaterialFolders.def()
     }
 }
 
-impl Related<super::course_materials::Entity> for Entity {
+impl Related<super::lms_course_materials::Entity> for Entity {
     fn to() -> RelationDef {
-        super::course_material_folders::Relation::CourseMaterials.def()
+        super::lms_course_material_folders::Relation::LmsCourseMaterials.def()
     }
     fn via() -> Option<RelationDef> {
         Some(
-            super::course_material_folders::Relation::CourseMaterialRetrievals
+            super::lms_course_material_folders::Relation::LmsCourseMaterialRetrievals
                 .def()
                 .rev(),
         )

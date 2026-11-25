@@ -1,4 +1,4 @@
-# material_resource_retrievals
+# lms_material_resource_retrievals
 
 ## Description
 
@@ -8,7 +8,7 @@
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE material_resource_retrievals (
+CREATE TABLE lms_material_resource_retrievals (
     -- 教材ごとの資料一覧の取得履歴。未取得と、取得済みの空一覧を区別する
     id TEXT PRIMARY KEY NOT NULL, -- 種類ごとに独立した、端末間で一意な取得ID（UUID）
     retrieved_at INTEGER NOT NULL CHECK (retrieved_at >= 0), -- 取得時刻（Unixミリ秒）。表示用の日時
@@ -25,19 +25,19 @@ CREATE TABLE material_resource_retrievals (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | TEXT |  | false | [material_resources](material_resources.md) [saved_files](saved_files.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
+| id | TEXT |  | false | [lms_material_resources](lms_material_resources.md) [lms_saved_files](lms_saved_files.md) |  | 種類ごとに独立した、端末間で一意な取得ID（UUID） |
 | retrieved_at | INTEGER |  | false |  |  | 取得時刻（Unixミリ秒）。表示用の日時 |
 | timestamp_millis | INTEGER |  | false |  |  | 取得順序を比較する論理タイムスタンプのミリ秒部分。取得日時とは別に保持する |
 | timestamp_counter | INTEGER |  | false |  |  | 論理タイムスタンプの同一ミリ秒内の連番。同値の場合は取得IDで順序を決める |
-| lms_material_id | TEXT |  | false | [saved_files](saved_files.md) |  | 取得対象のLMS教材ID |
+| lms_material_id | TEXT |  | false | [lms_saved_files](lms_saved_files.md) |  | 取得対象のLMS教材ID |
 
 ## Constraints
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | id | PRIMARY KEY | PRIMARY KEY (id) |
-| sqlite_autoindex_material_resource_retrievals_2 | UNIQUE | UNIQUE (id, lms_material_id) |
-| sqlite_autoindex_material_resource_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
+| sqlite_autoindex_lms_material_resource_retrievals_2 | UNIQUE | UNIQUE (id, lms_material_id) |
+| sqlite_autoindex_lms_material_resource_retrievals_1 | PRIMARY KEY | PRIMARY KEY (id) |
 | - | CHECK | CHECK (retrieved_at >= 0) |
 | - | CHECK | CHECK (timestamp_millis >= retrieved_at) |
 | - | CHECK | CHECK (timestamp_counter >= 0) |
@@ -46,26 +46,26 @@ CREATE TABLE material_resource_retrievals (
 
 | Name | Definition |
 | ---- | ---------- |
-| resource_retrievals_material | CREATE INDEX resource_retrievals_material ON material_resource_retrievals(lms_material_id, timestamp_millis, timestamp_counter, id) |
-| sqlite_autoindex_material_resource_retrievals_2 | UNIQUE (id, lms_material_id) |
-| sqlite_autoindex_material_resource_retrievals_1 | PRIMARY KEY (id) |
+| lms_resource_retrievals_material | CREATE INDEX lms_resource_retrievals_material ON lms_material_resource_retrievals(lms_material_id, timestamp_millis, timestamp_counter, id) |
+| sqlite_autoindex_lms_material_resource_retrievals_2 | UNIQUE (id, lms_material_id) |
+| sqlite_autoindex_lms_material_resource_retrievals_1 | PRIMARY KEY (id) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"material_resources" |o--|| "material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"saved_files" }o--|| "material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_material_resources" |o--|| "lms_material_resource_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES lms_material_resource_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_saved_files" }o--|| "lms_material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES lms_material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"material_resource_retrievals" {
+"lms_material_resource_retrievals" {
   TEXT id PK
   INTEGER retrieved_at
   INTEGER timestamp_millis
   INTEGER timestamp_counter
   TEXT lms_material_id
 }
-"material_resources" {
+"lms_material_resources" {
   TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_resource_id
@@ -77,7 +77,7 @@ erDiagram
   TEXT description
   TEXT url
 }
-"saved_files" {
+"lms_saved_files" {
   TEXT lms_material_id PK
   TEXT lms_resource_id PK
   TEXT content_hash

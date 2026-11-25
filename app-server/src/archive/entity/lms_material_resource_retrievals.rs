@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "material_resource_retrievals")]
+#[sea_orm(table_name = "lms_material_resource_retrievals")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, column_type = "Text")]
     pub id: String,
@@ -16,32 +16,32 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::material_resources::Entity")]
-    MaterialResources,
-    #[sea_orm(has_many = "super::saved_files::Entity")]
-    SavedFiles,
+    #[sea_orm(has_many = "super::lms_material_resources::Entity")]
+    LmsMaterialResources,
+    #[sea_orm(has_many = "super::lms_saved_files::Entity")]
+    LmsSavedFiles,
 }
 
-impl Related<super::material_resources::Entity> for Entity {
+impl Related<super::lms_material_resources::Entity> for Entity {
     fn to() -> RelationDef {
-        super::saved_files::Relation::MaterialResources.def()
+        super::lms_saved_files::Relation::LmsMaterialResources.def()
     }
     fn via() -> Option<RelationDef> {
         Some(
-            super::saved_files::Relation::MaterialResourceRetrievals
+            super::lms_saved_files::Relation::LmsMaterialResourceRetrievals
                 .def()
                 .rev(),
         )
     }
 }
 
-impl Related<super::saved_files::Entity> for Entity {
+impl Related<super::lms_saved_files::Entity> for Entity {
     fn to() -> RelationDef {
-        super::material_resources::Relation::SavedFiles.def()
+        super::lms_material_resources::Relation::LmsSavedFiles.def()
     }
     fn via() -> Option<RelationDef> {
         Some(
-            super::material_resources::Relation::MaterialResourceRetrievals
+            super::lms_material_resources::Relation::LmsMaterialResourceRetrievals
                 .def()
                 .rev(),
         )

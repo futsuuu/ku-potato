@@ -6,10 +6,10 @@ use sea_orm::QueryOrder as _;
 pub async fn courses(
     connection: &impl sea_orm::ConnectionTrait,
 ) -> Result<Vec<crate::model::Course>, super::Error> {
-    let retrievals = super::entity::course_retrievals::Entity::find()
-        .order_by_desc(super::entity::course_retrievals::Column::TimestampMillis)
-        .order_by_desc(super::entity::course_retrievals::Column::TimestampCounter)
-        .order_by_desc(super::entity::course_retrievals::Column::Id)
+    let retrievals = super::entity::lms_course_retrievals::Entity::find()
+        .order_by_desc(super::entity::lms_course_retrievals::Column::TimestampMillis)
+        .order_by_desc(super::entity::lms_course_retrievals::Column::TimestampCounter)
+        .order_by_desc(super::entity::lms_course_retrievals::Column::Id)
         .all(connection)
         .await?;
     if retrievals.is_empty() {
@@ -20,9 +20,9 @@ pub async fn courses(
     let mut courses = Vec::new();
     for retrieval in retrievals {
         let current = latest_years.insert(retrieval.academic_year);
-        let rows = super::entity::courses::Entity::find()
-            .filter(super::entity::courses::Column::RetrievalId.eq(&retrieval.id))
-            .order_by_asc(super::entity::courses::Column::Position)
+        let rows = super::entity::lms_courses::Entity::find()
+            .filter(super::entity::lms_courses::Column::RetrievalId.eq(&retrieval.id))
+            .order_by_asc(super::entity::lms_courses::Column::Position)
             .all(connection)
             .await?;
         for row in rows {
@@ -47,11 +47,13 @@ pub async fn course_materials(
     connection: &impl sea_orm::ConnectionTrait,
     course: &crate::model::CourseId,
 ) -> Result<crate::model::CourseMaterials, super::Error> {
-    let retrievals = super::entity::course_material_retrievals::Entity::find()
-        .filter(super::entity::course_material_retrievals::Column::LmsCourseId.eq(course.as_ref()))
-        .order_by_desc(super::entity::course_material_retrievals::Column::TimestampMillis)
-        .order_by_desc(super::entity::course_material_retrievals::Column::TimestampCounter)
-        .order_by_desc(super::entity::course_material_retrievals::Column::Id)
+    let retrievals = super::entity::lms_course_material_retrievals::Entity::find()
+        .filter(
+            super::entity::lms_course_material_retrievals::Column::LmsCourseId.eq(course.as_ref()),
+        )
+        .order_by_desc(super::entity::lms_course_material_retrievals::Column::TimestampMillis)
+        .order_by_desc(super::entity::lms_course_material_retrievals::Column::TimestampCounter)
+        .order_by_desc(super::entity::lms_course_material_retrievals::Column::Id)
         .all(connection)
         .await?;
     let latest = retrievals.first().ok_or(super::Error::Missing)?.id.clone();
@@ -70,9 +72,11 @@ pub async fn course_materials(
     let mut inaccessible =
         std::collections::HashMap::<crate::model::MaterialId, MaterialPosition>::new();
     for retrieval in retrievals {
-        let folders = super::entity::course_material_folders::Entity::find()
-            .filter(super::entity::course_material_folders::Column::RetrievalId.eq(&retrieval.id))
-            .order_by_asc(super::entity::course_material_folders::Column::Position)
+        let folders = super::entity::lms_course_material_folders::Entity::find()
+            .filter(
+                super::entity::lms_course_material_folders::Column::RetrievalId.eq(&retrieval.id),
+            )
+            .order_by_asc(super::entity::lms_course_material_folders::Column::Position)
             .all(connection)
             .await?;
         let mut definitions = std::collections::HashMap::new();
@@ -91,9 +95,9 @@ pub async fn course_materials(
                 definitions.insert(folder.position, definition);
             }
         }
-        let rows = super::entity::course_materials::Entity::find()
-            .filter(super::entity::course_materials::Column::RetrievalId.eq(&retrieval.id))
-            .order_by_asc(super::entity::course_materials::Column::Position)
+        let rows = super::entity::lms_course_materials::Entity::find()
+            .filter(super::entity::lms_course_materials::Column::RetrievalId.eq(&retrieval.id))
+            .order_by_asc(super::entity::lms_course_materials::Column::Position)
             .all(connection)
             .await?;
         for row in rows {
@@ -154,18 +158,18 @@ pub async fn find_course_for_material(
     connection: &impl sea_orm::ConnectionTrait,
     material: &crate::model::MaterialId,
 ) -> Result<Option<crate::model::CourseId>, super::Error> {
-    let rows = super::entity::course_materials::Entity::find()
-        .filter(super::entity::course_materials::Column::LmsMaterialId.eq(material.as_ref()))
+    let rows = super::entity::lms_course_materials::Entity::find()
+        .filter(super::entity::lms_course_materials::Column::LmsMaterialId.eq(material.as_ref()))
         .all(connection)
         .await?;
-    let retrieval = super::entity::course_material_retrievals::Entity::find()
+    let retrieval = super::entity::lms_course_material_retrievals::Entity::find()
         .filter(
-            super::entity::course_material_retrievals::Column::Id
+            super::entity::lms_course_material_retrievals::Column::Id
                 .is_in(rows.into_iter().map(|row| row.retrieval_id)),
         )
-        .order_by_desc(super::entity::course_material_retrievals::Column::TimestampMillis)
-        .order_by_desc(super::entity::course_material_retrievals::Column::TimestampCounter)
-        .order_by_desc(super::entity::course_material_retrievals::Column::Id)
+        .order_by_desc(super::entity::lms_course_material_retrievals::Column::TimestampMillis)
+        .order_by_desc(super::entity::lms_course_material_retrievals::Column::TimestampCounter)
+        .order_by_desc(super::entity::lms_course_material_retrievals::Column::Id)
         .one(connection)
         .await?;
     Ok(retrieval
@@ -176,17 +180,21 @@ pub async fn find_course_for_material(
 async fn latest_resources(
     connection: &impl sea_orm::ConnectionTrait,
     material: &crate::model::MaterialId,
-) -> Result<Option<super::entity::material_resource_retrievals::Model>, super::Error> {
-    Ok(super::entity::material_resource_retrievals::Entity::find()
-        .filter(
-            super::entity::material_resource_retrievals::Column::LmsMaterialId
-                .eq(material.as_ref()),
-        )
-        .order_by_desc(super::entity::material_resource_retrievals::Column::TimestampMillis)
-        .order_by_desc(super::entity::material_resource_retrievals::Column::TimestampCounter)
-        .order_by_desc(super::entity::material_resource_retrievals::Column::Id)
-        .one(connection)
-        .await?)
+) -> Result<Option<super::entity::lms_material_resource_retrievals::Model>, super::Error> {
+    Ok(
+        super::entity::lms_material_resource_retrievals::Entity::find()
+            .filter(
+                super::entity::lms_material_resource_retrievals::Column::LmsMaterialId
+                    .eq(material.as_ref()),
+            )
+            .order_by_desc(super::entity::lms_material_resource_retrievals::Column::TimestampMillis)
+            .order_by_desc(
+                super::entity::lms_material_resource_retrievals::Column::TimestampCounter,
+            )
+            .order_by_desc(super::entity::lms_material_resource_retrievals::Column::Id)
+            .one(connection)
+            .await?,
+    )
 }
 
 pub async fn material_detail(
@@ -209,11 +217,13 @@ pub async fn material_detail(
         .find(|material| &material.id == id)
         .ok_or(super::Error::Missing)?;
     let mut resources = Vec::new();
-    let retrievals = super::entity::material_resource_retrievals::Entity::find()
-        .filter(super::entity::material_resource_retrievals::Column::LmsMaterialId.eq(id.as_ref()))
-        .order_by_desc(super::entity::material_resource_retrievals::Column::TimestampMillis)
-        .order_by_desc(super::entity::material_resource_retrievals::Column::TimestampCounter)
-        .order_by_desc(super::entity::material_resource_retrievals::Column::Id)
+    let retrievals = super::entity::lms_material_resource_retrievals::Entity::find()
+        .filter(
+            super::entity::lms_material_resource_retrievals::Column::LmsMaterialId.eq(id.as_ref()),
+        )
+        .order_by_desc(super::entity::lms_material_resource_retrievals::Column::TimestampMillis)
+        .order_by_desc(super::entity::lms_material_resource_retrievals::Column::TimestampCounter)
+        .order_by_desc(super::entity::lms_material_resource_retrievals::Column::Id)
         .all(connection)
         .await?;
     if retrievals.is_empty()
@@ -222,8 +232,8 @@ pub async fn material_detail(
     {
         return Err(super::Error::Missing);
     }
-    let saved = super::entity::saved_files::Entity::find()
-        .filter(super::entity::saved_files::Column::LmsMaterialId.eq(id.as_ref()))
+    let saved = super::entity::lms_saved_files::Entity::find()
+        .filter(super::entity::lms_saved_files::Column::LmsMaterialId.eq(id.as_ref()))
         .all(connection)
         .await?
         .into_iter()
@@ -236,9 +246,9 @@ pub async fn material_detail(
         .collect::<Result<std::collections::HashMap<_, _>, super::Error>>()?;
     let mut seen = std::collections::HashSet::new();
     for (index, retrieval) in retrievals.into_iter().enumerate() {
-        let rows = super::entity::material_resources::Entity::find()
-            .filter(super::entity::material_resources::Column::RetrievalId.eq(retrieval.id))
-            .order_by_asc(super::entity::material_resources::Column::Position)
+        let rows = super::entity::lms_material_resources::Entity::find()
+            .filter(super::entity::lms_material_resources::Column::RetrievalId.eq(retrieval.id))
+            .order_by_asc(super::entity::lms_material_resources::Column::Position)
             .all(connection)
             .await?;
         for row in rows {
@@ -275,15 +285,17 @@ pub async fn material_detail(
     }
     let mut report = None;
     if matches!(material.kind, crate::model::MaterialKind::Report { .. }) {
-        let retrieval = super::entity::report_detail_retrievals::Entity::find()
-            .filter(super::entity::report_detail_retrievals::Column::LmsMaterialId.eq(id.as_ref()))
-            .order_by_desc(super::entity::report_detail_retrievals::Column::TimestampMillis)
-            .order_by_desc(super::entity::report_detail_retrievals::Column::TimestampCounter)
-            .order_by_desc(super::entity::report_detail_retrievals::Column::Id)
+        let retrieval = super::entity::lms_report_detail_retrievals::Entity::find()
+            .filter(
+                super::entity::lms_report_detail_retrievals::Column::LmsMaterialId.eq(id.as_ref()),
+            )
+            .order_by_desc(super::entity::lms_report_detail_retrievals::Column::TimestampMillis)
+            .order_by_desc(super::entity::lms_report_detail_retrievals::Column::TimestampCounter)
+            .order_by_desc(super::entity::lms_report_detail_retrievals::Column::Id)
             .one(connection)
             .await?;
         if let Some(retrieval) = retrieval {
-            let row = super::entity::report_details::Entity::find_by_id(retrieval.id)
+            let row = super::entity::lms_report_details::Entity::find_by_id(retrieval.id)
                 .one(connection)
                 .await?
                 .ok_or(super::Error::InvalidData("stored report"))?;

@@ -1,4 +1,4 @@
-# courses
+# lms_courses
 
 ## Description
 
@@ -8,9 +8,9 @@
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE courses (
+CREATE TABLE lms_courses (
     -- 講義一覧のスナップショット。LMSの講義IDがない行も表示順を含めて保持する
-    retrieval_id TEXT NOT NULL REFERENCES course_retrievals(id), -- 講義一覧の取得ID
+    retrieval_id TEXT NOT NULL REFERENCES lms_course_retrievals(id), -- 講義一覧の取得ID
     position INTEGER NOT NULL, -- 取得した一覧内の表示順（0始まり）
     lms_course_id TEXT, -- LMSの講義ID。IDが取得できない行はNULL
     name TEXT NOT NULL, -- 講義名
@@ -36,7 +36,7 @@ CREATE TABLE courses (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | TEXT |  | false |  | [course_retrievals](course_retrievals.md) | 講義一覧の取得ID |
+| retrieval_id | TEXT |  | false |  | [lms_course_retrievals](lms_course_retrievals.md) | 講義一覧の取得ID |
 | position | INTEGER |  | false |  |  | 取得した一覧内の表示順（0始まり） |
 | lms_course_id | TEXT |  | true |  |  | LMSの講義ID。IDが取得できない行はNULL |
 | name | TEXT |  | false |  |  | 講義名 |
@@ -51,8 +51,8 @@ CREATE TABLE courses (
 | ---- | ---- | ---------- |
 | retrieval_id | PRIMARY KEY | PRIMARY KEY (retrieval_id) |
 | position | PRIMARY KEY | PRIMARY KEY (position) |
-| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES course_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
-| sqlite_autoindex_courses_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
+| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES lms_course_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
+| sqlite_autoindex_lms_courses_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
 | - | CHECK | CHECK ( (availability = 'available' AND lms_course_id IS NOT NULL) OR (availability = 'unavailable' AND lms_course_id IS NULL) ) |
 | - | CHECK | CHECK (type IN ('scheduled', 'other', 'unknown')) |
 | - | CHECK | CHECK (weekday BETWEEN 1 AND 7) |
@@ -63,17 +63,17 @@ CREATE TABLE courses (
 
 | Name | Definition |
 | ---- | ---------- |
-| courses_course_retrieval | CREATE INDEX courses_course_retrieval ON courses(lms_course_id, retrieval_id) |
-| sqlite_autoindex_courses_1 | PRIMARY KEY (retrieval_id, position) |
+| lms_courses_course_retrieval | CREATE INDEX lms_courses_course_retrieval ON lms_courses(lms_course_id, retrieval_id) |
+| sqlite_autoindex_lms_courses_1 | PRIMARY KEY (retrieval_id, position) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"courses" |o--|| "course_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES course_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_courses" |o--|| "lms_course_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES lms_course_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"courses" {
+"lms_courses" {
   TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_course_id
@@ -83,7 +83,7 @@ erDiagram
   INTEGER weekday
   INTEGER period
 }
-"course_retrievals" {
+"lms_course_retrievals" {
   TEXT id PK
   INTEGER retrieved_at
   INTEGER timestamp_millis

@@ -109,7 +109,7 @@ impl Store {
         material: &crate::model::MaterialId,
         resource: &crate::model::ResourceId,
     ) -> Result<crate::model::SavedFile, Error> {
-        entity::saved_files::Entity::find_by_id((
+        entity::lms_saved_files::Entity::find_by_id((
             material.as_ref().to_owned(),
             resource.as_ref().to_owned(),
         ))
@@ -178,8 +178,8 @@ impl Store {
         &self,
         hash: &crate::model::ContentHash,
     ) -> Result<bool, Error> {
-        Ok(entity::saved_files::Entity::find()
-            .filter(entity::saved_files::Column::ContentHash.eq(hash.as_ref()))
+        Ok(entity::lms_saved_files::Entity::find()
+            .filter(entity::lms_saved_files::Column::ContentHash.eq(hash.as_ref()))
             .one(&self.connection)
             .await?
             .is_some()
@@ -197,7 +197,7 @@ impl Store {
         file: &crate::model::SavedFile,
     ) -> Result<Option<crate::model::SavedFile>, Error> {
         let transaction = self.connection.begin().await?;
-        let previous = entity::saved_files::Entity::find_by_id((
+        let previous = entity::lms_saved_files::Entity::find_by_id((
             retrieval.material_id.as_ref().to_owned(),
             resource.as_ref().to_owned(),
         ))
@@ -206,7 +206,7 @@ impl Store {
         .map(TryInto::try_into)
         .transpose()?;
         let timestamp = next_timestamp(&transaction).await?;
-        entity::saved_files::Entity::insert(entity::saved_files::ActiveModel {
+        entity::lms_saved_files::Entity::insert(entity::lms_saved_files::ActiveModel {
             lms_material_id: sea_orm::ActiveValue::Set(retrieval.material_id.as_ref().to_owned()),
             lms_resource_id: sea_orm::ActiveValue::Set(resource.as_ref().to_owned()),
             content_hash: sea_orm::ActiveValue::Set(file.content_hash.as_ref().to_owned()),
@@ -220,16 +220,16 @@ impl Store {
         })
         .on_conflict(
             sea_orm::sea_query::OnConflict::columns([
-                entity::saved_files::Column::LmsMaterialId,
-                entity::saved_files::Column::LmsResourceId,
+                entity::lms_saved_files::Column::LmsMaterialId,
+                entity::lms_saved_files::Column::LmsResourceId,
             ])
             .update_columns([
-                entity::saved_files::Column::ContentHash,
-                entity::saved_files::Column::OriginalFilename,
-                entity::saved_files::Column::OriginalSize,
-                entity::saved_files::Column::ResourceRetrievalId,
-                entity::saved_files::Column::TimestampMillis,
-                entity::saved_files::Column::TimestampCounter,
+                entity::lms_saved_files::Column::ContentHash,
+                entity::lms_saved_files::Column::OriginalFilename,
+                entity::lms_saved_files::Column::OriginalSize,
+                entity::lms_saved_files::Column::ResourceRetrievalId,
+                entity::lms_saved_files::Column::TimestampMillis,
+                entity::lms_saved_files::Column::TimestampCounter,
             ])
             .to_owned(),
         )
@@ -778,10 +778,10 @@ mod tests {
             .await
             .unwrap();
         for statement in [
-            "UPDATE course_materials SET resource_availability = NULL",
-            "UPDATE course_materials SET resource_availability = ''",
-            "UPDATE course_materials SET type = 'report'",
-            "UPDATE material_resources SET type = 'external', url = NULL",
+            "UPDATE lms_course_materials SET resource_availability = NULL",
+            "UPDATE lms_course_materials SET resource_availability = ''",
+            "UPDATE lms_course_materials SET type = 'report'",
+            "UPDATE lms_material_resources SET type = 'external', url = NULL",
         ] {
             assert!(
                 store
@@ -793,9 +793,9 @@ mod tests {
             );
         }
         for statement in [
-            "UPDATE course_materials SET type = 'report', resource_availability = NULL",
-            "UPDATE material_resources SET type = 'external'",
-            "UPDATE material_resources SET type = 'file', url = NULL",
+            "UPDATE lms_course_materials SET type = 'report', resource_availability = NULL",
+            "UPDATE lms_material_resources SET type = 'external'",
+            "UPDATE lms_material_resources SET type = 'file', url = NULL",
         ] {
             store
                 .connection
@@ -966,35 +966,80 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn table_names_distinguish_lms_data_from_shared_and_google_drive_data() {
+        let store = super::Store::open("sqlite::memory:").await.unwrap();
+        let names = store
+            .connection
+            .query_all_raw(sea_orm::Statement::from_string(
+                sea_orm::DbBackend::Sqlite,
+                "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+            ))
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.try_get::<String>("", "name").unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            [
+                "archive_state",
+                "google_drive_saved_files",
+                "lms_course_material_folders",
+                "lms_course_material_retrievals",
+                "lms_course_materials",
+                "lms_course_retrievals",
+                "lms_courses",
+                "lms_material_resource_retrievals",
+                "lms_material_resources",
+                "lms_report_detail_retrievals",
+                "lms_report_details",
+                "lms_saved_files",
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn every_entity_matches_schema_columns_nullability_and_composite_keys() {
         let store = super::Store::open("sqlite::memory:").await.unwrap();
         entity_matches_schema(&store.connection, super::entity::archive_state::Entity).await;
-        entity_matches_schema(&store.connection, super::entity::course_retrievals::Entity).await;
-        entity_matches_schema(&store.connection, super::entity::courses::Entity).await;
         entity_matches_schema(
             &store.connection,
-            super::entity::course_material_retrievals::Entity,
+            super::entity::lms_course_retrievals::Entity,
+        )
+        .await;
+        entity_matches_schema(&store.connection, super::entity::lms_courses::Entity).await;
+        entity_matches_schema(
+            &store.connection,
+            super::entity::lms_course_material_retrievals::Entity,
         )
         .await;
         entity_matches_schema(
             &store.connection,
-            super::entity::course_material_folders::Entity,
+            super::entity::lms_course_material_folders::Entity,
         )
         .await;
-        entity_matches_schema(&store.connection, super::entity::course_materials::Entity).await;
         entity_matches_schema(
             &store.connection,
-            super::entity::material_resource_retrievals::Entity,
+            super::entity::lms_course_materials::Entity,
         )
         .await;
-        entity_matches_schema(&store.connection, super::entity::material_resources::Entity).await;
         entity_matches_schema(
             &store.connection,
-            super::entity::report_detail_retrievals::Entity,
+            super::entity::lms_material_resource_retrievals::Entity,
         )
         .await;
-        entity_matches_schema(&store.connection, super::entity::report_details::Entity).await;
-        entity_matches_schema(&store.connection, super::entity::saved_files::Entity).await;
+        entity_matches_schema(
+            &store.connection,
+            super::entity::lms_material_resources::Entity,
+        )
+        .await;
+        entity_matches_schema(
+            &store.connection,
+            super::entity::lms_report_detail_retrievals::Entity,
+        )
+        .await;
+        entity_matches_schema(&store.connection, super::entity::lms_report_details::Entity).await;
+        entity_matches_schema(&store.connection, super::entity::lms_saved_files::Entity).await;
         entity_matches_schema(
             &store.connection,
             super::entity::google_drive_saved_files::Entity,

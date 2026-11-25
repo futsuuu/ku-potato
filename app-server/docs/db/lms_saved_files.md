@@ -1,4 +1,4 @@
-# saved_files
+# lms_saved_files
 
 ## Description
 
@@ -8,7 +8,7 @@ LMSのファイル資料ごとの現在の保存ファイル。成功時だけ�
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE saved_files (
+CREATE TABLE lms_saved_files (
     -- LMSのファイル資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
     lms_material_id TEXT NOT NULL, -- LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID
@@ -19,8 +19,8 @@ CREATE TABLE saved_files (
     timestamp_millis INTEGER NOT NULL CHECK (timestamp_millis >= 0), -- 保存ファイル情報の更新時の論理タイムスタンプのミリ秒部分。取得履歴とは独立
     timestamp_counter INTEGER NOT NULL CHECK (timestamp_counter >= 0), -- 論理タイムスタンプの同一ミリ秒内の連番
     PRIMARY KEY (lms_material_id, lms_resource_id),
-    FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources(retrieval_id, lms_resource_id),
-    FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals(id, lms_material_id)
+    FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES lms_material_resources(retrieval_id, lms_resource_id),
+    FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES lms_material_resource_retrievals(id, lms_material_id)
 )
 ```
 
@@ -30,12 +30,12 @@ CREATE TABLE saved_files (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| lms_material_id | TEXT |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) | LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する |
-| lms_resource_id | TEXT |  | false |  | [material_resources](material_resources.md) | LMSの資料ID |
+| lms_material_id | TEXT |  | false |  | [lms_material_resource_retrievals](lms_material_resource_retrievals.md) | LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する |
+| lms_resource_id | TEXT |  | false |  | [lms_material_resources](lms_material_resources.md) | LMSの資料ID |
 | content_hash | TEXT |  | false |  |  | 原本のSHA-256。同じ内容を複数資料から参照できる |
 | original_filename | TEXT |  | false |  |  | 保存ファイルの元のファイル名 |
 | original_size | INTEGER |  | false |  |  | 保存時の圧縮を行う前の原本サイズ（バイト） |
-| resource_retrieval_id | TEXT |  | false |  | [material_resource_retrievals](material_resource_retrievals.md) [material_resources](material_resources.md) | 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する |
+| resource_retrieval_id | TEXT |  | false |  | [lms_material_resource_retrievals](lms_material_resource_retrievals.md) [lms_material_resources](lms_material_resources.md) | 保存ファイルに対応する資料一覧の取得ID。教材ID・資料IDの両方との整合性を外部キーで保証する |
 | timestamp_millis | INTEGER |  | false |  |  | 保存ファイル情報の更新時の論理タイムスタンプのミリ秒部分。取得履歴とは独立 |
 | timestamp_counter | INTEGER |  | false |  |  | 論理タイムスタンプの同一ミリ秒内の連番 |
 
@@ -45,9 +45,9 @@ CREATE TABLE saved_files (
 | ---- | ---- | ---------- |
 | lms_material_id | PRIMARY KEY | PRIMARY KEY (lms_material_id) |
 | lms_resource_id | PRIMARY KEY | PRIMARY KEY (lms_resource_id) |
-| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
-| - (Foreign key ID: 1) | FOREIGN KEY | FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
-| sqlite_autoindex_saved_files_1 | PRIMARY KEY | PRIMARY KEY (lms_material_id, lms_resource_id) |
+| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES lms_material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
+| - (Foreign key ID: 1) | FOREIGN KEY | FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES lms_material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
+| sqlite_autoindex_lms_saved_files_1 | PRIMARY KEY | PRIMARY KEY (lms_material_id, lms_resource_id) |
 | - | CHECK | CHECK (original_size >= 0) |
 | - | CHECK | CHECK (timestamp_millis >= 0) |
 | - | CHECK | CHECK (timestamp_counter >= 0) |
@@ -56,18 +56,18 @@ CREATE TABLE saved_files (
 
 | Name | Definition |
 | ---- | ---------- |
-| saved_files_content_hash | CREATE INDEX saved_files_content_hash ON saved_files(content_hash) |
-| sqlite_autoindex_saved_files_1 | PRIMARY KEY (lms_material_id, lms_resource_id) |
+| lms_saved_files_content_hash | CREATE INDEX lms_saved_files_content_hash ON lms_saved_files(content_hash) |
+| sqlite_autoindex_lms_saved_files_1 | PRIMARY KEY (lms_material_id, lms_resource_id) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"saved_files" }o--|| "material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"saved_files" }o--|| "material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_saved_files" }o--|| "lms_material_resource_retrievals" : "FOREIGN KEY (resource_retrieval_id, lms_material_id) REFERENCES lms_material_resource_retrievals (id, lms_material_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_saved_files" }o--|| "lms_material_resources" : "FOREIGN KEY (resource_retrieval_id, lms_resource_id) REFERENCES lms_material_resources (retrieval_id, lms_resource_id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"saved_files" {
+"lms_saved_files" {
   TEXT lms_material_id PK
   TEXT lms_resource_id PK
   TEXT content_hash
@@ -77,14 +77,14 @@ erDiagram
   INTEGER timestamp_millis
   INTEGER timestamp_counter
 }
-"material_resource_retrievals" {
+"lms_material_resource_retrievals" {
   TEXT id PK
   INTEGER retrieved_at
   INTEGER timestamp_millis
   INTEGER timestamp_counter
   TEXT lms_material_id
 }
-"material_resources" {
+"lms_material_resources" {
   TEXT retrieval_id PK
   INTEGER position PK
   TEXT lms_resource_id

@@ -1,4 +1,4 @@
-# course_material_folders
+# lms_course_material_folders
 
 ## Description
 
@@ -8,9 +8,9 @@
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
-CREATE TABLE course_material_folders (
+CREATE TABLE lms_course_material_folders (
     -- 教材一覧の取得時点における教材フォルダー。LMS上では「授業」と表示されるまとまり
-    retrieval_id TEXT NOT NULL REFERENCES course_material_retrievals(id), -- 教材一覧の取得ID
+    retrieval_id TEXT NOT NULL REFERENCES lms_course_material_retrievals(id), -- 教材一覧の取得ID
     position INTEGER NOT NULL, -- 取得した一覧内のフォルダー表示順（0始まり）
     name TEXT NOT NULL, -- 教材フォルダー名
     class_date TEXT, -- 授業日（YYYY-MM-DD）。未掲載の場合はNULL
@@ -25,8 +25,8 @@ CREATE TABLE course_material_folders (
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| retrieval_id | TEXT |  | false | [course_materials](course_materials.md) | [course_material_retrievals](course_material_retrievals.md) | 教材一覧の取得ID |
-| position | INTEGER |  | false | [course_materials](course_materials.md) |  | 取得した一覧内のフォルダー表示順（0始まり） |
+| retrieval_id | TEXT |  | false | [lms_course_materials](lms_course_materials.md) | [lms_course_material_retrievals](lms_course_material_retrievals.md) | 教材一覧の取得ID |
+| position | INTEGER |  | false | [lms_course_materials](lms_course_materials.md) |  | 取得した一覧内のフォルダー表示順（0始まり） |
 | name | TEXT |  | false |  |  | 教材フォルダー名 |
 | class_date | TEXT |  | true |  |  | 授業日（YYYY-MM-DD）。未掲載の場合はNULL |
 | description_html | TEXT |  | true |  |  | フォルダーの説明HTML。取得できない場合はNULL |
@@ -37,38 +37,38 @@ CREATE TABLE course_material_folders (
 | ---- | ---- | ---------- |
 | retrieval_id | PRIMARY KEY | PRIMARY KEY (retrieval_id) |
 | position | PRIMARY KEY | PRIMARY KEY (position) |
-| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES course_material_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
-| sqlite_autoindex_course_material_folders_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
+| - (Foreign key ID: 0) | FOREIGN KEY | FOREIGN KEY (retrieval_id) REFERENCES lms_course_material_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE |
+| sqlite_autoindex_lms_course_material_folders_1 | PRIMARY KEY | PRIMARY KEY (retrieval_id, position) |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
-| sqlite_autoindex_course_material_folders_1 | PRIMARY KEY (retrieval_id, position) |
+| sqlite_autoindex_lms_course_material_folders_1 | PRIMARY KEY (retrieval_id, position) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"course_material_folders" |o--|| "course_material_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES course_material_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
-"course_materials" }o--|| "course_material_folders" : "FOREIGN KEY (retrieval_id, folder_position) REFERENCES course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_course_material_folders" |o--|| "lms_course_material_retrievals" : "FOREIGN KEY (retrieval_id) REFERENCES lms_course_material_retrievals (id) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
+"lms_course_materials" }o--|| "lms_course_material_folders" : "FOREIGN KEY (retrieval_id, folder_position) REFERENCES lms_course_material_folders (retrieval_id, position) ON UPDATE NO ACTION ON DELETE NO ACTION MATCH NONE"
 
-"course_material_folders" {
+"lms_course_material_folders" {
   TEXT retrieval_id PK
   INTEGER position PK
   TEXT name
   TEXT class_date
   TEXT description_html
 }
-"course_material_retrievals" {
+"lms_course_material_retrievals" {
   TEXT id PK
   INTEGER retrieved_at
   INTEGER timestamp_millis
   INTEGER timestamp_counter
   TEXT lms_course_id
 }
-"course_materials" {
+"lms_course_materials" {
   TEXT retrieval_id PK
   INTEGER position PK
   INTEGER folder_position FK
