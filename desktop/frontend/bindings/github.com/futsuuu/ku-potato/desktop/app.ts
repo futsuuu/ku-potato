@@ -5,6 +5,10 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
+export function OpenGoogleDriveFile(file: string): $CancellablePromise<void> {
+    return $Call.ByID(2302955472, file);
+}
+
 export function OpenResource(material: string, resource: string): $CancellablePromise<void> {
     return $Call.ByID(3058448529, material, resource);
 }

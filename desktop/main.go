@@ -46,6 +46,19 @@ func (a *App) OpenResource(ctx context.Context, material, resource string) error
 	return nil
 }
 
+func (a *App) OpenGoogleDriveFile(ctx context.Context, file string) error {
+	opener, err := a.server(ctx)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	if err := opener.openGoogleDriveFile(ctx, file, openDefault); err != nil {
+		return fmt.Errorf("could not open the Google Drive file: %w", err)
+	}
+	return nil
+}
+
 func mainWindowOptions() application.WebviewWindowOptions {
 	return application.WebviewWindowOptions{
 		Title: "KU-POTATO", Width: 1120, Height: 780, MinWidth: 760, MinHeight: 560,
