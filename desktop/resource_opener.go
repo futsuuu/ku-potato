@@ -24,6 +24,30 @@ func (o resourceOpener) open(
 	material, resource string,
 	launch func(string) error,
 ) error {
+	return o.openPath(
+		ctx,
+		fmt.Sprintf(
+			"/materials/%s/resources/%s",
+			url.PathEscape(material),
+			url.PathEscape(resource),
+		),
+		launch,
+	)
+}
+
+func (o resourceOpener) openGoogleDriveFile(
+	ctx context.Context,
+	file string,
+	launch func(string) error,
+) error {
+	return o.openPath(ctx, "/google-drive/files/"+url.PathEscape(file), launch)
+}
+
+func (o resourceOpener) openPath(
+	ctx context.Context,
+	resourcePath string,
+	launch func(string) error,
+) error {
 	endpoint, err := url.Parse(o.endpoint)
 	if err != nil || (endpoint.Scheme != "http" && endpoint.Scheme != "https") ||
 		endpoint.Host == "" ||
@@ -36,12 +60,7 @@ func (o resourceOpener) open(
 	if o.sharedFiles {
 		method, action = http.MethodPost, "prepare"
 	}
-	requestURL := fmt.Sprintf("%s/materials/%s/resources/%s/%s",
-		strings.TrimRight(o.endpoint, "/"),
-		url.PathEscape(material),
-		url.PathEscape(resource),
-		action,
-	)
+	requestURL := strings.TrimRight(o.endpoint, "/") + resourcePath + "/" + action
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, nil)
 	if err != nil {
 		return err

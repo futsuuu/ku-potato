@@ -101,6 +101,62 @@ func TestRemoteConnectionTransfersBytesEvenOnLoopback(t *testing.T) {
 	}
 }
 
+func TestGoogleDriveFilesUseDedicatedEndpoints(t *testing.T) {
+	for _, shared := range []bool{false, true} {
+		t.Run(fmt.Sprint(shared), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "drive.pdf")
+			if err := os.WriteFile(path, []byte("drive bytes"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					method, action := http.MethodGet, "file"
+					if shared {
+						method, action = http.MethodPost, "prepare"
+					}
+					if r.Method != method ||
+						r.URL.Path != "/google-drive/files/drive_file/"+action {
+						t.Error("unexpected endpoint", r.Method, r.URL.Path)
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					if shared {
+						_ = json.NewEncoder(w).
+							Encode(map[string]any{"data": map[string]string{"path": path}})
+					} else {
+						w.Header().Set("Content-Disposition", `attachment; filename="drive.pdf"`)
+						_, _ = w.Write([]byte("drive bytes"))
+					}
+				}),
+			)
+			defer server.Close()
+			opener := resourceOpener{
+				endpoint:    server.URL,
+				sharedFiles: shared,
+				tempDir:     t.TempDir(),
+			}
+			launches := 0
+			if err := opener.openGoogleDriveFile(
+				context.Background(),
+				"drive_file",
+				func(opened string) error {
+					launches++
+					body, err := os.ReadFile(opened)
+					if err != nil || string(body) != "drive bytes" {
+						t.Error("incorrect file", string(body), err)
+					}
+					return nil
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if launches != 1 {
+				t.Fatal("file was not opened", launches)
+			}
+		})
+	}
+}
+
 func TestRemoteFailuresNeverLaunchAndRemovePartialCopies(t *testing.T) {
 	for _, failure := range []string{"missing", "incomplete", "redirect", "invalid-filename", "launch"} {
 		t.Run(failure, func(t *testing.T) {
