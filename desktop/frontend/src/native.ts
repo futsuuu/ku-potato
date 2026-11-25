@@ -48,6 +48,19 @@ export async function openResource(baseUrl: string, materialId: string, resource
   link.click();
 }
 
+export async function openGoogleDriveFile(baseUrl: string, fileId: string) {
+  if (isDesktop()) {
+    const { OpenGoogleDriveFile } =
+      await import("../bindings/github.com/futsuuu/ku-potato/desktop/app");
+    await OpenGoogleDriveFile(fileId);
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = `${baseUrl.replace(/\/$/, "")}/google-drive/files/${encodeURIComponent(fileId)}/file`;
+  link.download = "";
+  link.click();
+}
+
 export async function openExternal(url: string) {
   const parsed = new URL(url);
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:")

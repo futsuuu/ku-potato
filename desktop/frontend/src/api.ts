@@ -1,7 +1,7 @@
 import createClient from "openapi-fetch";
 import type { components, operations, paths } from "./api.generated";
 import { readEvents } from "./sse";
-import { openResource } from "./native";
+import { openGoogleDriveFile, openResource } from "./native";
 
 export type Schema = components["schemas"];
 export type Status = Schema["OperationStatus"];
@@ -79,6 +79,21 @@ export function createAPI(baseUrl: string) {
           client.POST("/auth/google/check", { parseAs: "stream", signal: options.signal }),
           options,
         );
+      },
+    },
+    googleDrive: {
+      download(url: string, options: Observe = {}) {
+        return stream<"downloadGoogleDriveFile">(
+          client.POST("/google-drive/files/download", {
+            body: { url },
+            parseAs: "stream",
+            signal: options.signal,
+          }),
+          options,
+        );
+      },
+      openFile(fileId: string) {
+        return openGoogleDriveFile(baseUrl, fileId);
       },
     },
     async auth() {

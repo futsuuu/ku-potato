@@ -31,6 +31,7 @@ export default function ResourceRow(props: {
   reload: () => void;
 }) {
   const operation = createOperation<void>();
+  const savedFile = () => props.resource.googleDriveFile?.savedFile ?? props.resource.savedFile;
   async function download(openAfter = true) {
     const { api, materialId, resource, reload } = untrack(() => ({
       api: props.api,
@@ -39,6 +40,11 @@ export default function ResourceRow(props: {
       reload: props.reload,
     }));
     await operation.run(async (observe) => {
+      if (resource.googleDriveFile) {
+        await api.googleDrive.download(resource.url!, observe);
+        if (openAfter) await api.googleDrive.openFile(resource.googleDriveFile.id);
+        return;
+      }
       const result = await api.download(materialId, resource.lmsResourceId, observe);
       if (result.type === "external") {
         if (openAfter) await openExternal(result.url);
@@ -54,10 +60,15 @@ export default function ResourceRow(props: {
       materialId: props.materialId,
       resource: props.resource,
     }));
-    const saved = resource.savedFile;
-    if (saved) {
+    if (resource.googleDriveFile?.savedFile) {
+      await operation.run(async () => api.googleDrive.openFile(resource.googleDriveFile!.id));
+    } else if (resource.savedFile) {
       await operation.run(async () => api.openResource(materialId, resource.lmsResourceId));
-    } else if (resource.archived || resource.type === "unknown") {
+    } else if (
+      (resource.archived && !resource.googleDriveFile) ||
+      resource.type === "unknown" ||
+      (resource.type === "external" && !resource.googleDriveFile)
+    ) {
       await operation.run(async () => openExternal(resource.url!));
     } else {
       await download();
@@ -70,7 +81,7 @@ export default function ResourceRow(props: {
           class="resource-main"
           disabled={
             operation.pending() ||
-            (!props.resource.savedFile &&
+            (!savedFile() &&
               (props.resource.archived || props.resource.type === "unknown") &&
               !props.resource.url)
           }
@@ -79,11 +90,13 @@ export default function ResourceRow(props: {
           <BudouxText text={props.resource.name} />
         </button>
         <span class="resource-type">
-          {props.resource.type === "file"
-            ? "ファイル"
-            : props.resource.type === "external"
-              ? "外部リンク"
-              : "未対応"}
+          {props.resource.googleDriveFile
+            ? "Google Drive"
+            : props.resource.type === "file"
+              ? "ファイル"
+              : props.resource.type === "external"
+                ? "外部リンク"
+                : "未対応"}
         </span>
       </div>
       <Show when={props.resource.archived}>
@@ -102,11 +115,8 @@ export default function ResourceRow(props: {
             リンクを開く
           </ResourceActionButton>
         </Show>
-        <Show when={props.resource.type === "external" && props.resource.savedFile}>
-          <ResourceActionButton
-            disabled={operation.pending() || !!props.resource.archived}
-            onClick={() => void download(false)}
-          >
+        <Show when={props.resource.googleDriveFile?.savedFile}>
+          <ResourceActionButton disabled={operation.pending()} onClick={() => void download(false)}>
             <Download class="icon" aria-hidden="true" />
             再ダウンロード
           </ResourceActionButton>
