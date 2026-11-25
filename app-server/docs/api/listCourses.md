@@ -22,7 +22,7 @@ Returns SSE status events followed by exactly one result or error event, then cl
 
 **Content type:** `text/event-stream`
 
-array of [StreamEvent_Vec_Course](schemas/StreamEvent_Vec_Course.md)
+array of [StreamEvent\_Vec\_Course](schemas/StreamEvent_Vec_Course.md)
 
 ### 400, 403
 

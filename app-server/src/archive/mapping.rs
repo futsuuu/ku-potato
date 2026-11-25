@@ -107,6 +107,7 @@ impl TryFrom<super::entity::material_resources::Model> for crate::model::Resourc
             description: row.description,
             archived: false,
             saved_file: None,
+            google_drive_file: None,
         })
     }
 }
@@ -115,6 +116,21 @@ impl TryFrom<super::entity::saved_files::Model> for crate::model::SavedFile {
     type Error = super::Error;
 
     fn try_from(row: super::entity::saved_files::Model) -> Result<Self, Self::Error> {
+        Ok(Self {
+            content_hash: row.content_hash.try_into()?,
+            original_filename: row.original_filename,
+            original_size: row
+                .original_size
+                .try_into()
+                .map_err(|_| super::Error::InvalidData("stored size"))?,
+        })
+    }
+}
+
+impl TryFrom<super::entity::google_drive_saved_files::Model> for crate::model::SavedFile {
+    type Error = super::Error;
+
+    fn try_from(row: super::entity::google_drive_saved_files::Model) -> Result<Self, Self::Error> {
         Ok(Self {
             content_hash: row.content_hash.try_into()?,
             original_filename: row.original_filename,
@@ -447,6 +463,7 @@ mod tests {
                 description: Some("Description".into()),
                 archived: false,
                 saved_file: None,
+                google_drive_file: None,
             };
             let expected = serde_json::to_value(&resource).unwrap();
             let row = crate::archive::entity::material_resources::ActiveModel {

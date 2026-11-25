@@ -16,7 +16,7 @@ Returns the last observed Kogakuin SSO authentication state without starting an 
 
 **Content type:** `application/json`
 
-schema: [Data_Authentication](schemas/Data_Authentication.md)
+schema: [Data\_Authentication](schemas/Data_Authentication.md)
 
 - **`data` (required)**
 

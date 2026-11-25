@@ -1,4 +1,4 @@
-# StreamEvent_CourseMaterials
+# StreamEvent\_CourseMaterials
 
 **One of:**
 
@@ -6,7 +6,7 @@
   - **`data` (required)**: [OperationStatus](OperationStatus.md)
   - **`event` (required)**: `string`, possible values: `"status"`
 - `object`
-  - **`data` (required)**: [Data_CourseMaterials](Data_CourseMaterials.md)
+  - **`data` (required)**: [Data\_CourseMaterials](Data_CourseMaterials.md)
   - **`event` (required)**: `string`, possible values: `"result"`
 - `object`
   - **`data` (required)**: [ErrorBody](ErrorBody.md)

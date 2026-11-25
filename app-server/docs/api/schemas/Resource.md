@@ -10,6 +10,7 @@
   - **`archived`**: `boolean`
   - **`description`**: `string | null`
   - **`firstViewedOn`**: `string | null`, format: `date`
+  - **`googleDriveFile`**: [GoogleDriveFile](GoogleDriveFile.md) | `null`
   - **`registeredOn`**: `string | null`, format: `date`
   - **`savedFile`**: [SavedFile](SavedFile.md) | `null`
 

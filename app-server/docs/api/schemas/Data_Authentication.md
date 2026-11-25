@@ -1,4 +1,4 @@
-# Data_Authentication
+# Data\_Authentication
 
 **Type:** `object`
 

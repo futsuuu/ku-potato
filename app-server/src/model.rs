@@ -115,6 +115,76 @@ impl AsRef<str> for ResourceId {
     }
 }
 
+#[derive(
+    utoipa::ToSchema, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(try_from = "String")]
+#[schema(min_length = 1, max_length = 256, pattern = "^[A-Za-z0-9_-]+$")]
+pub struct GoogleDriveFileId(String);
+
+impl TryFrom<String> for GoogleDriveFileId {
+    type Error = InvalidValue;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.is_empty()
+            || value.len() > 256
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"_-".contains(&byte))
+        {
+            return Err(InvalidValue {
+                field: "Google Drive file ID",
+            });
+        }
+        Ok(Self(value))
+    }
+}
+
+impl AsRef<str> for GoogleDriveFileId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(
+    utoipa::ToSchema, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(try_from = "String")]
+pub struct GoogleDriveUrl(url::Url);
+
+impl TryFrom<String> for GoogleDriveUrl {
+    type Error = InvalidValue;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        url::Url::parse(&value)
+            .ok()
+            .and_then(|url| google_drive::download_url(&url))
+            .map(Self)
+            .ok_or(InvalidValue {
+                field: "Google Drive file URL",
+            })
+    }
+}
+
+impl GoogleDriveUrl {
+    pub fn file_id(&self) -> GoogleDriveFileId {
+        GoogleDriveFileId(
+            self.0
+                .query_pairs()
+                .find(|(key, _)| key == "id")
+                .unwrap()
+                .1
+                .into_owned(),
+        )
+    }
+}
+
+impl AsRef<url::Url> for GoogleDriveUrl {
+    fn as_ref(&self) -> &url::Url {
+        &self.0
+    }
+}
+
 #[derive(utoipa::ToSchema, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(try_from = "String")]
 #[schema(min_length = 64, max_length = 64, pattern = "^[0-9a-f]{64}$")]
@@ -471,6 +541,23 @@ pub struct Resource {
     pub archived: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub saved_file: Option<SavedFile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_drive_file: Option<GoogleDriveFile>,
+}
+
+#[derive(utoipa::ToSchema, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoogleDriveFile {
+    pub id: GoogleDriveFileId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub saved_file: Option<SavedFile>,
+}
+
+#[derive(utoipa::ToSchema, Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoogleDriveDownload {
+    pub file: SavedFile,
+    pub download_url: String,
 }
 
 #[derive(utoipa::ToSchema, Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -690,6 +777,36 @@ mod tests {
         for value in [1, 9999] {
             assert!(super::AcademicYear::try_from(value).is_ok());
         }
+    }
+
+    #[test]
+    fn google_drive_identifiers_and_urls_are_validated_independently_of_lms_ids() {
+        for value in ["", "../file", "file/id", "id?key", &"a".repeat(257)] {
+            assert!(super::GoogleDriveFileId::try_from(value.to_owned()).is_err());
+        }
+        assert!(super::GoogleDriveFileId::try_from("drive_file-123".to_owned()).is_ok());
+        for value in [
+            "https://example.com/file/d/drive_file-123/view",
+            "https://drive.google.com/drive/folders/folder",
+            "http://drive.google.com/file/d/drive_file-123/view",
+        ] {
+            assert!(super::GoogleDriveUrl::try_from(value.to_owned()).is_err());
+        }
+        let url = super::GoogleDriveUrl::try_from(
+            "https://drive.google.com/file/d/drive_file-123/view?resourcekey=secret".to_owned(),
+        )
+        .unwrap();
+        assert_eq!(url.file_id().as_ref(), "drive_file-123");
+        assert!(
+            url.as_ref()
+                .query_pairs()
+                .any(|(key, value)| key == "resourcekey" && value == "secret")
+        );
+        let alternate = super::GoogleDriveUrl::try_from(
+            "https://docs.google.com/document/d/drive_file-123/edit?resourcekey=secret".to_owned(),
+        )
+        .unwrap();
+        assert_eq!(url, alternate);
     }
 
     #[test]

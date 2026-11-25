@@ -6,6 +6,7 @@ pub mod course_material_retrievals;
 pub mod course_materials;
 pub mod course_retrievals;
 pub mod courses;
+pub mod google_drive_saved_files;
 pub mod material_resource_retrievals;
 pub mod material_resources;
 pub mod report_detail_retrievals;

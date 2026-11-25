@@ -1,4 +1,4 @@
-# StreamEvent_Assignments
+# StreamEvent\_Assignments
 
 **One of:**
 
@@ -6,7 +6,7 @@
   - **`data` (required)**: [OperationStatus](OperationStatus.md)
   - **`event` (required)**: `string`, possible values: `"status"`
 - `object`
-  - **`data` (required)**: [Data_Assignments](Data_Assignments.md)
+  - **`data` (required)**: [Data\_Assignments](Data_Assignments.md)
   - **`event` (required)**: `string`, possible values: `"result"`
 - `object`
   - **`data` (required)**: [ErrorBody](ErrorBody.md)

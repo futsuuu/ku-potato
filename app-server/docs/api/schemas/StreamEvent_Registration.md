@@ -1,4 +1,4 @@
-# StreamEvent_Registration
+# StreamEvent\_Registration
 
 **One of:**
 
@@ -6,7 +6,7 @@
   - **`data` (required)**: [OperationStatus](OperationStatus.md)
   - **`event` (required)**: `string`, possible values: `"status"`
 - `object`
-  - **`data` (required)**: [Data_Registration](Data_Registration.md)
+  - **`data` (required)**: [Data\_Registration](Data_Registration.md)
   - **`event` (required)**: `string`, possible values: `"result"`
 - `object`
   - **`data` (required)**: [ErrorBody](ErrorBody.md)

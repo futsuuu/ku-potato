@@ -109,6 +109,19 @@ pub enum Request {
         material: crate::model::MaterialId,
         resource: crate::model::ResourceId,
     },
+    DownloadGoogleDrive {
+        url: crate::model::GoogleDriveUrl,
+    },
+}
+
+enum FileTarget {
+    Lms {
+        retrieval: crate::archive::ResourceRetrieval,
+        resource: crate::model::ResourceId,
+    },
+    GoogleDrive {
+        file: crate::model::GoogleDriveFileId,
+    },
 }
 
 impl Request {
@@ -372,10 +385,9 @@ impl Coordinator {
         self.tasks.wait().await;
     }
 
-    async fn save_resource_file(
+    async fn save_file(
         self: &std::sync::Arc<Self>,
-        retrieval: crate::archive::ResourceRetrieval,
-        resource: crate::model::ResourceId,
+        target: FileTarget,
         source: crate::files::Source,
     ) -> Result<crate::model::SavedFile, Error> {
         let operations = self.clone();
@@ -384,11 +396,24 @@ impl Coordinator {
                 async move {
                     let _guard = operations.file_persistence.lock().await;
                     let file = operations.files.save(source).await?;
-                    match operations
-                        .archive
-                        .replace_saved_file(retrieval, &resource, &file)
-                        .await
-                    {
+                    let result = match target {
+                        FileTarget::Lms {
+                            retrieval,
+                            resource,
+                        } => {
+                            operations
+                                .archive
+                                .replace_saved_file(retrieval, &resource, &file)
+                                .await
+                        }
+                        FileTarget::GoogleDrive { file: id } => {
+                            operations
+                                .archive
+                                .replace_google_drive_saved_file(&id, &file)
+                                .await
+                        }
+                    };
+                    match result {
                         Ok(previous) => {
                             if let Some(previous) = previous
                                 && previous.content_hash != file.content_hash
@@ -407,7 +432,7 @@ impl Coordinator {
                         }
                     }
                 }
-                .instrument(tracing::info_span!("operation.save_resource_file")),
+                .instrument(tracing::info_span!("operation.save_file")),
             )
             .await?
     }
@@ -419,9 +444,11 @@ async fn file_replacement_removes_only_content_without_remaining_references() {
     let operations = fixture.operations().await;
     let retrieval = resource_retrieval(&operations).await;
     let save = |resource: &str, content: &[u8]| {
-        operations.save_resource_file(
-            retrieval.clone(),
-            resource.to_owned().try_into().unwrap(),
+        operations.save_file(
+            FileTarget::Lms {
+                retrieval: retrieval.clone(),
+                resource: resource.to_owned().try_into().unwrap(),
+            },
             source(content),
         )
     };
@@ -467,14 +494,97 @@ async fn file_replacement_removes_only_content_without_remaining_references() {
 }
 
 #[tokio::test]
+async fn shared_content_is_retained_until_both_sources_replace_it() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    let operations = fixture.operations().await;
+    let retrieval = resource_retrieval(&operations).await;
+    let save_lms = |content: &[u8]| {
+        operations.save_file(
+            FileTarget::Lms {
+                retrieval: retrieval.clone(),
+                resource: "SRS1".to_owned().try_into().unwrap(),
+            },
+            source(content),
+        )
+    };
+    let save_drive = |content: &[u8]| {
+        operations.save_file(
+            FileTarget::GoogleDrive {
+                file: "drive_file".to_owned().try_into().unwrap(),
+            },
+            source(content),
+        )
+    };
+    let original = save_lms(b"shared").await.unwrap();
+    let drive = save_drive(b"shared").await.unwrap();
+    assert_eq!(original.content_hash, drive.content_hash);
+    save_lms(b"lms update").await.unwrap();
+    assert_eq!(
+        std::fs::read(operations.files.materialize(drive).await.unwrap()).unwrap(),
+        b"shared"
+    );
+    let updated = save_drive(b"drive update").await.unwrap();
+    assert!(matches!(
+        operations.files.materialize(original).await,
+        Err(crate::files::Error::Missing)
+    ));
+    assert_eq!(
+        std::fs::read(operations.files.materialize(updated).await.unwrap()).unwrap(),
+        b"drive update"
+    );
+    operations.shutdown().await;
+}
+
+#[tokio::test]
+async fn lms_downloads_return_drive_links_without_google_authentication() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    fixture
+        .service
+        .google_authentication_required
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let operations = fixture.operations().await;
+    let mut updates = operations
+        .observe_or_start(Request::Download {
+            material: "MAT1".to_owned().try_into().unwrap(),
+            resource: "SRS1".to_owned().try_into().unwrap(),
+        })
+        .await;
+    updates
+        .wait_for(|update| matches!(update, Update::Finished(_)))
+        .await
+        .unwrap();
+    let Update::Finished(Ok(result)) = updates.borrow().clone() else {
+        panic!("Expected an external link")
+    };
+    assert_eq!(result["type"], "external");
+    assert_eq!(
+        result["url"],
+        "https://drive.google.com/file/d/example/view"
+    );
+    assert!(matches!(
+        operations
+            .archive
+            .saved_file(
+                &"MAT1".to_owned().try_into().unwrap(),
+                &"SRS1".to_owned().try_into().unwrap()
+            )
+            .await,
+        Err(crate::archive::Error::Missing)
+    ));
+    operations.shutdown().await;
+}
+
+#[tokio::test]
 async fn failed_file_replacements_discard_new_content_but_keep_shared_content() {
     let fixture = crate::rpc::tests::Fixture::new().await;
     let operations = fixture.operations().await;
     let retrieval = resource_retrieval(&operations).await;
     let save = |retrieval: crate::archive::ResourceRetrieval, content: &[u8]| {
-        operations.save_resource_file(
-            retrieval,
-            "SRS1".to_owned().try_into().unwrap(),
+        operations.save_file(
+            FileTarget::Lms {
+                retrieval,
+                resource: "SRS1".to_owned().try_into().unwrap(),
+            },
             source(content),
         )
     };
@@ -515,18 +625,22 @@ async fn file_persistence_finishes_after_its_observer_is_canceled() {
     let material: crate::model::MaterialId = "MAT1".to_owned().try_into().unwrap();
     let resource: crate::model::ResourceId = "SRS1".to_owned().try_into().unwrap();
     let guard = operations.file_persistence.lock().await;
-    let mut saving = Box::pin(operations.save_resource_file(
-        retrieval.clone(),
-        resource.clone(),
+    let mut saving = Box::pin(operations.save_file(
+        FileTarget::Lms {
+            retrieval: retrieval.clone(),
+            resource: resource.clone(),
+        },
         source(b"saved"),
     ));
     assert!(futures_util::poll!(saving.as_mut()).is_pending());
-    let mut failing = Box::pin(operations.save_resource_file(
-        crate::archive::ResourceRetrieval {
-            id: "missing".into(),
-            ..retrieval
+    let mut failing = Box::pin(operations.save_file(
+        FileTarget::Lms {
+            retrieval: crate::archive::ResourceRetrieval {
+                id: "missing".into(),
+                ..retrieval
+            },
+            resource: resource.clone(),
         },
-        resource.clone(),
         source(b"orphan"),
     ));
     assert!(futures_util::poll!(failing.as_mut()).is_pending());
@@ -857,27 +971,22 @@ impl Coordinator {
                 let source = match outcome? {
                     crate::browser_worker::DownloadOutcome::File(source) => source,
                     crate::browser_worker::DownloadOutcome::ExternalUrl(url) => {
-                        let Some(destination) = google_drive::download_url(url.as_ref()) else {
-                            return Ok(serde_json::to_value(crate::model::Download::External {
-                                url,
-                            })?);
-                        };
-                        let cookies = self.user_browser.google_cookies().await?;
-                        let client = google_drive::Client::new(std::sync::Arc::new(cookies))
-                            .map_err(crate::drive::Error::Client)?;
-                        crate::drive::download_file(
-                            &client,
-                            &destination,
-                            &self.options.temporary_directory,
-                        )
-                        .await?
+                        return Ok(serde_json::to_value(crate::model::Download::External {
+                            url,
+                        })?);
                     }
                 };
                 report_stage(sender, Stage::Saving);
                 let retrieval =
                     retrieval.ok_or(Error::InvalidSnapshot("file without resource retrieval"))?;
                 let file = self
-                    .save_resource_file(retrieval, resource.clone(), source)
+                    .save_file(
+                        FileTarget::Lms {
+                            retrieval,
+                            resource: resource.clone(),
+                        },
+                        source,
+                    )
                     .await?;
                 Ok(serde_json::to_value(crate::model::Download::File {
                     file,
@@ -886,6 +995,27 @@ impl Coordinator {
                         material.as_ref(),
                         resource.as_ref()
                     ),
+                })?)
+            }
+            Request::DownloadGoogleDrive { url } => {
+                report_stage(sender, Stage::Downloading);
+                let cookies = self.user_browser.google_cookies().await?;
+                let client = google_drive::Client::new(std::sync::Arc::new(cookies))
+                    .map_err(crate::drive::Error::Client)?;
+                let source = crate::drive::download_file(
+                    &client,
+                    url.as_ref(),
+                    &self.options.temporary_directory,
+                )
+                .await?;
+                report_stage(sender, Stage::Saving);
+                let id = url.file_id();
+                let file = self
+                    .save_file(FileTarget::GoogleDrive { file: id.clone() }, source)
+                    .await?;
+                Ok(serde_json::to_value(crate::model::GoogleDriveDownload {
+                    file,
+                    download_url: format!("/google-drive/files/{}/file", id.as_ref()),
                 })?)
             }
         }
@@ -909,9 +1039,11 @@ async fn google_download_authentication_failure_does_not_invalidate_kogakuin_sso
             .await;
     }
     let mut updates = operations
-        .observe_or_start(Request::Download {
-            material: "MAT1".to_owned().try_into().unwrap(),
-            resource: "SRS1".to_owned().try_into().unwrap(),
+        .observe_or_start(Request::DownloadGoogleDrive {
+            url: "https://drive.google.com/file/d/example/view"
+                .to_owned()
+                .try_into()
+                .unwrap(),
         })
         .await;
     updates

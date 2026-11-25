@@ -547,6 +547,319 @@
         }
       }
     },
+    "/google-drive/files/download": {
+      "post": {
+        "summary": "Acquire and save a Google Drive file",
+        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "operationId": "downloadGoogleDriveFile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleDriveDownloadInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEvent_GoogleDriveDownload"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/google-drive/files/{fileId}/file": {
+      "get": {
+        "summary": "Serve a saved Google Drive file",
+        "description": "Serves verified Google Drive content with range requests and ETag conditionals. Does not download missing content.",
+        "operationId": "getGoogleDriveSavedFile",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/GoogleDriveFileId"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {},
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "416": {},
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read saved Google Drive file headers",
+        "description": "Returns the same headers as a Google Drive saved-file GET request without a response body.",
+        "operationId": "headGoogleDriveSavedFile",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/GoogleDriveFileId"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {},
+          "206": {},
+          "304": {},
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "416": {},
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/google-drive/files/{fileId}/prepare": {
+      "post": {
+        "summary": "Materialize a saved Google Drive file for local clients",
+        "description": "Verifies and materializes a saved Google Drive file and returns its local filesystem path. Does not download missing content.",
+        "operationId": "prepareGoogleDriveFile",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/GoogleDriveFileId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Data_ResourcePath"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Check HTTP process",
@@ -639,7 +952,7 @@
     },
     "/materials/{materialId}/resources/{resourceId}/download": {
       "post": {
-        "summary": "Acquire and save a resource",
+        "summary": "Acquire and save an LMS file or return an external link",
         "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "downloadResource",
         "parameters": [
@@ -1507,6 +1820,29 @@
           }
         }
       },
+      "Data_GoogleDriveDownload": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "file",
+              "downloadUrl"
+            ],
+            "properties": {
+              "downloadUrl": {
+                "type": "string"
+              },
+              "file": {
+                "$ref": "#/components/schemas/SavedFile"
+              }
+            }
+          }
+        }
+      },
       "Data_Registration": {
         "type": "object",
         "required": [
@@ -1783,6 +2119,64 @@
             "type": "string"
           }
         }
+      },
+      "GoogleDriveDownload": {
+        "type": "object",
+        "required": [
+          "file",
+          "downloadUrl"
+        ],
+        "properties": {
+          "downloadUrl": {
+            "type": "string"
+          },
+          "file": {
+            "$ref": "#/components/schemas/SavedFile"
+          }
+        }
+      },
+      "GoogleDriveDownloadInput": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "$ref": "#/components/schemas/GoogleDriveUrl"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GoogleDriveFile": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/GoogleDriveFileId"
+          },
+          "savedFile": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SavedFile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "GoogleDriveFileId": {
+        "type": "string",
+        "maxLength": 256,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "GoogleDriveUrl": {
+        "type": "string",
+        "format": "uri"
       },
       "Health": {
         "type": "object",
@@ -2206,6 +2600,16 @@
                   "null"
                 ],
                 "format": "date"
+              },
+              "googleDriveFile": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/GoogleDriveFile"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "lmsResourceId": {
                 "$ref": "#/components/schemas/ResourceId"
@@ -2683,6 +3087,64 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/Data_Download"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ErrorBody"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "StreamEvent_GoogleDriveDownload": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/OperationStatus"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "status"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "event"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Data_GoogleDriveDownload"
               },
               "event": {
                 "type": "string",

@@ -21,7 +21,7 @@ Verifies and materializes saved content and returns its local filesystem path. D
 
 **Content type:** `application/json`
 
-schema: [Data_ResourcePath](schemas/Data_ResourcePath.md)
+schema: [Data\_ResourcePath](schemas/Data_ResourcePath.md)
 
 - **`data` (required)**: `object`
   - **`path` (required)**: `string`

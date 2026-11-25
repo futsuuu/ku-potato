@@ -12,7 +12,8 @@
 | [course_materials](course_materials.md) | 11 | 教材一覧のスナップショット。教材の種類・状態・公開期限と所属フォルダーを保持する | table |
 | [material_resource_retrievals](material_resource_retrievals.md) | 5 | 教材ごとの資料一覧の取得履歴。未取得と、取得済みの空一覧を区別する | table |
 | [material_resources](material_resources.md) | 10 | 資料一覧のスナップショット。ファイルや外部リンクの情報を取得時点のまま保持する | table |
-| [saved_files](saved_files.md) | 8 | 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する | table |
+| [saved_files](saved_files.md) | 8 | LMSのファイル資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する | table |
+| [google_drive_saved_files](google_drive_saved_files.md) | 6 | Google Driveのファイルごとの現在の保存ファイル。LMSの取得履歴とは独立して保持する | table |
 | [report_detail_retrievals](report_detail_retrievals.md) | 5 | レポート教材ごとの詳細の取得履歴。取得ごとに追記する | table |
 | [report_details](report_details.md) | 11 | レポート詳細のスナップショット。提出期間・修正条件・回答形式を保持する | table |
 
@@ -104,6 +105,14 @@ erDiagram
   TEXT original_filename
   INTEGER original_size
   TEXT resource_retrieval_id FK
+  INTEGER timestamp_millis
+  INTEGER timestamp_counter
+}
+"google_drive_saved_files" {
+  TEXT file_id PK
+  TEXT content_hash
+  TEXT original_filename
+  INTEGER original_size
   INTEGER timestamp_millis
   INTEGER timestamp_counter
 }

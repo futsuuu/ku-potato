@@ -1,4 +1,4 @@
-# StreamEvent_Vec_Course
+# StreamEvent\_Vec\_Course
 
 **One of:**
 
@@ -6,7 +6,7 @@
   - **`data` (required)**: [OperationStatus](OperationStatus.md)
   - **`event` (required)**: `string`, possible values: `"status"`
 - `object`
-  - **`data` (required)**: [Data_Vec](Data_Vec.md)
+  - **`data` (required)**: [Data\_Vec](Data_Vec.md)
   - **`event` (required)**: `string`, possible values: `"result"`
 - `object`
   - **`data` (required)**: [ErrorBody](ErrorBody.md)

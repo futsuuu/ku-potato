@@ -149,6 +149,12 @@ struct ResourceIdentifiers {
     resource_id: crate::model::ResourceId,
 }
 
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+struct GoogleDriveDownloadInput {
+    url: crate::model::GoogleDriveUrl,
+}
+
 struct Binary;
 
 impl utoipa::PartialSchema for Binary {
@@ -211,6 +217,12 @@ fn routes() -> utoipa_axum::router::OpenApiRouter<State> {
         .routes(utoipa_axum::routes!(download))
         .routes(utoipa_axum::routes!(prepare))
         .routes(utoipa_axum::routes!(file, head_file))
+        .routes(utoipa_axum::routes!(google_drive_download))
+        .routes(utoipa_axum::routes!(google_drive_prepare))
+        .routes(utoipa_axum::routes!(
+            google_drive_file,
+            google_drive_head_file
+        ))
         .routes(utoipa_axum::routes!(specification))
 }
 
@@ -620,7 +632,7 @@ async fn detail(
 
 #[utoipa::path(post, path = "/materials/{materialId}/resources/{resourceId}/download", operation_id = "downloadResource",
     params(("materialId" = crate::model::MaterialId, Path), ("resourceId" = crate::model::ResourceId, Path)),
-    summary = "Acquire and save a resource",
+    summary = "Acquire and save an LMS file or return an external link",
     description = STREAM_DESCRIPTION,
     responses((status = 200, body = [StreamEvent<crate::model::Download>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
 async fn download(
@@ -711,13 +723,21 @@ async fn file(
         material_id: material,
         resource_id: resource,
     }): axum::extract::Path<ResourceIdentifiers>,
-    mut request: axum::extract::Request,
+    request: axum::extract::Request,
 ) -> Result<axum::response::Response, Error> {
     let metadata = state
         .operations
         .archive
         .saved_file(&material, &resource)
         .await?;
+    serve_file(&state.operations.files, metadata, request).await
+}
+
+async fn serve_file(
+    files: &crate::files::Store,
+    metadata: crate::model::SavedFile,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, Error> {
     let tag = format!("\"{}\"", metadata.content_hash.as_ref());
     if request
         .headers()
@@ -743,7 +763,7 @@ async fn file(
         request.headers_mut().remove(axum::http::header::RANGE);
     }
     request.headers_mut().remove(axum::http::header::IF_RANGE);
-    let path = state.operations.files.materialize(metadata.clone()).await?;
+    let path = files.materialize(metadata.clone()).await?;
     let mut response = tower_http::services::ServeFile::new(path)
         .oneshot(request)
         .await
@@ -780,6 +800,78 @@ async fn head_file(
     request: axum::extract::Request,
 ) -> Result<axum::response::Response, Error> {
     file(state, path, request).await
+}
+
+#[utoipa::path(post, path = "/google-drive/files/download", operation_id = "downloadGoogleDriveFile",
+    request_body = GoogleDriveDownloadInput,
+    summary = "Acquire and save a Google Drive file",
+    description = STREAM_DESCRIPTION,
+    responses((status = 200, body = [StreamEvent<crate::model::GoogleDriveDownload>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
+async fn google_drive_download(
+    axum::extract::State(state): axum::extract::State<State>,
+    input: Result<axum::Json<GoogleDriveDownloadInput>, axum::extract::rejection::JsonRejection>,
+) -> Result<axum::response::Response, Error> {
+    let axum::Json(input) = input?;
+    Ok(stream_operation(
+        state.operations,
+        crate::operation::Request::DownloadGoogleDrive { url: input.url },
+    )
+    .await)
+}
+
+#[utoipa::path(post, path = "/google-drive/files/{fileId}/prepare", operation_id = "prepareGoogleDriveFile",
+    params(("fileId" = crate::model::GoogleDriveFileId, Path)),
+    summary = "Materialize a saved Google Drive file for local clients",
+    description = "Verifies and materializes a saved Google Drive file and returns its local filesystem path. Does not download missing content.",
+    responses((status = 200, body = Data<ResourcePath>), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+async fn google_drive_prepare(
+    axum::extract::State(state): axum::extract::State<State>,
+    axum::extract::Path(file): axum::extract::Path<crate::model::GoogleDriveFileId>,
+) -> Result<axum::Json<Data<ResourcePath>>, Error> {
+    let metadata = state
+        .operations
+        .archive
+        .google_drive_saved_file(&file)
+        .await?;
+    let path = state.operations.files.materialize(metadata).await?;
+    Ok(axum::Json(Data {
+        data: ResourcePath { path },
+    }))
+}
+
+#[utoipa::path(get, path = "/google-drive/files/{fileId}/file", operation_id = "getGoogleDriveSavedFile",
+    params(("fileId" = crate::model::GoogleDriveFileId, Path),
+        ("Range" = Option<String>, Header), ("If-Range" = Option<String>, Header), ("If-None-Match" = Option<String>, Header)),
+    summary = "Serve a saved Google Drive file",
+    description = "Serves verified Google Drive content with range requests and ETag conditionals. Does not download missing content.",
+    responses((status = 200, body = inline(Binary), content_type = "application/octet-stream"),
+        (status = 206, body = inline(Binary), content_type = "application/octet-stream"),
+        (status = 304), (status = 416), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+async fn google_drive_file(
+    axum::extract::State(state): axum::extract::State<State>,
+    axum::extract::Path(file): axum::extract::Path<crate::model::GoogleDriveFileId>,
+    request: axum::extract::Request,
+) -> Result<axum::response::Response, Error> {
+    let metadata = state
+        .operations
+        .archive
+        .google_drive_saved_file(&file)
+        .await?;
+    serve_file(&state.operations.files, metadata, request).await
+}
+
+#[utoipa::path(head, path = "/google-drive/files/{fileId}/file", operation_id = "headGoogleDriveSavedFile",
+    params(("fileId" = crate::model::GoogleDriveFileId, Path),
+        ("Range" = Option<String>, Header), ("If-Range" = Option<String>, Header), ("If-None-Match" = Option<String>, Header)),
+    summary = "Read saved Google Drive file headers",
+    description = "Returns the same headers as a Google Drive saved-file GET request without a response body.",
+    responses((status = 200), (status = 206), (status = 304), (status = 416), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+async fn google_drive_head_file(
+    state: axum::extract::State<State>,
+    path: axum::extract::Path<crate::model::GoogleDriveFileId>,
+    request: axum::extract::Request,
+) -> Result<axum::response::Response, Error> {
+    google_drive_file(state, path, request).await
 }
 
 #[cfg(test)]
@@ -1035,7 +1127,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(ids.len(), 19);
+        assert_eq!(ids.len(), 23);
         assert!(
             document["components"]["schemas"]["AuthenticationInput"]["description"]
                 .as_str()
@@ -1186,6 +1278,7 @@ mod tests {
             "/materials/invalid",
             "/materials/invalid/resources/SRS1/file",
             "/materials/MAT1/resources/invalid/file",
+            "/google-drive/files/invalid%21/file",
         ] {
             assert_eq!(
                 response(&router, "GET", path, &[], "").await.status(),
@@ -1275,47 +1368,162 @@ mod tests {
             "",
         )
         .await;
-        let path = "/materials/MAT1/resources/SRS1/file";
-        let complete = response(&router, "GET", path, &[], "").await;
-        assert_eq!(complete.status(), 200);
-        let tag = complete.headers()["etag"].to_str().unwrap().to_owned();
-        assert_eq!(bytes(complete).await, b"hello");
-        let head = response(&router, "HEAD", path, &[], "").await;
-        assert_eq!(head.status(), 200);
-        assert_eq!(head.headers()["content-length"], "5");
-        assert!(bytes(head).await.is_empty());
-        let partial = response(&router, "GET", path, &[("Range", "bytes=1-3")], "").await;
-        assert_eq!(partial.status(), 206);
-        assert_eq!(partial.headers()["content-range"], "bytes 1-3/5");
-        assert_eq!(bytes(partial).await, b"ell");
+        let metadata = operations
+            .archive
+            .saved_file(
+                &"MAT1".to_owned().try_into().unwrap(),
+                &"SRS1".to_owned().try_into().unwrap(),
+            )
+            .await
+            .unwrap();
+        operations
+            .archive
+            .replace_google_drive_saved_file(
+                &"drive_file".to_owned().try_into().unwrap(),
+                &metadata,
+            )
+            .await
+            .unwrap();
+        let prepared = response(
+            &router,
+            "POST",
+            "/google-drive/files/drive_file/prepare",
+            &[],
+            "",
+        )
+        .await;
+        assert_eq!(prepared.status(), 200);
+        let prepared: serde_json::Value = serde_json::from_slice(&bytes(prepared).await).unwrap();
+        validate_response(
+            "POST",
+            "/google-drive/files/drive_file/prepare",
+            200,
+            "application/json",
+            &prepared,
+        );
         assert_eq!(
-            response(&router, "GET", path, &[("Range", "bytes=99-")], "")
+            std::fs::read(prepared["data"]["path"].as_str().unwrap()).unwrap(),
+            b"hello"
+        );
+        for path in [
+            "/materials/MAT1/resources/SRS1/file",
+            "/google-drive/files/drive_file/file",
+        ] {
+            let complete = response(&router, "GET", path, &[], "").await;
+            assert_eq!(complete.status(), 200);
+            let tag = complete.headers()["etag"].to_str().unwrap().to_owned();
+            assert_eq!(bytes(complete).await, b"hello");
+            let head = response(&router, "HEAD", path, &[], "").await;
+            assert_eq!(head.status(), 200);
+            assert_eq!(head.headers()["content-length"], "5");
+            assert!(bytes(head).await.is_empty());
+            let partial = response(&router, "GET", path, &[("Range", "bytes=1-3")], "").await;
+            assert_eq!(partial.status(), 206);
+            assert_eq!(partial.headers()["content-range"], "bytes 1-3/5");
+            assert_eq!(bytes(partial).await, b"ell");
+            assert_eq!(
+                response(&router, "GET", path, &[("Range", "bytes=99-")], "")
+                    .await
+                    .status(),
+                416
+            );
+            assert_eq!(
+                response(
+                    &router,
+                    "GET",
+                    path,
+                    &[("If-None-Match", &format!("W/{tag}"))],
+                    ""
+                )
                 .await
                 .status(),
-            416
+                304
+            );
+            let fresh = response(
+                &router,
+                "GET",
+                path,
+                &[("Range", "bytes=1-3"), ("If-Range", "\"old\"")],
+                "",
+            )
+            .await;
+            assert_eq!(fresh.status(), 200);
+            assert_eq!(bytes(fresh).await, b"hello");
+        }
+        assert_eq!(
+            response(&router, "GET", "/google-drive/files/SRS1/file", &[], "")
+                .await
+                .status(),
+            404
         );
         assert_eq!(
             response(
                 &router,
                 "GET",
-                path,
-                &[("If-None-Match", &format!("W/{tag}"))],
+                "/materials/MAT1/resources/SRS2/file",
+                &[],
                 ""
             )
             .await
             .status(),
-            304
+            404
         );
-        let fresh = response(
+        operations.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn google_drive_downloads_validate_urls_and_do_not_fetch_lms_data() {
+        let fixture = crate::rpc::tests::Fixture::new().await;
+        fixture
+            .service
+            .google_authentication_required
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let operations = fixture.operations().await;
+        let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
+        for body in [
+            "{}",
+            "{\"url\":\"https://example.com/file\"}",
+            "{\"url\":\"https://drive.google.com/drive/folders/folder\"}",
+        ] {
+            assert_eq!(
+                response(
+                    &router,
+                    "POST",
+                    "/google-drive/files/download",
+                    &[("Content-Type", "application/json")],
+                    body
+                )
+                .await
+                .status(),
+                400
+            );
+        }
+        let events = stream(
             &router,
-            "GET",
-            path,
-            &[("Range", "bytes=1-3"), ("If-Range", "\"old\"")],
-            "",
+            "POST",
+            "/google-drive/files/download",
+            "{\"url\":\"https://drive.google.com/file/d/drive_file/view\"}",
         )
         .await;
-        assert_eq!(fresh.status(), 200);
-        assert_eq!(bytes(fresh).await, b"hello");
+        assert_eq!(events.last().unwrap().0, "error");
+        assert_eq!(
+            events.last().unwrap().1["error"]["reason"],
+            "authentication-required"
+        );
+        assert!(matches!(
+            operations
+                .archive
+                .material_detail(&"MAT1".to_owned().try_into().unwrap())
+                .await,
+            Err(crate::archive::Error::Missing)
+        ));
+        assert!(matches!(
+            operations
+                .archive
+                .google_drive_saved_file(&"drive_file".to_owned().try_into().unwrap())
+                .await,
+            Err(crate::archive::Error::Missing)
+        ));
         operations.shutdown().await;
     }
 

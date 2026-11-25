@@ -119,6 +119,61 @@ impl Store {
         .try_into()
     }
 
+    pub async fn google_drive_saved_file(
+        &self,
+        file: &crate::model::GoogleDriveFileId,
+    ) -> Result<crate::model::SavedFile, Error> {
+        entity::google_drive_saved_files::Entity::find_by_id(file.as_ref())
+            .one(&self.connection)
+            .await?
+            .ok_or(Error::Missing)?
+            .try_into()
+    }
+
+    pub async fn replace_google_drive_saved_file(
+        &self,
+        id: &crate::model::GoogleDriveFileId,
+        file: &crate::model::SavedFile,
+    ) -> Result<Option<crate::model::SavedFile>, Error> {
+        let transaction = self.connection.begin().await?;
+        let previous = entity::google_drive_saved_files::Entity::find_by_id(id.as_ref())
+            .one(&transaction)
+            .await?
+            .map(TryInto::try_into)
+            .transpose()?;
+        let timestamp = next_timestamp(&transaction).await?;
+        entity::google_drive_saved_files::Entity::insert(
+            entity::google_drive_saved_files::ActiveModel {
+                file_id: sea_orm::ActiveValue::Set(id.as_ref().to_owned()),
+                content_hash: sea_orm::ActiveValue::Set(file.content_hash.as_ref().to_owned()),
+                original_filename: sea_orm::ActiveValue::Set(file.original_filename.clone()),
+                original_size: sea_orm::ActiveValue::Set(
+                    i64::try_from(file.original_size)
+                        .map_err(|_| Error::InvalidData("file size"))?,
+                ),
+                timestamp_millis: sea_orm::ActiveValue::Set(timestamp.logical_millis),
+                timestamp_counter: sea_orm::ActiveValue::Set(timestamp.logical_counter),
+            },
+        )
+        .on_conflict(
+            sea_orm::sea_query::OnConflict::column(
+                entity::google_drive_saved_files::Column::FileId,
+            )
+            .update_columns([
+                entity::google_drive_saved_files::Column::ContentHash,
+                entity::google_drive_saved_files::Column::OriginalFilename,
+                entity::google_drive_saved_files::Column::OriginalSize,
+                entity::google_drive_saved_files::Column::TimestampMillis,
+                entity::google_drive_saved_files::Column::TimestampCounter,
+            ])
+            .to_owned(),
+        )
+        .exec(&transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(previous)
+    }
+
     pub async fn references_content(
         &self,
         hash: &crate::model::ContentHash,
@@ -127,7 +182,12 @@ impl Store {
             .filter(entity::saved_files::Column::ContentHash.eq(hash.as_ref()))
             .one(&self.connection)
             .await?
-            .is_some())
+            .is_some()
+            || entity::google_drive_saved_files::Entity::find()
+                .filter(entity::google_drive_saved_files::Column::ContentHash.eq(hash.as_ref()))
+                .one(&self.connection)
+                .await?
+                .is_some())
     }
 
     pub async fn replace_saved_file(
@@ -273,6 +333,7 @@ mod tests {
             description: None,
             archived: false,
             saved_file: None,
+            google_drive_file: None,
         }
     }
 
@@ -547,6 +608,130 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn google_drive_files_are_independent_and_shared_by_file_id() {
+        let store = super::Store::open("sqlite::memory:").await.unwrap();
+        let id: crate::model::GoogleDriveFileId = "drive_file-1".to_owned().try_into().unwrap();
+        let file = crate::model::SavedFile {
+            content_hash: "a".repeat(64).try_into().unwrap(),
+            original_filename: "drive.pdf".into(),
+            original_size: 10,
+        };
+        assert!(
+            store
+                .replace_google_drive_saved_file(&id, &file)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            store
+                .google_drive_saved_file(&id)
+                .await
+                .unwrap()
+                .content_hash,
+            file.content_hash
+        );
+        let mut resources = vec![resource("SRS1")];
+        for (resource_id, url) in [
+            ("SRS2", "https://drive.google.com/file/d/drive_file-1/view"),
+            (
+                "SRS3",
+                "https://docs.google.com/document/d/drive_file-1/edit",
+            ),
+            ("SRS4", "https://drive.google.com/file/d/other/view"),
+            ("SRS5", "https://example.com/file"),
+        ] {
+            let mut resource = resource(resource_id);
+            resource.content = crate::model::ResourceContent::External {
+                url: url.to_owned().try_into().unwrap(),
+            };
+            resources.push(resource);
+        }
+        let retrieval = store
+            .append(snapshot(
+                vec![material("MAT1", "material")],
+                Some(resources),
+            ))
+            .await
+            .unwrap()
+            .unwrap();
+        let material_id = retrieval.material_id.clone();
+        let lms_id = "SRS1".to_owned().try_into().unwrap();
+        store
+            .replace_saved_file(retrieval.clone(), &lms_id, &file)
+            .await
+            .unwrap();
+        for resource_id in ["SRS2", "SRS4", "SRS5"] {
+            let resource_id = resource_id.to_owned().try_into().unwrap();
+            assert!(matches!(
+                store.saved_file(&material_id, &resource_id).await,
+                Err(super::Error::Missing)
+            ));
+        }
+        let detail = store.material_detail(&material_id).await.unwrap();
+        assert!(detail.resources[0].saved_file.is_some());
+        assert!(detail.resources[0].google_drive_file.is_none());
+        for resource in &detail.resources[1..3] {
+            assert!(resource.saved_file.is_none());
+            let drive = resource.google_drive_file.as_ref().unwrap();
+            assert_eq!(drive.id, id);
+            assert_eq!(
+                drive.saved_file.as_ref().unwrap().content_hash,
+                file.content_hash
+            );
+        }
+        assert!(
+            detail.resources[3]
+                .google_drive_file
+                .as_ref()
+                .unwrap()
+                .saved_file
+                .is_none()
+        );
+        assert!(detail.resources[4].google_drive_file.is_none());
+        let mut updated = file.clone();
+        updated.content_hash = "b".repeat(64).try_into().unwrap();
+        let previous = store
+            .replace_google_drive_saved_file(&id, &updated)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(previous.content_hash, file.content_hash);
+        assert!(store.references_content(&file.content_hash).await.unwrap());
+        store
+            .replace_saved_file(retrieval, &lms_id, &updated)
+            .await
+            .unwrap();
+        assert!(!store.references_content(&file.content_hash).await.unwrap());
+        assert!(
+            store
+                .references_content(&updated.content_hash)
+                .await
+                .unwrap()
+        );
+        store
+            .append(snapshot(
+                vec![material("MAT1", "material")],
+                Some(Vec::new()),
+            ))
+            .await
+            .unwrap();
+        let detail = store.material_detail(&material_id).await.unwrap();
+        assert!(detail.resources[1].archived);
+        assert_eq!(
+            detail.resources[1]
+                .google_drive_file
+                .as_ref()
+                .unwrap()
+                .saved_file
+                .as_ref()
+                .unwrap()
+                .content_hash,
+            updated.content_hash
+        );
+    }
+
+    #[tokio::test]
     async fn logical_clock_orders_retrievals_after_wall_clock_moves_backward() {
         let store = super::Store::open("sqlite::memory:").await.unwrap();
         store
@@ -810,5 +995,10 @@ mod tests {
         .await;
         entity_matches_schema(&store.connection, super::entity::report_details::Entity).await;
         entity_matches_schema(&store.connection, super::entity::saved_files::Entity).await;
+        entity_matches_schema(
+            &store.connection,
+            super::entity::google_drive_saved_files::Entity,
+        )
+        .await;
     }
 }

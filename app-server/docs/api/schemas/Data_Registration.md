@@ -1,4 +1,4 @@
-# Data_Registration
+# Data\_Registration
 
 **Type:** `object`
 

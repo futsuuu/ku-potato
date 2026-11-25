@@ -1,4 +1,4 @@
-# Data_CourseMaterials
+# Data\_CourseMaterials
 
 **Type:** `object`
 

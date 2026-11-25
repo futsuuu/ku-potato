@@ -2,14 +2,14 @@
 
 ## Description
 
-教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
+LMSのファイル資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
 
 <details>
 <summary><strong>Table Definition</strong></summary>
 
 ```sql
 CREATE TABLE saved_files (
-    -- 教材・資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
+    -- LMSのファイル資料ごとの現在の保存ファイル。成功時だけ置き換え、公開終了後も保持する
     lms_material_id TEXT NOT NULL, -- LMSの教材ID。資料IDと組み合わせて保存ファイルを識別する
     lms_resource_id TEXT NOT NULL, -- LMSの資料ID
     content_hash TEXT NOT NULL, -- 原本のSHA-256。同じ内容を複数資料から参照できる

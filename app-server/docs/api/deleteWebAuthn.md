@@ -16,7 +16,7 @@ Returns SSE status events followed by exactly one result or error event, then cl
 
 **Content type:** `text/event-stream`
 
-array of [StreamEvent_Registration](schemas/StreamEvent_Registration.md)
+array of [StreamEvent\_Registration](schemas/StreamEvent_Registration.md)
 
 ### 403
 
