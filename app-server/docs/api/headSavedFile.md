@@ -33,17 +33,12 @@ Returns the same headers as a saved-file GET request without a response body.
 
 ### 304
 
-### 400, 403, 404, 500
+### 400
 
-- `400`
-- `403`
-- `404`
-- `500`
+### 403
 
-**Content type:** `application/json`
+### 404
 
-schema: [ErrorBody](schemas/ErrorBody.md)
-
-- **`error` (required)**: [Public](schemas/Public.md)
+### 500
 
 [API index](README.md)

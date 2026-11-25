@@ -9,8 +9,7 @@
 
 ```json
 {
-  "id": "",
-  "savedFile": {}
+  "id": "drive_file-123"
 }
 ```
 
