@@ -61,26 +61,30 @@ func (b *Browser) restoreCookies(ctx context.Context) error {
 	return nil
 }
 
-func (b *Browser) saveCookies() error {
+// The boolean distinguishes an invalidated jar from a saved checkpoint.
+func (b *Browser) saveCookies() (bool, error) {
+	if !b.cookiesReady {
+		return false, nil
+	}
 	ctx, cancel := context.WithTimeout(b.root, 5*time.Second)
 	defer cancel()
 	if err := b.checkAuthPages(ctx); err != nil {
-		return Fail("authentication-storage", "Cookieを取得できません。")
+		return false, Fail("authentication-storage", "Cookieを取得できません。")
 	}
 	if !b.cookiesReady {
-		return nil
+		return false, nil
 	}
 	exec := cdp.WithExecutor(ctx, cd.FromContext(ctx).Browser)
 	cookies, err := storage.GetCookies().Do(exec)
 	if err != nil {
-		return Fail("authentication-storage", "Cookieを取得できません。")
+		return false, Fail("authentication-storage", "Cookieを取得できません。")
 	}
 	// The last ordinary window can close while GetCookies is in flight.
 	if err := b.checkAuthPages(ctx); err != nil {
-		return Fail("authentication-storage", "Cookieを取得できません。")
+		return false, Fail("authentication-storage", "Cookieを取得できません。")
 	}
 	if !b.cookiesReady {
-		return nil
+		return false, nil
 	}
 	params := make([]*network.CookieParam, 0, len(cookies))
 	for _, cookie := range cookies {
@@ -92,10 +96,10 @@ func (b *Browser) saveCookies() error {
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(b.cookiePath()), 0o700); err != nil {
-		return Fail("authentication-storage", "Cookieを保存できません。")
+		return false, Fail("authentication-storage", "Cookieを保存できません。")
 	}
 	if err := atomicJSON(b.cookiePath(), params); err != nil {
-		return Fail("authentication-storage", "Cookieを保存できません。")
+		return false, Fail("authentication-storage", "Cookieを保存できません。")
 	}
-	return nil
+	return true, nil
 }
