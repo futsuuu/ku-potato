@@ -10,7 +10,10 @@
 
 ```json
 {
-  "error": {}
+  "error": {
+    "message": "The browser operation was cancelled",
+    "reason": "cancelled"
+  }
 }
 ```
 
