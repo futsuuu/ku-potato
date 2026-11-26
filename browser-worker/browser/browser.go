@@ -108,6 +108,9 @@ func sourceError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
 	if _, ok := errors.AsType[*Failure](err); ok {
 		return err
 	}

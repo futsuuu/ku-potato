@@ -89,7 +89,6 @@ func (b *Browser) start(ctx context.Context) error {
 		cd.Flag("edge-skip-compat-layer-relaunch", true),
 		cd.Flag("headless", "new"),
 		cd.Flag("no-service-autorun", true),
-		cd.Flag("restore-last-session", true),
 	)
 
 	if b.opts.Executable != "" {

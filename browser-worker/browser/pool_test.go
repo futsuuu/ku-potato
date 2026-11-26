@@ -20,6 +20,33 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+func TestSourceErrorPreservesCancellationAndTimeouts(t *testing.T) {
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		err := fmt.Errorf("private diagnostics: %w", cause)
+		if result := sourceError(context.Background(), err); !errors.Is(result, cause) {
+			t.Fatal("context error was replaced by a source failure", result)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result := sourceError(
+		ctx,
+		Fail(workerproto.FailureReason_FAILURE_REASON_SOURCE, "browser failure"),
+	)
+	if !errors.Is(result, context.Canceled) {
+		t.Fatal("request cancellation was misclassified", result)
+	}
+	deadline, cancelDeadline := context.WithDeadline(
+		context.Background(),
+		time.Now().Add(-time.Second),
+	)
+	defer cancelDeadline()
+	result = sourceError(deadline, context.Canceled)
+	if !errors.Is(result, context.DeadlineExceeded) {
+		t.Fatal("request timeout was reported as cancellation", result)
+	}
+}
+
 func TestOperationContextPreservesPageAndRequestSpan(t *testing.T) {
 	page, closePage := cd.NewContext(t.Context())
 	defer closePage()
@@ -73,7 +100,7 @@ func testChrome(t *testing.T) string {
 	return ""
 }
 
-func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
+func TestBrowserStartsWithoutAccountLinkingOrSessionRestore(t *testing.T) {
 	b, err := New(
 		Options{
 			StateDir:    t.TempDir(),
@@ -98,10 +125,12 @@ func TestBrowserStartsWithoutChromeAccountLinking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if slices.Contains(arguments, "--allow-browser-signin=false") {
-		return
+	if !slices.Contains(arguments, "--allow-browser-signin=false") {
+		t.Fatal("browser account linking was not disabled")
 	}
-	t.Fatal("browser account linking was not disabled")
+	if slices.Contains(arguments, "--restore-last-session") {
+		t.Fatal("worker browser must not restore the previous session")
+	}
 }
 
 func TestFailedBrowserStartCanCloseAndRetry(t *testing.T) {
