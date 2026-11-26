@@ -3,6 +3,7 @@ package userbrowser
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -193,6 +194,40 @@ func TestCookieRPCsPreserveAttributesAndRenewal(t *testing.T) {
 	result, err = client.GoogleCookies(ctx, &emptypb.Empty{})
 	if err != nil || len(result.GetCookies()) != 1 {
 		t.Fatal(result, err)
+	}
+}
+
+func TestCancellationAndTimeoutSurviveAuthenticationRPCs(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		cause error
+		code  codes.Code
+	}{
+		{"canceled", context.Canceled, codes.Canceled},
+		{"timeout", context.DeadlineExceeded, codes.DeadlineExceeded},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			auth := &fakeAuth{err: fmt.Errorf("private diagnostics: %w", test.cause)}
+			client := newTestClient(t, auth, auth)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			for _, provider := range []userproto.Provider{
+				userproto.Provider_PROVIDER_KOGAKUIN_SSO,
+				userproto.Provider_PROVIDER_GOOGLE,
+			} {
+				_, err := client.Login(
+					ctx,
+					&userproto.LoginRequest{Provider: provider, Interactive: true},
+				)
+				if status.Code(err) != test.code || strings.Contains(err.Error(), "private") {
+					t.Fatal("login lost its context status or exposed diagnostics", err)
+				}
+			}
+			_, err := client.RegisterWebAuthn(ctx, &userproto.InteractiveRequest{Interactive: true})
+			if status.Code(err) != test.code || strings.Contains(err.Error(), "private") {
+				t.Fatal("registration lost its context status or exposed diagnostics", err)
+			}
+		})
 	}
 }
 

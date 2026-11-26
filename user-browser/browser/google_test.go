@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/storage"
+	"github.com/chromedp/cdproto/target"
 	cd "github.com/chromedp/chromedp"
 )
 
@@ -46,7 +48,7 @@ func newGoogle(t *testing.T, opts Options) *Google {
 	return NewGoogle(b)
 }
 
-func TestProvidersSharePersistentProfileAndGoogleClearingIsScoped(t *testing.T) {
+func TestProvidersShareCookiesAndGoogleClearingIsScoped(t *testing.T) {
 	opts := googleOptions(t)
 	opts.Executable = testChrome(t)
 	g := newGoogle(t, opts)
@@ -77,27 +79,153 @@ func TestProvidersSharePersistentProfileAndGoogleClearingIsScoped(t *testing.T) 
 	if err := storage.SetCookies(cookies).Do(exec); err != nil {
 		t.Fatal(err)
 	}
-	if err := cd.Run(b.root, cd.ActionFunc(g.clearCookies)); err != nil {
+	if err := b.withProviderAuth(ctx, false, sharedAuthPage, false, g.clearCookies); err != nil {
 		t.Fatal(err)
 	}
 	all, err := storage.GetCookies().Do(exec)
 	if err != nil || len(all) != 1 || all[0].Name != "ku" {
 		t.Fatal("Google login cleared school session", all, err)
 	}
-	b.stopRuntime()
+	if err := b.stopRuntime(); err != nil {
+		t.Fatal(err)
+	}
 	if err := b.start(ctx, false); err != nil {
 		t.Fatal(err)
 	}
 	exec = cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser)
 	all, err = storage.GetCookies().Do(exec)
 	if err != nil || len(all) != 1 || all[0].Name != "ku" {
-		t.Fatal("shared profile did not persist school session", all, err)
+		t.Fatal("cookie snapshot did not persist school session", all, err)
 	}
 }
 
 func ptrExpiry(value time.Time) *cdp.TimeSinceEpoch {
 	expiry := cdp.TimeSinceEpoch(value)
 	return &expiry
+}
+
+func TestClosingWindowInterruptsGoogleLogin(t *testing.T) {
+	waiting := make(chan struct{}, 1)
+	var authenticated atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/waiting" {
+			select {
+			case waiting <- struct{}{}:
+			default:
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if authenticated.Load() {
+			fmt.Fprint(w, googleProfile("student@g.kogakuin.jp"))
+			return
+		}
+		// Signal from the account query inside Google's actual login poll,
+		// rather than merely from navigation or a provider test callback.
+		fmt.Fprint(w, `<input id="identifierId"><script>
+			const queryAll = document.querySelectorAll;
+			document.querySelectorAll = function(...args) {
+				fetch('/waiting').catch(() => {});
+				return queryAll.apply(this, args);
+			};
+		</script>`)
+	}))
+	defer server.Close()
+	b, ctx := windowTestBrowser(t)
+	g := NewGoogle(b)
+	g.origin, g.signin = server.URL, server.URL+"/identifier"
+	before, err := os.ReadFile(b.cookiePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := b.root
+	exec := cdp.WithExecutor(root, cd.FromContext(root).Browser)
+	request, cancelRequest := context.WithCancel(ctx)
+	finished := make(chan struct{})
+	result := make(chan error, 1)
+	go func() {
+		defer close(finished)
+		result <- g.Login(request, true)
+	}()
+	defer func() {
+		// Only failure cleanup cancels a still-running request. A passing test
+		// must finish the login solely because its target was closed.
+		cancelRequest()
+		<-finished
+	}()
+	select {
+	case <-waiting:
+	case err := <-result:
+		t.Fatal("login finished before waiting for user input", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("login did not enter its account poll")
+	}
+	closed := make(chan error, 1)
+	go func() {
+		targets, err := target.GetTargets().Do(exec)
+		if err != nil {
+			closed <- err
+			return
+		}
+		var id target.ID
+		for _, info := range targets {
+			if info.Type == "page" {
+				if id != "" {
+					closed <- errors.New("login created more than one page")
+					return
+				}
+				id = info.TargetID
+			}
+		}
+		if id == "" {
+			closed <- errors.New("login has no page")
+			return
+		}
+		closed <- target.CloseTarget(id).Do(exec)
+	}()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("login window could not be closed")
+	}
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal("window closure was not reported as cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("closing the window did not interrupt the login poll")
+	}
+	if request.Err() != nil {
+		t.Fatal("fixture cancelled the request instead of just closing the window")
+	}
+	after, err := os.ReadFile(b.cookiePath())
+	if err != nil || !bytes.Equal(after, before) {
+		t.Fatal("interrupted login overwrote saved provider sessions", err)
+	}
+	// A different provider must be able to acquire authMu and restore cookies.
+	if err := b.withSessionAuth(request, false, false, func(tab context.Context) error {
+		return cd.Run(tab, cd.Evaluate("1 + 1", nil))
+	}); err != nil {
+		t.Fatal("closed login blocked another provider", err)
+	}
+	cookies, err := b.loadCookies()
+	if err != nil || len(cookies) != 2 || cookies[0].Value != "saved" ||
+		cookies[1].Value != "saved" {
+		t.Fatal("another provider did not restore its saved sessions", err)
+	}
+	authenticated.Store(true)
+	if os.Getenv("KU_POTATO_TEST_HEADED") == "1" {
+		if err := g.Login(request, true); err != nil {
+			t.Fatal("interactive login could not be retried", err)
+		}
+	} else if ok, err := g.Status(request); err != nil || !ok {
+		t.Fatal("authentication could not be retried", ok, err)
+	}
 }
 
 func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
@@ -195,7 +323,7 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	if err := os.WriteFile(g.browser.credentialPath(), []byte("invalid"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.browser.start(ctx, false); err != nil {
+	if err := g.browser.start(ctx, os.Getenv("KU_POTATO_TEST_HEADED") == "1"); err != nil {
 		t.Fatal(err)
 	}
 	g.browser.interactive = true
@@ -207,7 +335,7 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	loginPage := g.browser.root
+	loginPage := g.browser.page
 	if err := cd.Run(
 		loginPage,
 		cd.WaitVisible("#identifierId", cd.ByQuery),
@@ -242,13 +370,14 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	if err := g.browser.Close(); err != nil {
 		t.Fatal(err)
 	}
+	opts.ProfileDir = filepath.Join(opts.StateDir, "fresh-profile")
 	g = newGoogle(t, opts)
 	g.origin = server.URL
 	g.driveOrigin = drive.URL
 	if ok, err := g.Status(ctx); err != nil || !ok {
 		t.Fatal("session lost after restart", ok, err)
 	}
-	t.Log("session restored from the browser profile")
+	t.Log("session restored independently of the browser profile")
 	cookies, err := g.Cookies(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -262,9 +391,8 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	if !reflect.DeepEqual(names, []string{"drive_session", "session"}) || initialized.Load() != 1 {
 		t.Fatal("Drive cookies exported before service login completed", names, initialized.Load())
 	}
-	snapshotPath := filepath.Join(opts.StateDir, "auth", "google", "cookies.json")
-	if _, err := os.Stat(snapshotPath); !os.IsNotExist(err) {
-		t.Fatal("Google cookie snapshot was written", err)
+	if _, err := os.Stat(g.browser.cookiePath()); err != nil {
+		t.Fatal("shared cookie snapshot was not written", err)
 	}
 	exec := cdp.WithExecutor(g.browser.root, cd.FromContext(g.browser.root).Browser)
 	for _, value := range []string{"first", "rotated"} {
@@ -288,9 +416,6 @@ func TestGoogleSessionSurvivesRestartWithoutWebAuthn(t *testing.T) {
 	}
 	if initialized.Load() != 1 {
 		t.Fatal("Drive service session was not reused")
-	}
-	if _, err := os.Stat(snapshotPath); !os.IsNotExist(err) {
-		t.Fatal("Google cookie snapshot was written", err)
 	}
 	for _, email := range []string{"student@gmail.com", ""} {
 		driveAccount.Store(email)
@@ -347,8 +472,8 @@ func TestDriveAccountControlWithoutHref(t *testing.T) {
 			err := g.browser.withProviderAuth(
 				ctx,
 				false,
+				sharedAuthPage,
 				false,
-				true,
 				func(tab context.Context) error {
 					return cd.Run(
 						tab,

@@ -9,6 +9,13 @@ import (
 
 func chrome(t *testing.T) string {
 	t.Helper()
+	if path := os.Getenv("KU_POTATO_TEST_BROWSER"); path != "" {
+		value, err := exec.LookPath(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
 	for _, name := range []string{"google-chrome", "chromium", "chromium-browser", "msedge", "chrome"} {
 		if path, err := exec.LookPath(name); err == nil {
 			return path
