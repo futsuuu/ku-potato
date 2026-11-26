@@ -15,6 +15,8 @@ pub enum Error {
     Drive(#[from] crate::drive::Error),
     #[error(transparent)]
     Files(#[from] crate::files::Error),
+    #[error("The operation was cancelled because the server is shutting down")]
+    Cancelled,
     #[error("The operation timed out")]
     Timeout,
     #[error("Invalid operation snapshot: {0}")]
@@ -72,6 +74,7 @@ fn only_authentication_failures_select_a_provider() {
         )),
         Error::from(crate::archive::Error::Missing),
         Error::from(crate::files::Error::Missing),
+        Error::Cancelled,
         Error::Timeout,
         Error::from(crate::user_browser::Error::AuthenticationStorage {
             message: "Credential storage failed".into(),
@@ -360,22 +363,46 @@ impl Coordinator {
         }));
         active.insert(request.clone(), receiver.clone());
         let operations = self.clone();
-        self.tasks.spawn(async move {
-            let timeout = if request.allows_interaction() { std::time::Duration::from_secs(600) } else { operations.options.job_timeout };
-            let result = tokio::select! {
-                _ = operations.stop.cancelled() => Err(Error::Timeout),
-                result = tokio::time::timeout(timeout, operations.execute_locked(&request, &sender)) => result.unwrap_or(Err(Error::Timeout)),
-            };
-            if let Err(error) = &result {
-                tracing::Span::current().record("otel.status_code", "ERROR");
-                tracing::warn!(error = %error, "operation failed");
-                if let Some(provider) = error.authentication_provider() {
-                    operations.set_authentication(provider, crate::model::Authentication::Unauthenticated).await;
+        self.tasks.spawn(
+            async move {
+                let timeout = if request.allows_interaction() {
+                    std::time::Duration::from_secs(600)
+                } else {
+                    operations.options.job_timeout
+                };
+                let result = tokio::select! {
+                    _ = operations.stop.cancelled() => Err(Error::Cancelled),
+                    result = tokio::time::timeout(
+                        timeout,
+                        operations.execute_locked(&request, &sender)
+                    ) => result.unwrap_or(Err(Error::Timeout)),
+                };
+                if let Err(error) = &result {
+                    if crate::error::Public::from(error).reason == crate::error::Reason::Cancelled {
+                        tracing::info!("operation cancelled");
+                    } else {
+                        tracing::Span::current().record("otel.status_code", "ERROR");
+                        tracing::warn!(error = %error, "operation failed");
+                    }
+                    if let Some(provider) = error.authentication_provider() {
+                        operations
+                            .set_authentication(
+                                provider,
+                                crate::model::Authentication::Unauthenticated,
+                            )
+                            .await;
+                    }
                 }
+                sender.send_replace(Update::Finished(
+                    result.map_err(|error| crate::error::Public::from(&error)),
+                ));
+                operations.active.lock().await.remove(&request);
             }
-            sender.send_replace(Update::Finished(result.map_err(|error| crate::error::Public::from(&error))));
-            operations.active.lock().await.remove(&request);
-        }.instrument(tracing::info_span!("operation.execute", otel.status_code = tracing::field::Empty)));
+            .instrument(tracing::info_span!(
+                "operation.execute",
+                otel.status_code = tracing::field::Empty
+            )),
+        );
         receiver
     }
 
@@ -436,6 +463,30 @@ impl Coordinator {
             )
             .await?
     }
+}
+
+#[tokio::test]
+async fn shutdown_cancels_pending_work_instead_of_reporting_a_timeout() {
+    let fixture = crate::rpc::tests::Fixture::new().await;
+    let operations = fixture.operations().await;
+    let guard = operations.authentication_gate.write().await;
+    let mut observation = operations
+        .observe_or_start(Request::Login {
+            provider: crate::user_browser::Provider::Google,
+            interactive: true,
+        })
+        .await;
+    operations.shutdown().await;
+    observation.changed().await.unwrap();
+    let Update::Finished(Err(error)) = observation.borrow().clone() else {
+        panic!("shutdown did not terminate pending work");
+    };
+    assert_eq!(error.reason, crate::error::Reason::Cancelled);
+    assert_eq!(
+        error.message,
+        "The operation was cancelled because the server is shutting down"
+    );
+    drop(guard);
 }
 
 #[tokio::test]
@@ -706,7 +757,11 @@ impl Coordinator {
         }
         .await;
         if let Err(error) = result {
-            tracing::warn!(error = %error, content_hash = hash.as_ref(), "could not remove unreferenced content");
+            tracing::warn!(
+                error = %error,
+                content_hash = hash.as_ref(),
+                "could not remove unreferenced content"
+            );
         }
     }
 
@@ -759,7 +814,11 @@ impl Coordinator {
                             return Err(Error::Archive(crate::archive::Error::Missing));
                         }
                         Err(error) => {
-                            tracing::warn!(error = %error, course_id = course.as_ref(), "could not read saved course materials");
+                            tracing::warn!(
+                                error = %error,
+                                course_id = course.as_ref(),
+                                "could not read saved course materials"
+                            );
                             failures.push(crate::model::CourseFailure {
                                 course_id: course,
                                 error: crate::error::Public::from(&error),
@@ -927,7 +986,11 @@ impl Coordinator {
                     match result {
                         Ok(materials) => listings.push(materials),
                         Err(error) => {
-                            tracing::warn!(error = %error, course_id = course.as_ref(), "could not synchronize course materials");
+                            tracing::warn!(
+                                error = %error,
+                                course_id = course.as_ref(),
+                                "could not synchronize course materials"
+                            );
                             failures.push(crate::model::CourseFailure {
                                 course_id: course,
                                 error: crate::error::Public::from(&error),
@@ -1050,9 +1113,11 @@ async fn google_download_authentication_failure_does_not_invalidate_kogakuin_sso
         .wait_for(|update| matches!(update, Update::Finished(_)))
         .await
         .unwrap();
-    assert!(
-        matches!(&*updates.borrow(), Update::Finished(Err(error)) if error.reason == crate::error::Reason::AuthenticationRequired)
-    );
+    assert!(matches!(
+        &*updates.borrow(),
+        Update::Finished(Err(error))
+            if error.reason == crate::error::Reason::AuthenticationRequired
+    ));
     assert!(matches!(
         operations
             .cached_authentication(crate::user_browser::Provider::KogakuinSso)

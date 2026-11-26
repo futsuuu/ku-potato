@@ -2,9 +2,8 @@
     Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
 )]
 #[serde(rename_all = "kebab-case")]
+#[schema(as = OperationErrorReason)]
 pub enum Reason {
-    InvalidInput,
-    PayloadTooLarge,
     Conflict,
     AuthenticationRequired,
     ArchiveDataMissing,
@@ -13,24 +12,47 @@ pub enum Reason {
     CourseNotFound,
     UnsupportedResource,
     Source,
+    Cancelled,
     Timeout,
     Internal,
     Archive,
     AuthenticationStorage,
     ResourceStorage,
-    NotFound,
     Forbidden,
     BrowserStart,
 }
 
+/// A public operation outcome, carried by SSE or a partial-result entry.
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+#[schema(as = OperationError)]
 pub struct Public {
     pub reason: Reason,
     pub message: String,
 }
 
 impl Public {
-    pub(crate) fn internal(reason: Reason) -> Self {
+    fn map_browser_status(status: &tonic::Status, service: &str) -> Self {
+        match status.code() {
+            tonic::Code::Cancelled => Self {
+                reason: Reason::Cancelled,
+                message: "The browser operation was cancelled".into(),
+            },
+            tonic::Code::DeadlineExceeded => Self {
+                reason: Reason::Timeout,
+                message: "The browser request timed out".into(),
+            },
+            tonic::Code::Unavailable => Self {
+                reason: Reason::Source,
+                message: format!("Could not communicate with the {service}"),
+            },
+            _ => Self {
+                reason: Reason::Internal,
+                message: format!("The {service} operation failed"),
+            },
+        }
+    }
+
+    fn internal(reason: Reason) -> Self {
         Self {
             reason,
             message: "The operation failed. Check the server log.".into(),
@@ -71,14 +93,6 @@ impl From<&crate::browser_worker::Error> for Public {
                     message: "Kogakuin SSO authentication is required".into(),
                 };
             }
-            crate::browser_worker::Error::Rpc { source }
-                if source.code() == tonic::Code::DeadlineExceeded =>
-            {
-                return Self {
-                    reason: Reason::Timeout,
-                    message: "The browser request timed out".into(),
-                };
-            }
             crate::browser_worker::Error::AuthenticationStorage { .. } => {
                 Reason::AuthenticationStorage
             }
@@ -95,11 +109,8 @@ impl From<&crate::browser_worker::Error> for Public {
                     message: "The browser returned an invalid response".into(),
                 };
             }
-            crate::browser_worker::Error::Rpc { .. } => {
-                return Self {
-                    reason: Reason::Source,
-                    message: "Browser worker RPC failed".into(),
-                };
+            crate::browser_worker::Error::Rpc { source } => {
+                return Self::map_browser_status(source, "browser worker");
             }
             crate::browser_worker::Error::DownloadStorage(_) => {
                 return Self::internal(Reason::ResourceStorage);
@@ -108,6 +119,53 @@ impl From<&crate::browser_worker::Error> for Public {
         Self {
             reason,
             message: error.to_string(),
+        }
+    }
+}
+
+#[test]
+fn browser_rpc_statuses_describe_the_event_without_exposing_diagnostics() {
+    for (code, reason, message) in [
+        (
+            tonic::Code::Cancelled,
+            Reason::Cancelled,
+            "The browser operation was cancelled",
+        ),
+        (
+            tonic::Code::DeadlineExceeded,
+            Reason::Timeout,
+            "The browser request timed out",
+        ),
+        (
+            tonic::Code::Unavailable,
+            Reason::Source,
+            "Could not communicate with the",
+        ),
+        (tonic::Code::Internal, Reason::Internal, "operation failed"),
+        (tonic::Code::Unknown, Reason::Internal, "operation failed"),
+        (
+            tonic::Code::Unauthenticated,
+            Reason::Internal,
+            "operation failed",
+        ),
+        (
+            tonic::Code::InvalidArgument,
+            Reason::Internal,
+            "operation failed",
+        ),
+    ] {
+        for public in [
+            Public::from(&crate::user_browser::Error::Rpc {
+                source: tonic::Status::new(code, "private diagnostics").into(),
+            }),
+            Public::from(&crate::browser_worker::Error::Rpc {
+                source: tonic::Status::new(code, "private diagnostics").into(),
+            }),
+        ] {
+            assert_eq!(public.reason, reason, "{code:?}");
+            assert!(public.message.contains(message), "{}", public.message);
+            assert!(!public.message.contains("private"));
+            assert!(!public.message.contains("RPC"));
         }
     }
 }
@@ -150,14 +208,6 @@ impl From<&crate::user_browser::Error> for Public {
                     },
                 };
             }
-            crate::user_browser::Error::Rpc { source }
-                if source.code() == tonic::Code::DeadlineExceeded =>
-            {
-                return Self {
-                    reason: Reason::Timeout,
-                    message: "The browser request timed out".into(),
-                };
-            }
             crate::user_browser::Error::AuthenticationStorage { .. } => {
                 Reason::AuthenticationStorage
             }
@@ -170,11 +220,8 @@ impl From<&crate::user_browser::Error> for Public {
                     message: "The browser returned an invalid response".into(),
                 };
             }
-            crate::user_browser::Error::Rpc { .. } => {
-                return Self {
-                    reason: Reason::Source,
-                    message: "User browser RPC failed".into(),
-                };
+            crate::user_browser::Error::Rpc { source } => {
+                return Self::map_browser_status(source, "user browser");
             }
         };
         Self {
@@ -207,7 +254,7 @@ fn storage_and_rpc_diagnostics_are_not_exposed() {
     }
     assert_eq!(Public::from(&archive).reason, Reason::Archive);
     assert_eq!(Public::from(&files).reason, Reason::ResourceStorage);
-    assert_eq!(Public::from(&browser).reason, Reason::Source);
+    assert_eq!(Public::from(&browser).reason, Reason::Internal);
 }
 
 impl From<&crate::drive::Error> for Public {
@@ -350,6 +397,10 @@ impl From<&crate::operation::Error> for Public {
             crate::operation::Error::UserBrowser(error) => error.into(),
             crate::operation::Error::Drive(error) => error.into(),
             crate::operation::Error::Files(error) => error.into(),
+            crate::operation::Error::Cancelled => Self {
+                reason: Reason::Cancelled,
+                message: error.to_string(),
+            },
             crate::operation::Error::Timeout => Self {
                 reason: Reason::Timeout,
                 message: error.to_string(),

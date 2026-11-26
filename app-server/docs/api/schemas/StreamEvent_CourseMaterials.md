@@ -9,7 +9,7 @@
   - **`data` (required)**: [Data\_CourseMaterials](Data_CourseMaterials.md)
   - **`event` (required)**: `string`, possible values: `"result"`
 - `object`
-  - **`data` (required)**: [ErrorBody](ErrorBody.md)
+  - **`data` (required)**: [OperationErrorBody](OperationErrorBody.md)
   - **`event` (required)**: `string`, possible values: `"error"`
 
 [API index](../README.md)

@@ -64,9 +64,11 @@ impl TryFrom<super::entity::lms_course_materials::Model> for crate::model::Mater
     type Error = super::Error;
 
     fn try_from(row: super::entity::lms_course_materials::Model) -> Result<Self, Self::Error> {
-        let kind = serde_json::from_value(
-            serde_json::json!({ "type": row.r#type, "status": row.status, "resourceAvailability": row.resource_availability }),
-        )?;
+        let kind = serde_json::from_value(serde_json::json!({
+            "type": row.r#type,
+            "status": row.status,
+            "resourceAvailability": row.resource_availability
+        }))?;
         let deadline = match (
             row.publication_deadline_kind.as_str(),
             row.publication_deadline_at,

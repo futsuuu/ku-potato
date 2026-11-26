@@ -206,7 +206,7 @@ async fn google_cookie_failures_preserve_the_authentication_provider() {
 }
 
 fn map_status(status: tonic::Status, provider: Provider) -> Error {
-    if status.code() != tonic::Code::DeadlineExceeded
+    if status.code() == tonic::Code::FailedPrecondition
         && let Ok(details) = crate::rpc::Status::decode(status.details())
     {
         for detail in details.details {
@@ -324,13 +324,50 @@ fn user_browser_failures_preserve_public_reasons_and_messages() {
 }
 
 #[test]
+fn rpc_status_codes_take_precedence_over_failure_details() {
+    let failure = protocol::Failure {
+        reason: protocol::FailureReason::AuthenticationRequired.into(),
+        message: "Login required".into(),
+    };
+    let details = crate::rpc::Status {
+        code: tonic::Code::FailedPrecondition as i32,
+        message: failure.message.clone(),
+        details: vec![prost_types::Any {
+            type_url: "type.googleapis.com/kupotato.userbrowser.v1.Failure".into(),
+            value: failure.encode_to_vec(),
+        }],
+    }
+    .encode_to_vec();
+    for code in [
+        tonic::Code::Cancelled,
+        tonic::Code::DeadlineExceeded,
+        tonic::Code::Unavailable,
+        tonic::Code::Internal,
+        tonic::Code::Unauthenticated,
+    ] {
+        let status =
+            tonic::Status::with_details(code, "private diagnostics", details.clone().into());
+        let error = map_status(status, Provider::Google);
+        assert!(matches!(
+            error,
+            Error::Rpc { source }
+                if source.code() == code && source.message() == "private diagnostics"
+        ));
+    }
+}
+
+#[test]
 fn request_timeouts_preserve_the_rpc_status() {
     let error = map_status(
         tonic::Status::deadline_exceeded("User browser deadline"),
         Provider::Google,
     );
-    assert!(matches!(&error, Error::Rpc { source }
-        if source.code() == tonic::Code::DeadlineExceeded && source.message() == "User browser deadline"));
+    assert!(matches!(
+        &error,
+        Error::Rpc { source }
+            if source.code() == tonic::Code::DeadlineExceeded
+                && source.message() == "User browser deadline"
+    ));
     let public = crate::error::Public::from(&error);
     assert_eq!(public.reason, crate::error::Reason::Timeout);
     assert_eq!(public.message, "The browser request timed out");

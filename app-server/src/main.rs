@@ -118,8 +118,14 @@ async fn run_server(
     let exit = tokio::select! {
         result = &mut serving => ServerExit::Completed(result),
         result = wait_for_shutdown() => ServerExit::Interrupted(result),
-        result = user_browser.wait() => ServerExit::Interrupted(Err(describe_child_exit("User browser", result))),
-        result = browser_worker.wait() => ServerExit::Interrupted(Err(describe_child_exit("Browser worker", result))),
+        result = user_browser.wait() => ServerExit::Interrupted(Err(describe_child_exit(
+            "User browser",
+            result
+        ))),
+        result = browser_worker.wait() => ServerExit::Interrupted(Err(describe_child_exit(
+            "Browser worker",
+            result
+        ))),
     };
     stop.cancel();
     operations.shutdown().await;
@@ -153,7 +159,10 @@ async fn wait_for_shutdown() -> Result<(), std::io::Error> {
     {
         let mut terminate =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-        tokio::select! { result = tokio::signal::ctrl_c() => result, _ = terminate.recv() => Ok(()) }
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result,
+            _ = terminate.recv() => Ok(())
+        }
     }
     #[cfg(not(unix))]
     {

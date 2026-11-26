@@ -12,7 +12,7 @@
     "/assignments": {
       "get": {
         "summary": "Read or synchronize assignments",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "listAssignments",
         "parameters": [
           {
@@ -109,7 +109,7 @@
     "/auth/check": {
       "post": {
         "summary": "Check Kogakuin SSO authentication",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "checkAuthentication",
         "responses": {
           "200": {
@@ -166,7 +166,7 @@
     "/auth/google/check": {
       "post": {
         "summary": "Check the saved Google session",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "checkGoogleAuthentication",
         "responses": {
           "200": {
@@ -196,7 +196,7 @@
     "/auth/google/login": {
       "post": {
         "summary": "Log in to Google and save the session",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "googleLogin",
         "requestBody": {
           "content": {
@@ -254,7 +254,7 @@
     "/auth/login": {
       "post": {
         "summary": "Log in to Kogakuin SSO",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "login",
         "requestBody": {
           "content": {
@@ -333,7 +333,28 @@
               }
             }
           },
-          "500": {
+          "502": {
+            "description": "The user browser failed to read credential state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The user browser service is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The credential state request timed out.",
             "content": {
               "application/json": {
                 "schema": {
@@ -346,7 +367,7 @@
       },
       "post": {
         "summary": "Register virtual WebAuthn credential",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "registerWebAuthn",
         "requestBody": {
           "content": {
@@ -402,7 +423,7 @@
       },
       "delete": {
         "summary": "Delete saved WebAuthn credential",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "deleteWebAuthn",
         "responses": {
           "200": {
@@ -432,7 +453,7 @@
     "/courses": {
       "get": {
         "summary": "Read or synchronize courses",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "listCourses",
         "parameters": [
           {
@@ -487,7 +508,7 @@
     "/courses/{courseId}/materials": {
       "get": {
         "summary": "Read or synchronize course materials",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "listMaterials",
         "parameters": [
           {
@@ -550,7 +571,7 @@
     "/google-drive/files/download": {
       "post": {
         "summary": "Acquire and save a Google Drive file",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "downloadGoogleDriveFile",
         "requestBody": {
           "content": {
@@ -585,6 +606,15 @@
             }
           },
           "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
             "content": {
               "application/json": {
                 "schema": {
@@ -858,7 +888,7 @@
     "/materials/{materialId}": {
       "get": {
         "summary": "Read or synchronize material details",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "getMaterial",
         "parameters": [
           {
@@ -921,7 +951,7 @@
     "/materials/{materialId}/resources/{resourceId}/download": {
       "post": {
         "summary": "Acquire and save an LMS file or return an external link",
-        "description": "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
+        "description": "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.",
         "operationId": "downloadResource",
         "parameters": [
           {
@@ -1155,10 +1185,12 @@
         ],
         "responses": {
           "200": {},
+          "206": {},
           "304": {},
           "400": {},
           "403": {},
           "404": {},
+          "416": {},
           "500": {}
         }
       }
@@ -1525,7 +1557,7 @@
         ],
         "properties": {
           "error": {
-            "$ref": "#/components/schemas/Public"
+            "$ref": "#/components/schemas/OperationError"
           },
           "lmsCourseId": {
             "$ref": "#/components/schemas/CourseId"
@@ -2013,7 +2045,7 @@
         ],
         "properties": {
           "error": {
-            "$ref": "#/components/schemas/Public"
+            "$ref": "#/components/schemas/HttpError"
           }
         }
       },
@@ -2134,6 +2166,38 @@
             "type": "string"
           }
         }
+      },
+      "HttpError": {
+        "type": "object",
+        "description": "A failure to handle an HTTP request, not the outcome of a streamed operation.",
+        "required": [
+          "reason",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/HttpErrorReason"
+          }
+        }
+      },
+      "HttpErrorReason": {
+        "type": "string",
+        "enum": [
+          "invalid-input",
+          "payload-too-large",
+          "forbidden",
+          "not-found",
+          "archive-data-missing",
+          "archive",
+          "resource-storage",
+          "dependency-failed",
+          "dependency-unavailable",
+          "dependency-timeout",
+          "internal"
+        ]
       },
       "Material": {
         "allOf": [
@@ -2331,12 +2395,61 @@
           }
         ]
       },
+      "OperationError": {
+        "type": "object",
+        "description": "A public operation outcome, carried by SSE or a partial-result entry.",
+        "required": [
+          "reason",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/OperationErrorReason"
+          }
+        }
+      },
+      "OperationErrorBody": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/OperationError"
+          }
+        }
+      },
+      "OperationErrorReason": {
+        "type": "string",
+        "enum": [
+          "conflict",
+          "authentication-required",
+          "archive-data-missing",
+          "material-not-found",
+          "resource-not-found",
+          "course-not-found",
+          "unsupported-resource",
+          "source",
+          "cancelled",
+          "timeout",
+          "internal",
+          "archive",
+          "authentication-storage",
+          "resource-storage",
+          "forbidden",
+          "browser-start"
+        ]
+      },
       "OperationState": {
         "type": "string",
         "enum": [
           "running",
           "succeeded",
           "blocked",
+          "cancelled",
           "failed"
         ]
       },
@@ -2392,50 +2505,12 @@
           }
         }
       },
-      "Public": {
-        "type": "object",
-        "required": [
-          "reason",
-          "message"
-        ],
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "reason": {
-            "$ref": "#/components/schemas/Reason"
-          }
-        }
-      },
       "QuestionnaireStatus": {
         "type": "string",
         "enum": [
           "unanswered",
           "answered",
           "unknown"
-        ]
-      },
-      "Reason": {
-        "type": "string",
-        "enum": [
-          "invalid-input",
-          "payload-too-large",
-          "conflict",
-          "authentication-required",
-          "archive-data-missing",
-          "material-not-found",
-          "resource-not-found",
-          "course-not-found",
-          "unsupported-resource",
-          "source",
-          "timeout",
-          "internal",
-          "archive",
-          "authentication-storage",
-          "resource-storage",
-          "not-found",
-          "forbidden",
-          "browser-start"
         ]
       },
       "Registration": {
@@ -2814,7 +2889,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",
@@ -2872,7 +2947,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",
@@ -2930,7 +3005,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",
@@ -2988,7 +3063,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",
@@ -3046,7 +3121,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",
@@ -3104,7 +3179,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",
@@ -3162,7 +3237,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",
@@ -3220,7 +3295,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ErrorBody"
+                "$ref": "#/components/schemas/OperationErrorBody"
               },
               "event": {
                 "type": "string",

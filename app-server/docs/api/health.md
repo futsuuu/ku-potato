@@ -27,6 +27,8 @@ schema: [Health](schemas/Health.md)
 
 schema: [ErrorBody](schemas/ErrorBody.md)
 
-- **`error` (required)**: [Public](schemas/Public.md)
+- **`error` (required)**: [HttpError](schemas/HttpError.md)
+
+  A failure to handle an HTTP request, not the outcome of a streamed operation.
 
 [API index](README.md)

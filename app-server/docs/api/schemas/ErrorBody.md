@@ -2,7 +2,9 @@
 
 **Type:** `object`
 
-- **`error` (required)**: [Public](Public.md)
+- **`error` (required)**: [HttpError](HttpError.md)
+
+  A failure to handle an HTTP request, not the outcome of a streamed operation.
 
 **Example:**
 
