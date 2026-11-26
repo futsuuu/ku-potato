@@ -39,8 +39,8 @@ func windowTestBrowser(t *testing.T) (*Browser, context.Context) {
 	}).Do(exec); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.saveCookies(); err != nil {
-		t.Fatal(err)
+	if saved, err := b.saveCookies(); err != nil || !saved {
+		t.Fatal("fixture did not checkpoint cookies", saved, err)
 	}
 	return b, ctx
 }

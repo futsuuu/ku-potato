@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -184,6 +186,17 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 		values := map[string]string{}
 		for _, cookie := range cookies {
 			values[cookie.Name] = cookie.Value
+			if cookie.Name == "google-partitioned" &&
+				(cookie.Domain != ".google.com" || cookie.Path != "/" ||
+					!reflect.DeepEqual(cookie.PartitionKey, &network.CookiePartitionKey{
+						TopLevelSite: "https://example.test",
+					})) {
+				t.Fatalf(
+					"Google cookie scope changed: %+v, partition key: %+v",
+					cookie,
+					cookie.PartitionKey,
+				)
+			}
 		}
 		return values
 	}
@@ -271,6 +284,207 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	want["sso"] = "fresh"
 	if got := read(); !reflect.DeepEqual(got, want) {
 		t.Fatal("interactive login lost SSO or other provider sessions", got)
+	}
+}
+
+type failingCookieCommitExecutor struct {
+	cdp.Executor
+	command    string
+	failAt     int
+	calls      int
+	omitCookie bool
+}
+
+func (e *failingCookieCommitExecutor) Execute(
+	ctx context.Context,
+	method string,
+	params, result any,
+) error {
+	if err := e.Executor.Execute(ctx, method, params, result); err != nil {
+		return err
+	}
+	if method == e.command {
+		e.calls++
+		if e.calls == e.failAt {
+			if e.omitCookie {
+				result.(*storage.GetCookiesReturns).Cookies = nil
+				return nil
+			}
+			// Chrome may apply a command before a timeout or disconnect is seen.
+			return errors.New("interrupted cookie commit")
+		}
+	}
+	return nil
+}
+
+func TestSSOCookieReplacementFailurePreservesCheckpoint(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		command    string
+		failAt     int
+		omitCookie bool
+	}{
+		{"install", storage.CommandSetCookies, 1, false},
+		{"verify", storage.CommandGetCookies, 2, false},
+		{"missing-installed-cookie", storage.CommandGetCookies, 2, true},
+		{"cleanup", storage.CommandSetCookies, 2, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			b, ctx := windowTestBrowser(t)
+			b.interactive = false
+			b.opts.SSOURL = "https://sso.example.test"
+			if err := storage.SetCookies([]*network.CookieParam{
+				{Name: "obsolete", Value: "old", Domain: "sso.example.test", Path: "/"},
+			}).Do(cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser)); err != nil {
+				t.Fatal(err)
+			}
+			if saved, err := b.saveCookies(); err != nil || !saved {
+				t.Fatal("fixture did not checkpoint cookies", saved, err)
+			}
+			before, err := os.ReadFile(b.cookiePath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			auth := NewKogakuinSSO(b)
+			fault := &failingCookieCommitExecutor{
+				Executor:   cd.FromContext(b.root).Browser,
+				command:    test.command,
+				failAt:     test.failAt,
+				omitCookie: test.omitCookie,
+			}
+			err = b.withProviderAuth(
+				ctx,
+				false,
+				isolatedAuthPage,
+				false,
+				func(tab context.Context) error {
+					return auth.replaceSSOCookies(
+						cdp.WithExecutor(tab, fault),
+						[]*network.CookieParam{
+							{Name: "sso", Value: "new", Domain: "sso.example.test", Path: "/"},
+						},
+					)
+				},
+			)
+			if err == nil || fault.calls != test.failAt || b.cookiesReady {
+				t.Fatal(
+					"failed commit was accepted or remained eligible for checkpointing",
+					err,
+					fault.calls,
+				)
+			}
+			if err := b.stopRuntime(); err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.ReadFile(b.cookiePath())
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatal("failed SSO commit overwrote the last good checkpoint", err)
+			}
+			if err := b.start(ctx, false); err != nil {
+				t.Fatal(err)
+			}
+			cookies, err := storage.GetCookies().
+				Do(cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser))
+			if err != nil || len(cookies) != 3 {
+				t.Fatal("retry lost the previous provider sessions", len(cookies), err)
+			}
+			for _, cookie := range cookies {
+				want := "saved"
+				if cookie.Name == "obsolete" {
+					want = "old"
+				}
+				if cookie.Value != want {
+					t.Fatal("retry restored a partially committed session", cookie.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestSSOCookieReplacementPreservesRefreshedScopes(t *testing.T) {
+	b, ctx := windowTestBrowser(t)
+	b.opts.SSOURL = "https://sso.example.test"
+	exec := cdp.WithExecutor(ctx, cd.FromContext(b.root).Browser)
+	if err := storage.SetCookies([]*network.CookieParam{
+		{Name: "sso", Value: "obsolete-path", Domain: "sso.example.test", Path: "/obsolete"},
+		{
+			Name:         "sso",
+			Value:        "obsolete-partition",
+			Domain:       "sso.example.test",
+			Path:         "/",
+			Secure:       true,
+			PartitionKey: &network.CookiePartitionKey{TopLevelSite: "https://other.test"},
+		},
+	}).Do(exec); err != nil {
+		t.Fatal(err)
+	}
+	params := []*network.CookieParam{
+		{Name: "sso", Value: "refreshed", Domain: "sso.example.test", Path: "/"},
+		{Name: "sso", Value: "refreshed-path", Domain: "sso.example.test", Path: "/login"},
+		{Name: "sso", Value: "refreshed-parent", Domain: ".example.test", Path: "/"},
+		{
+			Name:         "sso",
+			Value:        "refreshed-partition",
+			Domain:       "sso.example.test",
+			Path:         "/",
+			Secure:       true,
+			PartitionKey: &network.CookiePartitionKey{TopLevelSite: "https://example.test"},
+		},
+	}
+	if err := NewKogakuinSSO(b).replaceSSOCookies(exec, params); err != nil {
+		t.Fatal(err)
+	}
+	cookies, err := storage.GetCookies().Do(exec)
+	if err != nil || len(cookies) != len(params)+1 {
+		t.Fatal(
+			"replacement lost a provider cookie or retained an obsolete scope",
+			len(cookies),
+			err,
+		)
+	}
+	for _, cookie := range cookies {
+		if cookie.Name == "persistent" && cookie.Value == "saved" {
+			continue
+		}
+		actual := cookieParam(cookie)
+		if actual == nil || !slices.ContainsFunc(params, func(param *network.CookieParam) bool {
+			return sameCookieIdentity(actual, param) && actual.Value == param.Value
+		}) {
+			t.Fatal("cleanup retained an obsolete cookie or changed a refreshed scope", cookie.Name)
+		}
+	}
+}
+
+func TestCookieIdentityIncludesScope(t *testing.T) {
+	base := network.CookieParam{
+		Name: "sso", Domain: "sso.example.test", Path: "/",
+		PartitionKey: &network.CookiePartitionKey{TopLevelSite: "https://example.test"},
+	}
+	for _, field := range []string{"value", "name", "domain", "path", "partition-site", "partition-ancestor", "unpartitioned"} {
+		t.Run(field, func(t *testing.T) {
+			other := base
+			partition := *base.PartitionKey
+			other.PartitionKey = &partition
+			switch field {
+			case "value":
+				other.Value = "refreshed"
+			case "name":
+				other.Name = "other"
+			case "domain":
+				other.Domain = ".example.test"
+			case "path":
+				other.Path = "/login"
+			case "partition-site":
+				other.PartitionKey.TopLevelSite = "https://other.test"
+			case "partition-ancestor":
+				other.PartitionKey.HasCrossSiteAncestor = true
+			case "unpartitioned":
+				other.PartitionKey = nil
+			}
+			if sameCookieIdentity(&base, &other) != (field == "value") {
+				t.Fatal("cookie identity did not distinguish its scope", field)
+			}
+		})
 	}
 }
 

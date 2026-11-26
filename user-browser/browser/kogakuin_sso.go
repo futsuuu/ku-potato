@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -107,29 +108,7 @@ func (i *KogakuinSSO) ssoCookies(
 			commit, cancel := context.WithTimeout(i.root, 5*time.Second)
 			defer cancel()
 			commit = cdp.WithExecutor(commit, cd.FromContext(tab).Browser)
-			current, err := storage.GetCookies().Do(commit)
-			if err != nil {
-				return err
-			}
-			origin, _ := url.Parse(i.opts.SSOURL)
-			expired := cdp.TimeSinceEpoch(time.Now().Add(-time.Hour))
-			var deletions []*network.CookieParam
-			for _, cookie := range current {
-				if ssoCookieDomain(origin.Hostname(), cookie.Domain) {
-					if param := cookieParam(cookie); param != nil {
-						param.Expires = &expired
-						deletions = append(deletions, param)
-					}
-				}
-			}
-			// Expire only old SSO cookies through browser-level Storage commands.
-			// Other providers' cookies stay untouched; no helper tab is needed.
-			if len(deletions) > 0 {
-				if err := storage.SetCookies(deletions).Do(commit); err != nil {
-					return err
-				}
-			}
-			if err := storage.SetCookies(params).Do(commit); err != nil {
+			if err := i.replaceSSOCookies(commit, params); err != nil {
 				return err
 			}
 			result = params
@@ -137,6 +116,65 @@ func (i *KogakuinSSO) ssoCookies(
 		},
 	)
 	return result, err
+}
+
+// ctx has a browser-level executor and a bounded, caller-independent deadline.
+func (i *KogakuinSSO) replaceSSOCookies(
+	ctx context.Context,
+	params []*network.CookieParam,
+) (err error) {
+	current, err := storage.GetCookies().Do(ctx)
+	if err != nil {
+		return err
+	}
+	// A failed CDP command may already have modified the jar. Do not persist
+	// any part of a failed commit; the next runtime restores the last checkpoint.
+	defer func() {
+		if err != nil {
+			i.cookiesReady = false
+		}
+	}()
+	if err := storage.SetCookies(params).Do(ctx); err != nil {
+		return err
+	}
+	installed, err := storage.GetCookies().Do(ctx)
+	if err != nil {
+		return err
+	}
+	for _, param := range params {
+		if !slices.ContainsFunc(installed, func(cookie *network.Cookie) bool {
+			actual := cookieParam(cookie)
+			return actual != nil && sameCookieIdentity(actual, param) && actual.Value == param.Value
+		}) {
+			return Fail("authentication-storage", "更新したSSO Cookieを確認できません。再試行してください。")
+		}
+	}
+	// Only remove obsolete identities after the replacements are installed.
+	// Other providers and replacement cookies (including partitioned ones) stay.
+	expired := cdp.TimeSinceEpoch(time.Now().Add(-time.Hour))
+	var deletions []*network.CookieParam
+	for _, previous := range ssoCookieParams(i.opts.SSOURL, current) {
+		if !slices.ContainsFunc(params, func(param *network.CookieParam) bool {
+			return sameCookieIdentity(previous, param)
+		}) {
+			previous.Expires = &expired
+			deletions = append(deletions, previous)
+		}
+	}
+	if len(deletions) > 0 {
+		return storage.SetCookies(deletions).Do(ctx)
+	}
+	return nil
+}
+
+func sameCookieIdentity(a, b *network.CookieParam) bool {
+	if a.Name != b.Name || a.Domain != b.Domain || a.Path != b.Path {
+		return false
+	}
+	if a.PartitionKey == nil || b.PartitionKey == nil {
+		return a.PartitionKey == b.PartitionKey
+	}
+	return *a.PartitionKey == *b.PartitionKey
 }
 
 func ssoCookieParams(rawURL string, cookies []*network.Cookie) []*network.CookieParam {

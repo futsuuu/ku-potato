@@ -248,6 +248,72 @@ func TestClosedAuthWindowPreservesCookies(t *testing.T) {
 	}
 }
 
+func TestSuccessfulAuthenticationWithSkippedCheckpointIsCancelled(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		kind        authPageKind
+		interactive bool
+	}{
+		{"shared-headless", sharedAuthPage, false},
+		{"shared-interactive", sharedAuthPage, true},
+		{"dedicated", dedicatedAuthPage, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			b, ctx := windowTestBrowser(t)
+			b.interactive = test.interactive
+			before, err := os.ReadFile(b.cookiePath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = b.withProviderAuth(
+				ctx,
+				test.interactive,
+				test.kind,
+				false,
+				func(tab context.Context) error {
+					if err := storage.SetCookies([]*network.CookieParam{
+						{
+							Name:   "sso",
+							Value:  "not-checkpointed",
+							Domain: "sso.example.test",
+							Path:   "/",
+						},
+					}).Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser)); err != nil {
+						return err
+					}
+					// Simulate closure after the provider has decided login succeeded,
+					// but before runProviderAuth can checkpoint its new cookies.
+					closeAuthPage(t, b, cd.FromContext(tab).Target.TargetID)
+					return nil
+				},
+			)
+			if !errors.Is(err, context.Canceled) || ctx.Err() != nil {
+				t.Fatal("unpersisted login was not reported as retryable cancellation", err)
+			}
+			after, err := os.ReadFile(b.cookiePath())
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatal("skipped save changed the last checkpoint", err)
+			}
+			if err := b.withSessionAuth(ctx, false, false, func(tab context.Context) error {
+				cookies, err := storage.GetCookies().
+					Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
+				if err != nil {
+					return err
+				}
+				for _, cookie := range cookies {
+					if cookie.Name == "sso" && cookie.Value == "saved" {
+						return nil
+					}
+				}
+				t.Fatal("retry did not restore the last checkpoint")
+				return nil
+			}); err != nil {
+				t.Fatal("cancelled login prevented retry", err)
+			}
+		})
+	}
+}
+
 func TestLogoutWithOpenAuthWindowIsPersisted(t *testing.T) {
 	b, ctx := windowTestBrowser(t)
 	var id target.ID

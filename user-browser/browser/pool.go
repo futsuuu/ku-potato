@@ -37,8 +37,13 @@ func operationContext(page, request context.Context) (context.Context, context.C
 func (b *Browser) stopRuntime() error {
 	var err error
 	if b.cookiesReady && b.root.Err() == nil {
-		err = b.saveCookies()
+		_, err = b.saveCookies()
 	}
+	b.discardRuntime()
+	return err
+}
+
+func (b *Browser) discardRuntime() {
 	if b.root != nil && b.root.Err() == nil && cd.FromContext(b.root).Browser != nil {
 		shutdown, cancel := context.WithTimeout(b.root, 5*time.Second)
 		_ = cd.Cancel(shutdown)
@@ -63,7 +68,6 @@ func (b *Browser) stopRuntime() error {
 	b.defaultContext = ""
 	b.defaultWindowOpened = false
 	b.interactive = false
-	return err
 }
 
 func (b *Browser) Close() error {
@@ -362,11 +366,13 @@ func (b *Browser) runProviderAuth(
 	// Closing the last ordinary tab can end Chrome's session-cookie lifetime.
 	stopRuntime := kind == dedicatedAuthPage ||
 		interactive && (err == nil || kind == isolatedAuthPage)
+	var saved bool
 	var saveErr error
+	if b.root.Err() == nil {
+		saved, saveErr = b.saveCookies()
+	}
 	if stopRuntime {
-		saveErr = b.stopRuntime()
-	} else if b.cookiesReady && b.root.Err() == nil {
-		saveErr = b.saveCookies()
+		b.discardRuntime()
 	}
 	if saveErr != nil {
 		if err == nil {
@@ -374,6 +380,11 @@ func (b *Browser) runProviderAuth(
 		} else {
 			b.opts.Logger.ErrorContext(ctx, "Cookie persistence failed", "error", saveErr)
 		}
+	}
+	if err == nil && !saved {
+		// The window closed after authentication finished but before its
+		// checkpoint. Let the caller retry instead of reporting a lost login.
+		err = context.Canceled
 	}
 	if err == nil && stopRuntime && interactive && restart {
 		err = b.start(ctx, false)
