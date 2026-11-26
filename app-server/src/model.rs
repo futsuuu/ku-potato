@@ -847,9 +847,11 @@ mod tests {
             .collect();
         for (kind, allowed) in cases {
             for status in &statuses {
-                let parsed = serde_json::from_value::<super::MaterialKind>(
-                    serde_json::json!({ "type": kind, "status": status, "resourceAvailability": "available" }),
-                );
+                let parsed = serde_json::from_value::<super::MaterialKind>(serde_json::json!({
+                    "type": kind,
+                    "status": status,
+                    "resourceAvailability": "available"
+                }));
                 assert_eq!(parsed.is_ok(), allowed.contains(status), "{kind} {status}");
                 if let Ok(parsed) = parsed {
                     let encoded = serde_json::to_value(parsed).unwrap();

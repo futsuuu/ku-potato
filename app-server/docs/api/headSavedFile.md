@@ -31,6 +31,8 @@ Returns the same headers as a saved-file GET request without a response body.
 
 ### 200
 
+### 206
+
 ### 304
 
 ### 400
@@ -38,6 +40,8 @@ Returns the same headers as a saved-file GET request without a response body.
 ### 403
 
 ### 404
+
+### 416
 
 ### 500
 

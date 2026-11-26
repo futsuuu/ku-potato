@@ -224,12 +224,18 @@ impl Client {
 async fn mismatched_responses_preserve_requested_and_received_identifiers() {
     let fixture = crate::rpc::tests::Fixture::new().await;
     assert!(matches!(
-        fixture.browser_worker.fetch_course_materials(&"other".to_owned().try_into().unwrap()).await,
+        fixture
+            .browser_worker
+            .fetch_course_materials(&"other".to_owned().try_into().unwrap())
+            .await,
         Err(Error::InvalidResponse { field: "course ID", details, .. })
             if details == serde_json::json!({ "expected": "other", "actual": "course1" })
     ));
     assert!(matches!(
-        fixture.browser_worker.fetch_material_contents(&"MAT2".to_owned().try_into().unwrap(), None).await,
+        fixture
+            .browser_worker
+            .fetch_material_contents(&"MAT2".to_owned().try_into().unwrap(), None)
+            .await,
         Err(Error::InvalidResponse { field: "material ID", details, .. })
             if details == serde_json::json!({ "expected": "MAT2", "actual": "MAT1" })
     ));
@@ -464,7 +470,7 @@ async fn download_storage_failures_preserve_the_io_error() {
 }
 
 fn map_status(status: tonic::Status) -> Error {
-    if status.code() != tonic::Code::DeadlineExceeded
+    if status.code() == tonic::Code::FailedPrecondition
         && let Ok(details) = crate::rpc::Status::decode(status.details())
     {
         for detail in details.details {
@@ -554,10 +560,48 @@ fn browser_worker_failures_preserve_target_identifiers() {
 }
 
 #[test]
+fn rpc_status_codes_take_precedence_over_failure_details() {
+    let failure = protocol::Failure {
+        reason: protocol::FailureReason::AuthenticationRequired.into(),
+        message: "Login required".into(),
+        target: None,
+    };
+    let details = crate::rpc::Status {
+        code: tonic::Code::FailedPrecondition as i32,
+        message: failure.message.clone(),
+        details: vec![prost_types::Any {
+            type_url: "type.googleapis.com/kupotato.browserworker.v1.Failure".into(),
+            value: failure.encode_to_vec(),
+        }],
+    }
+    .encode_to_vec();
+    for code in [
+        tonic::Code::Cancelled,
+        tonic::Code::DeadlineExceeded,
+        tonic::Code::Unavailable,
+        tonic::Code::Internal,
+        tonic::Code::Unauthenticated,
+    ] {
+        let status =
+            tonic::Status::with_details(code, "private diagnostics", details.clone().into());
+        let error = map_status(status);
+        assert!(matches!(
+            error,
+            Error::Rpc { source }
+                if source.code() == code && source.message() == "private diagnostics"
+        ));
+    }
+}
+
+#[test]
 fn request_timeouts_preserve_the_rpc_status() {
     let error = map_status(tonic::Status::deadline_exceeded("Worker deadline"));
-    assert!(matches!(&error, Error::Rpc { source }
-        if source.code() == tonic::Code::DeadlineExceeded && source.message() == "Worker deadline"));
+    assert!(matches!(
+        &error,
+        Error::Rpc { source }
+            if source.code() == tonic::Code::DeadlineExceeded
+                && source.message() == "Worker deadline"
+    ));
     let public = crate::error::Public::from(&error);
     assert_eq!(public.reason, crate::error::Reason::Timeout);
     assert_eq!(public.message, "The browser request timed out");

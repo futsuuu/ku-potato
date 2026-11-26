@@ -68,6 +68,8 @@ pub(crate) mod tests {
         pub renewed: std::sync::atomic::AtomicBool,
         pub truncated: std::sync::atomic::AtomicBool,
         pub google_authentication_required: std::sync::atomic::AtomicBool,
+        pub authentication_error: std::sync::Mutex<Option<tonic::Status>>,
+        pub registration_error: std::sync::Mutex<Option<tonic::Status>>,
     }
 
     pub(crate) struct Fixture {
@@ -405,6 +407,9 @@ pub(crate) mod tests {
             request: tonic::Request<crate::user_browser::protocol::LoginRequest>,
         ) -> Result<tonic::Response<()>, tonic::Status> {
             check(&request, "x-ku-potato-user-browser-token", "user-secret")?;
+            if let Some(error) = self.authentication_error.lock().unwrap().clone() {
+                return Err(error);
+            }
             Ok(tonic::Response::new(()))
         }
 
@@ -426,6 +431,9 @@ pub(crate) mod tests {
             &self,
             _: tonic::Request<crate::user_browser::protocol::InteractiveRequest>,
         ) -> Result<tonic::Response<()>, tonic::Status> {
+            if let Some(error) = self.authentication_error.lock().unwrap().clone() {
+                return Err(error);
+            }
             Ok(tonic::Response::new(()))
         }
         async fn web_authn_registration_status(
@@ -433,6 +441,9 @@ pub(crate) mod tests {
             _: tonic::Request<()>,
         ) -> Result<tonic::Response<crate::user_browser::protocol::RegistrationStatus>, tonic::Status>
         {
+            if let Some(error) = self.registration_error.lock().unwrap().clone() {
+                return Err(error);
+            }
             Ok(tonic::Response::new(
                 crate::user_browser::protocol::RegistrationStatus { registered: true },
             ))

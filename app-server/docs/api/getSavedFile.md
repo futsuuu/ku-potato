@@ -54,7 +54,9 @@ Serves verified saved content with range requests and ETag conditionals. Does no
 
 schema: [ErrorBody](schemas/ErrorBody.md)
 
-- **`error` (required)**: [Public](schemas/Public.md)
+- **`error` (required)**: [HttpError](schemas/HttpError.md)
+
+  A failure to handle an HTTP request, not the outcome of a streamed operation.
 
 ### 416
 

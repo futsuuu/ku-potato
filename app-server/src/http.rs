@@ -1,3 +1,5 @@
+pub mod error;
+
 use axum::response::IntoResponse as _;
 use tower::ServiceExt as _;
 
@@ -13,8 +15,8 @@ enum Error {
     Forbidden,
     #[error("API endpoint not found")]
     NotFound,
-    #[error(transparent)]
-    UserBrowser(#[from] crate::user_browser::Error),
+    #[error("Could not read the saved WebAuthn credential state: {0}")]
+    WebAuthnState(#[source] crate::user_browser::Error),
     #[error(transparent)]
     Archive(#[from] crate::archive::Error),
     #[error(transparent)]
@@ -23,45 +25,11 @@ enum Error {
     Header(#[from] axum::http::header::InvalidHeaderValue),
 }
 
-impl Error {
-    fn public(&self) -> crate::error::Public {
-        let reason = match self {
-            Self::InvalidInput(_) | Self::InvalidValue(_) => crate::error::Reason::InvalidInput,
-            Self::BodyTooLarge => crate::error::Reason::PayloadTooLarge,
-            Self::Forbidden => crate::error::Reason::Forbidden,
-            Self::NotFound => crate::error::Reason::NotFound,
-            Self::UserBrowser(error) => return error.into(),
-            Self::Archive(error) => return error.into(),
-            Self::Files(error) => return error.into(),
-            Self::Header(_) => {
-                return crate::error::Public::internal(crate::error::Reason::Internal);
-            }
-        };
-        crate::error::Public {
-            reason,
-            message: self.to_string(),
-        }
-    }
-}
-
 impl axum::response::IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        let public = self.public();
-        let status = match public.reason {
-            crate::error::Reason::InvalidInput => axum::http::StatusCode::BAD_REQUEST,
-            crate::error::Reason::PayloadTooLarge => axum::http::StatusCode::PAYLOAD_TOO_LARGE,
-            crate::error::Reason::Forbidden => axum::http::StatusCode::FORBIDDEN,
-            crate::error::Reason::ArchiveDataMissing
-            | crate::error::Reason::MaterialNotFound
-            | crate::error::Reason::ResourceNotFound
-            | crate::error::Reason::CourseNotFound
-            | crate::error::Reason::NotFound => axum::http::StatusCode::NOT_FOUND,
-            crate::error::Reason::Conflict | crate::error::Reason::AuthenticationRequired => {
-                axum::http::StatusCode::CONFLICT
-            }
-            _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        };
-        if status == axum::http::StatusCode::INTERNAL_SERVER_ERROR {
+        let public = error::Details::from(&self);
+        let status = public.reason.status_code();
+        if status.is_server_error() {
             tracing::error!(error = %self, "HTTP operation failed");
         }
         (status, axum::Json(ErrorBody { error: public })).into_response()
@@ -91,6 +59,11 @@ pub struct Data<T> {
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
 pub struct ErrorBody {
+    pub error: error::Details,
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct OperationErrorBody {
     pub error: crate::error::Public,
 }
 
@@ -100,6 +73,7 @@ pub enum OperationState {
     Running,
     Succeeded,
     Blocked,
+    Cancelled,
     Failed,
 }
 
@@ -116,7 +90,7 @@ pub struct OperationStatus {
 pub enum StreamEvent<T> {
     Status(OperationStatus),
     Result(Data<T>),
-    Error(ErrorBody),
+    Error(OperationErrorBody),
 }
 
 impl<T: serde::Serialize> StreamEvent<T> {
@@ -188,7 +162,7 @@ struct Synchronization {
     sync: crate::model::SyncPolicy,
 }
 
-const STREAM_DESCRIPTION: &str = "Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.";
+const STREAM_DESCRIPTION: &str = "Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.";
 
 #[derive(utoipa::OpenApi)]
 #[openapi(info(
@@ -316,7 +290,7 @@ async fn local_only(
             || headers.split(',').any(|header| {
                 !matches!(
                     header.trim().to_ascii_lowercase().as_str(),
-                    "" | "content-type" | "range" | "if-none-match"
+                    "" | "content-type" | "range" | "if-range" | "if-none-match"
                 )
             })
         {
@@ -328,7 +302,7 @@ async fn local_only(
                     ("Access-Control-Allow-Methods", "GET, POST, DELETE, HEAD"),
                     (
                         "Access-Control-Allow-Headers",
-                        "Content-Type, Range, If-None-Match",
+                        "Content-Type, Range, If-Range, If-None-Match",
                     ),
                 ],
             )
@@ -372,10 +346,17 @@ async fn local_only(
     response
 }
 
-#[utoipa::path(get, path = "/healthz", operation_id = "health",
+#[utoipa::path(
+    get,
+    path = "/healthz",
+    operation_id = "health",
     summary = "Check HTTP process",
     description = "Reports HTTP process availability without starting browser work.",
-    responses((status = 200, body = Health), (status = 403, body = ErrorBody)))]
+    responses(
+        (status = 200, body = Health),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn health() -> axum::Json<Health> {
     axum::Json(Health {
         status: "ok",
@@ -383,18 +364,31 @@ async fn health() -> axum::Json<Health> {
     })
 }
 
-#[utoipa::path(get, path = "/openapi.json",
+#[utoipa::path(
+    get,
+    path = "/openapi.json",
     summary = "Read the generated OpenAPI document",
     description = "Generated from the same Rust routes and schemas used by this server.",
-    responses((status = 200, body = serde_json::Value), (status = 403, body = ErrorBody)))]
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn specification() -> axum::Json<utoipa::openapi::OpenApi> {
     axum::Json(openapi())
 }
 
-#[utoipa::path(get, path = "/auth", operation_id = "getCachedAuthenticationState",
+#[utoipa::path(
+    get,
+    path = "/auth",
+    operation_id = "getCachedAuthenticationState",
     summary = "Read cached Kogakuin SSO authentication state",
     description = "Returns the last observed Kogakuin SSO authentication state without starting an authentication check.",
-    responses((status = 200, body = Data<crate::model::Authentication>), (status = 403, body = ErrorBody)))]
+    responses(
+        (status = 200, body = Data<crate::model::Authentication>),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn cached_kogakuin_sso(
     axum::extract::State(state): axum::extract::State<State>,
 ) -> axum::Json<Data<crate::model::Authentication>> {
@@ -406,10 +400,17 @@ async fn cached_kogakuin_sso(
     })
 }
 
-#[utoipa::path(get, path = "/auth/google", operation_id = "getCachedGoogleAuthenticationState",
+#[utoipa::path(
+    get,
+    path = "/auth/google",
+    operation_id = "getCachedGoogleAuthenticationState",
     summary = "Read cached Google authentication state",
     description = "Returns the last observed Google authentication state without starting an authentication check.",
-    responses((status = 200, body = Data<crate::model::Authentication>), (status = 403, body = ErrorBody)))]
+    responses(
+        (status = 200, body = Data<crate::model::Authentication>),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn cached_google(
     axum::extract::State(state): axum::extract::State<State>,
 ) -> axum::Json<Data<crate::model::Authentication>> {
@@ -421,10 +422,24 @@ async fn cached_google(
     })
 }
 
-#[utoipa::path(get, path = "/auth/webauthn", operation_id = "getWebAuthn",
+#[utoipa::path(
+    get,
+    path = "/auth/webauthn",
+    operation_id = "getWebAuthn",
     summary = "Read saved WebAuthn credential state",
     description = "Reports whether a saved virtual WebAuthn credential is registered.",
-    responses((status = 200, body = Data<crate::model::Registration>), (status = 403, body = ErrorBody), (status = 500, body = ErrorBody)))]
+    responses(
+        (status = 200, body = Data<crate::model::Registration>),
+        (status = 403, body = ErrorBody),
+        (
+            status = 502,
+            description = "The user browser failed to read credential state.",
+            body = ErrorBody
+        ),
+        (status = 503, description = "The user browser service is unavailable.", body = ErrorBody),
+        (status = 504, description = "The credential state request timed out.", body = ErrorBody)
+    )
+)]
 async fn registration(
     axum::extract::State(state): axum::extract::State<State>,
 ) -> Result<axum::Json<Data<crate::model::Registration>>, Error> {
@@ -434,15 +449,30 @@ async fn registration(
                 .operations
                 .user_browser
                 .is_web_authn_credential_registered()
-                .await?,
+                .await
+                .map_err(Error::WebAuthnState)?,
         },
     }))
 }
 
-#[utoipa::path(post, path = "/auth/login", operation_id = "login", request_body = AuthenticationInput,
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    operation_id = "login",
+    request_body = AuthenticationInput,
     summary = "Log in to Kogakuin SSO",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Authentication>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 413, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Authentication>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 413, body = ErrorBody)
+    )
+)]
 async fn login(
     axum::extract::State(state): axum::extract::State<State>,
     input: Result<axum::Json<AuthenticationInput>, axum::extract::rejection::JsonRejection>,
@@ -458,10 +488,24 @@ async fn login(
     .await)
 }
 
-#[utoipa::path(post, path = "/auth/google/login", operation_id = "googleLogin", request_body = AuthenticationInput,
+#[utoipa::path(
+    post,
+    path = "/auth/google/login",
+    operation_id = "googleLogin",
+    request_body = AuthenticationInput,
     summary = "Log in to Google and save the session",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Authentication>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 413, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Authentication>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 413, body = ErrorBody)
+    )
+)]
 async fn google_login(
     axum::extract::State(state): axum::extract::State<State>,
     input: Result<axum::Json<AuthenticationInput>, axum::extract::rejection::JsonRejection>,
@@ -477,10 +521,21 @@ async fn google_login(
     .await)
 }
 
-#[utoipa::path(post, path = "/auth/check", operation_id = "checkAuthentication",
+#[utoipa::path(
+    post,
+    path = "/auth/check",
+    operation_id = "checkAuthentication",
     summary = "Check Kogakuin SSO authentication",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Authentication>], content_type = "text/event-stream"), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Authentication>],
+            content_type = "text/event-stream"
+        ),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn check(
     axum::extract::State(state): axum::extract::State<State>,
 ) -> axum::response::Response {
@@ -491,10 +546,21 @@ async fn check(
     .await
 }
 
-#[utoipa::path(post, path = "/auth/google/check", operation_id = "checkGoogleAuthentication",
+#[utoipa::path(
+    post,
+    path = "/auth/google/check",
+    operation_id = "checkGoogleAuthentication",
     summary = "Check the saved Google session",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Authentication>], content_type = "text/event-stream"), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Authentication>],
+            content_type = "text/event-stream"
+        ),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn google_check(
     axum::extract::State(state): axum::extract::State<State>,
 ) -> axum::response::Response {
@@ -505,10 +571,24 @@ async fn google_check(
     .await
 }
 
-#[utoipa::path(post, path = "/auth/webauthn", operation_id = "registerWebAuthn", request_body = AuthenticationInput,
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn",
+    operation_id = "registerWebAuthn",
+    request_body = AuthenticationInput,
     summary = "Register virtual WebAuthn credential",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Registration>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 413, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Registration>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 413, body = ErrorBody)
+    )
+)]
 async fn register(
     axum::extract::State(state): axum::extract::State<State>,
     input: Result<axum::Json<AuthenticationInput>, axum::extract::rejection::JsonRejection>,
@@ -523,10 +603,21 @@ async fn register(
     .await)
 }
 
-#[utoipa::path(delete, path = "/auth/webauthn", operation_id = "deleteWebAuthn",
+#[utoipa::path(
+    delete,
+    path = "/auth/webauthn",
+    operation_id = "deleteWebAuthn",
     summary = "Delete saved WebAuthn credential",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Registration>], content_type = "text/event-stream"), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Registration>],
+            content_type = "text/event-stream"
+        ),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn delete_registration(
     axum::extract::State(state): axum::extract::State<State>,
 ) -> axum::response::Response {
@@ -537,10 +628,23 @@ async fn delete_registration(
     .await
 }
 
-#[utoipa::path(get, path = "/courses", operation_id = "listCourses", params(Synchronization),
+#[utoipa::path(
+    get,
+    path = "/courses",
+    operation_id = "listCourses",
+    params(Synchronization),
     summary = "Read or synchronize courses",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<Vec<crate::model::Course>>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<Vec<crate::model::Course>>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn courses(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Query(input): axum::extract::Query<Synchronization>,
@@ -552,11 +656,26 @@ async fn courses(
     .await
 }
 
-#[utoipa::path(get, path = "/courses/{courseId}/materials", operation_id = "listMaterials",
-    params(("courseId" = crate::model::CourseId, Path), Synchronization),
+#[utoipa::path(
+    get,
+    path = "/courses/{courseId}/materials",
+    operation_id = "listMaterials",
+    params(
+        ("courseId" = crate::model::CourseId, Path),
+        Synchronization
+    ),
     summary = "Read or synchronize course materials",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::CourseMaterials>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::CourseMaterials>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn materials(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Path(course): axum::extract::Path<crate::model::CourseId>,
@@ -598,11 +717,33 @@ fn parse_assignment_query(raw: Option<&str>) -> Result<crate::operation::Request
     })
 }
 
-#[utoipa::path(get, path = "/assignments", operation_id = "listAssignments",
-    params(Synchronization, ("courseId" = Option<Vec<crate::model::CourseId>>, Query, style = Form, explode = true, max_items = 500, description = "Repeat to select courses; omission uses the courses selected by the synchronization policy.")),
+#[utoipa::path(
+    get,
+    path = "/assignments",
+    operation_id = "listAssignments",
+    params(
+        Synchronization,
+        (
+            "courseId" = Option<Vec<crate::model::CourseId>>,
+            Query,
+            style = Form,
+            explode = true,
+            max_items = 500,
+            description = "Repeat to select courses; omission uses the courses selected by the synchronization policy."
+        )
+    ),
     summary = "Read or synchronize assignments",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Assignments>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Assignments>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn assignments(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::RawQuery(raw): axum::extract::RawQuery,
@@ -611,11 +752,26 @@ async fn assignments(
     Ok(stream_operation(state.operations, request).await)
 }
 
-#[utoipa::path(get, path = "/materials/{materialId}", operation_id = "getMaterial",
-    params(("materialId" = crate::model::MaterialId, Path), Synchronization),
+#[utoipa::path(
+    get,
+    path = "/materials/{materialId}",
+    operation_id = "getMaterial",
+    params(
+        ("materialId" = crate::model::MaterialId, Path),
+        Synchronization
+    ),
     summary = "Read or synchronize material details",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Detail>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Detail>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn detail(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Path(material): axum::extract::Path<crate::model::MaterialId>,
@@ -631,11 +787,26 @@ async fn detail(
     .await
 }
 
-#[utoipa::path(post, path = "/materials/{materialId}/resources/{resourceId}/download", operation_id = "downloadResource",
-    params(("materialId" = crate::model::MaterialId, Path), ("resourceId" = crate::model::ResourceId, Path)),
+#[utoipa::path(
+    post,
+    path = "/materials/{materialId}/resources/{resourceId}/download",
+    operation_id = "downloadResource",
+    params(
+        ("materialId" = crate::model::MaterialId, Path),
+        ("resourceId" = crate::model::ResourceId, Path)
+    ),
     summary = "Acquire and save an LMS file or return an external link",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::Download>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::Download>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody)
+    )
+)]
 async fn download(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Path(ResourceIdentifiers {
@@ -660,26 +831,47 @@ async fn stream_operation(
             let update = observation.borrow_and_update().clone();
             match update {
                 crate::operation::Update::Running(progress) => {
-                    yield StreamEvent::<serde_json::Value>::Status(OperationStatus { status: OperationState::Running, attempt: std::num::NonZeroU32::MIN, progress }).into_sse();
+                    yield StreamEvent::<serde_json::Value>::Status(OperationStatus {
+                        status: OperationState::Running,
+                        attempt: std::num::NonZeroU32::MIN,
+                        progress
+                    })
+                    .into_sse();
                 }
                 crate::operation::Update::Finished(result) => {
                     let status = match &result {
                         Ok(_) => OperationState::Succeeded,
-                        Err(error) if error.reason == crate::error::Reason::AuthenticationRequired => OperationState::Blocked,
+                        Err(error)
+                            if error.reason == crate::error::Reason::AuthenticationRequired =>
+                            OperationState::Blocked,
+                        Err(error) if error.reason == crate::error::Reason::Cancelled =>
+                            OperationState::Cancelled,
                         Err(_) => OperationState::Failed,
                     };
                     yield StreamEvent::<serde_json::Value>::Status(OperationStatus {
-                        status, attempt: std::num::NonZeroU32::MIN,
-                        progress: crate::operation::Progress { stage: crate::operation::Stage::Completed, completed: usize::from(result.is_ok()), total: 1, course: None },
-                    }).into_sse();
+                        status,
+                        attempt: std::num::NonZeroU32::MIN,
+                        progress: crate::operation::Progress {
+                            stage: crate::operation::Stage::Completed,
+                            completed: usize::from(result.is_ok()),
+                            total: 1,
+                            course: None
+                        },
+                    })
+                    .into_sse();
                     yield match result {
                         Ok(data) => StreamEvent::Result(Data { data }).into_sse(),
-                        Err(error) => StreamEvent::<serde_json::Value>::Error(ErrorBody { error }).into_sse(),
+                        Err(error) => StreamEvent::<serde_json::Value>::Error(OperationErrorBody {
+                            error
+                        })
+                        .into_sse(),
                     };
                     break;
                 }
             }
-            if observation.changed().await.is_err() { break; }
+            if observation.changed().await.is_err() {
+                break;
+            }
         }
     };
     axum::response::Sse::new(stream)
@@ -687,11 +879,24 @@ async fn stream_operation(
         .into_response()
 }
 
-#[utoipa::path(post, path = "/materials/{materialId}/resources/{resourceId}/prepare", operation_id = "prepareResource",
-    params(("materialId" = crate::model::MaterialId, Path), ("resourceId" = crate::model::ResourceId, Path)),
+#[utoipa::path(
+    post,
+    path = "/materials/{materialId}/resources/{resourceId}/prepare",
+    operation_id = "prepareResource",
+    params(
+        ("materialId" = crate::model::MaterialId, Path),
+        ("resourceId" = crate::model::ResourceId, Path)
+    ),
     summary = "Materialize a saved resource for local clients",
     description = "Verifies and materializes saved content and returns its local filesystem path. Does not download missing content.",
-    responses((status = 200, body = Data<ResourcePath>), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+    responses(
+        (status = 200, body = Data<ResourcePath>),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 500, body = ErrorBody)
+    )
+)]
 async fn prepare(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Path(ResourceIdentifiers {
@@ -710,14 +915,38 @@ async fn prepare(
     }))
 }
 
-#[utoipa::path(get, path = "/materials/{materialId}/resources/{resourceId}/file", operation_id = "getSavedFile",
-    params(("materialId" = crate::model::MaterialId, Path), ("resourceId" = crate::model::ResourceId, Path),
-        ("Range" = Option<String>, Header, description = "Byte range to retrieve."), ("If-Range" = Option<String>, Header, description = "Apply Range only if the saved file's ETag matches."), ("If-None-Match" = Option<String>, Header, description = "Return 304 if the saved file's ETag matches.")),
+#[utoipa::path(
+    get,
+    path = "/materials/{materialId}/resources/{resourceId}/file",
+    operation_id = "getSavedFile",
+    params(
+        ("materialId" = crate::model::MaterialId, Path),
+        ("resourceId" = crate::model::ResourceId, Path),
+        ("Range" = Option<String>, Header, description = "Byte range to retrieve."),
+        (
+            "If-Range" = Option<String>,
+            Header,
+            description = "Apply Range only if the saved file's ETag matches."
+        ),
+        (
+            "If-None-Match" = Option<String>,
+            Header,
+            description = "Return 304 if the saved file's ETag matches."
+        )
+    ),
     summary = "Serve a saved file",
     description = "Serves verified saved content with range requests and ETag conditionals. Does not download missing content.",
-    responses((status = 200, body = inline(Binary), content_type = "application/octet-stream"),
+    responses(
+        (status = 200, body = inline(Binary), content_type = "application/octet-stream"),
         (status = 206, body = inline(Binary), content_type = "application/octet-stream"),
-        (status = 304), (status = 416), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+        (status = 304),
+        (status = 416),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 500, body = ErrorBody)
+    )
+)]
 async fn file(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Path(ResourceIdentifiers {
@@ -790,11 +1019,38 @@ async fn serve_file(
     Ok(response)
 }
 
-#[utoipa::path(head, path = "/materials/{materialId}/resources/{resourceId}/file", operation_id = "headSavedFile",
-    params(("materialId" = crate::model::MaterialId, Path), ("resourceId" = crate::model::ResourceId, Path), ("Range" = Option<String>, Header, description = "Byte range to retrieve."), ("If-Range" = Option<String>, Header, description = "Apply Range only if the saved file's ETag matches."), ("If-None-Match" = Option<String>, Header, description = "Return 304 if the saved file's ETag matches.")),
+#[utoipa::path(
+    head,
+    path = "/materials/{materialId}/resources/{resourceId}/file",
+    operation_id = "headSavedFile",
+    params(
+        ("materialId" = crate::model::MaterialId, Path),
+        ("resourceId" = crate::model::ResourceId, Path),
+        ("Range" = Option<String>, Header, description = "Byte range to retrieve."),
+        (
+            "If-Range" = Option<String>,
+            Header,
+            description = "Apply Range only if the saved file's ETag matches."
+        ),
+        (
+            "If-None-Match" = Option<String>,
+            Header,
+            description = "Return 304 if the saved file's ETag matches."
+        )
+    ),
     summary = "Read saved file headers",
     description = "Returns the same headers as a saved-file GET request without a response body.",
-    responses((status = 200), (status = 304), (status = 400), (status = 403), (status = 404), (status = 500)))]
+    responses(
+        (status = 200),
+        (status = 206),
+        (status = 304),
+        (status = 416),
+        (status = 400),
+        (status = 403),
+        (status = 404),
+        (status = 500)
+    )
+)]
 async fn head_file(
     state: axum::extract::State<State>,
     path: axum::extract::Path<ResourceIdentifiers>,
@@ -803,11 +1059,24 @@ async fn head_file(
     file(state, path, request).await
 }
 
-#[utoipa::path(post, path = "/google-drive/files/download", operation_id = "downloadGoogleDriveFile",
+#[utoipa::path(
+    post,
+    path = "/google-drive/files/download",
+    operation_id = "downloadGoogleDriveFile",
     request_body = GoogleDriveDownloadInput,
     summary = "Acquire and save a Google Drive file",
     description = STREAM_DESCRIPTION,
-    responses((status = 200, body = [StreamEvent<crate::model::GoogleDriveDownload>], content_type = "text/event-stream"), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody)))]
+    responses(
+        (
+            status = 200,
+            body = [StreamEvent<crate::model::GoogleDriveDownload>],
+            content_type = "text/event-stream"
+        ),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 413, body = ErrorBody)
+    )
+)]
 async fn google_drive_download(
     axum::extract::State(state): axum::extract::State<State>,
     input: Result<axum::Json<GoogleDriveDownloadInput>, axum::extract::rejection::JsonRejection>,
@@ -820,11 +1089,21 @@ async fn google_drive_download(
     .await)
 }
 
-#[utoipa::path(post, path = "/google-drive/files/{fileId}/prepare", operation_id = "prepareGoogleDriveFile",
+#[utoipa::path(
+    post,
+    path = "/google-drive/files/{fileId}/prepare",
+    operation_id = "prepareGoogleDriveFile",
     params(("fileId" = crate::model::GoogleDriveFileId, Path)),
     summary = "Materialize a saved Google Drive file for local clients",
     description = "Verifies and materializes a saved Google Drive file and returns its local filesystem path. Does not download missing content.",
-    responses((status = 200, body = Data<ResourcePath>), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+    responses(
+        (status = 200, body = Data<ResourcePath>),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 500, body = ErrorBody)
+    )
+)]
 async fn google_drive_prepare(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Path(file): axum::extract::Path<crate::model::GoogleDriveFileId>,
@@ -840,14 +1119,29 @@ async fn google_drive_prepare(
     }))
 }
 
-#[utoipa::path(get, path = "/google-drive/files/{fileId}/file", operation_id = "getGoogleDriveSavedFile",
-    params(("fileId" = crate::model::GoogleDriveFileId, Path),
-        ("Range" = Option<String>, Header), ("If-Range" = Option<String>, Header), ("If-None-Match" = Option<String>, Header)),
+#[utoipa::path(
+    get,
+    path = "/google-drive/files/{fileId}/file",
+    operation_id = "getGoogleDriveSavedFile",
+    params(
+        ("fileId" = crate::model::GoogleDriveFileId, Path),
+        ("Range" = Option<String>, Header),
+        ("If-Range" = Option<String>, Header),
+        ("If-None-Match" = Option<String>, Header)
+    ),
     summary = "Serve a saved Google Drive file",
     description = "Serves verified Google Drive content with range requests and ETag conditionals. Does not download missing content.",
-    responses((status = 200, body = inline(Binary), content_type = "application/octet-stream"),
+    responses(
+        (status = 200, body = inline(Binary), content_type = "application/octet-stream"),
         (status = 206, body = inline(Binary), content_type = "application/octet-stream"),
-        (status = 304), (status = 416), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 500, body = ErrorBody)))]
+        (status = 304),
+        (status = 416),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 500, body = ErrorBody)
+    )
+)]
 async fn google_drive_file(
     axum::extract::State(state): axum::extract::State<State>,
     axum::extract::Path(file): axum::extract::Path<crate::model::GoogleDriveFileId>,
@@ -861,12 +1155,29 @@ async fn google_drive_file(
     serve_file(&state.operations.files, metadata, request).await
 }
 
-#[utoipa::path(head, path = "/google-drive/files/{fileId}/file", operation_id = "headGoogleDriveSavedFile",
-    params(("fileId" = crate::model::GoogleDriveFileId, Path),
-        ("Range" = Option<String>, Header), ("If-Range" = Option<String>, Header), ("If-None-Match" = Option<String>, Header)),
+#[utoipa::path(
+    head,
+    path = "/google-drive/files/{fileId}/file",
+    operation_id = "headGoogleDriveSavedFile",
+    params(
+        ("fileId" = crate::model::GoogleDriveFileId, Path),
+        ("Range" = Option<String>, Header),
+        ("If-Range" = Option<String>, Header),
+        ("If-None-Match" = Option<String>, Header)
+    ),
     summary = "Read saved Google Drive file headers",
     description = "Returns the same headers as a Google Drive saved-file GET request without a response body.",
-    responses((status = 200), (status = 206), (status = 304), (status = 416), (status = 400), (status = 403), (status = 404), (status = 500)))]
+    responses(
+        (status = 200),
+        (status = 206),
+        (status = 304),
+        (status = 416),
+        (status = 400),
+        (status = 403),
+        (status = 404),
+        (status = 500)
+    )
+)]
 async fn google_drive_head_file(
     state: axum::extract::State<State>,
     path: axum::extract::Path<crate::model::GoogleDriveFileId>,
@@ -886,8 +1197,14 @@ mod tests {
         let archive = super::Error::from(crate::archive::Error::from(crate::model::InvalidValue {
             field: "course ID",
         }));
-        assert_eq!(input.public().reason, crate::error::Reason::InvalidInput);
-        assert_eq!(archive.public().reason, crate::error::Reason::Archive);
+        assert_eq!(
+            super::error::Details::from(&input).reason,
+            super::error::Reason::InvalidInput
+        );
+        assert_eq!(
+            super::error::Details::from(&archive).reason,
+            super::error::Reason::Archive
+        );
         assert_eq!(
             input.into_response().status(),
             axum::http::StatusCode::BAD_REQUEST
@@ -1036,6 +1353,202 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn credential_state_rpc_failures_use_documented_dependency_responses() {
+        let fixture = crate::rpc::tests::Fixture::new().await;
+        let operations = fixture.operations().await;
+        let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
+        struct Case {
+            code: tonic::Code,
+            status: u16,
+            reason: &'static str,
+        }
+        for case in [
+            Case {
+                code: tonic::Code::Cancelled,
+                status: 502,
+                reason: "dependency-failed",
+            },
+            Case {
+                code: tonic::Code::Internal,
+                status: 502,
+                reason: "dependency-failed",
+            },
+            Case {
+                code: tonic::Code::Unauthenticated,
+                status: 502,
+                reason: "dependency-failed",
+            },
+            Case {
+                code: tonic::Code::FailedPrecondition,
+                status: 502,
+                reason: "dependency-failed",
+            },
+            Case {
+                code: tonic::Code::Unavailable,
+                status: 503,
+                reason: "dependency-unavailable",
+            },
+            Case {
+                code: tonic::Code::DeadlineExceeded,
+                status: 504,
+                reason: "dependency-timeout",
+            },
+        ] {
+            *fixture.service.registration_error.lock().unwrap() =
+                Some(tonic::Status::new(case.code, "private diagnostics"));
+            let result = response(&router, "GET", "/auth/webauthn", &[], "").await;
+            assert_eq!(result.status().as_u16(), case.status, "{:?}", case.code);
+            let body: serde_json::Value = serde_json::from_slice(&bytes(result).await).unwrap();
+            assert_eq!(body["error"]["reason"], case.reason);
+            assert!(!body.to_string().contains("private"));
+            validate_response(
+                "GET",
+                "/auth/webauthn",
+                case.status,
+                "application/json",
+                &body,
+            );
+        }
+        operations.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn authentication_cancellation_is_not_a_failure_or_an_authentication_requirement() {
+        let fixture = crate::rpc::tests::Fixture::new().await;
+        *fixture.service.authentication_error.lock().unwrap() =
+            Some(tonic::Status::cancelled("private window details"));
+        let operations = fixture.operations().await;
+        let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
+        for path in ["/auth/login", "/auth/google/login", "/auth/webauthn"] {
+            let events = stream(&router, "POST", path, r#"{"interactive":true}"#).await;
+            assert_eq!(
+                events[events.len() - 2].1["status"],
+                "cancelled",
+                "{events:?}"
+            );
+            assert_eq!(
+                events.last().unwrap().1["error"],
+                serde_json::json!({
+                    "reason": "cancelled",
+                    "message": "The browser operation was cancelled",
+                }),
+            );
+        }
+        for provider in [
+            crate::user_browser::Provider::KogakuinSso,
+            crate::user_browser::Provider::Google,
+        ] {
+            assert!(matches!(
+                operations.cached_authentication(provider).await,
+                crate::model::Authentication::Unknown
+            ));
+        }
+        // Cancellation must release active work so the same request can succeed.
+        *fixture.service.authentication_error.lock().unwrap() = None;
+        let events = stream(
+            &router,
+            "POST",
+            "/auth/google/login",
+            r#"{"interactive":true}"#,
+        )
+        .await;
+        assert_eq!(events.last().unwrap().0, "result");
+        operations.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn authentication_requirements_and_conflicts_are_streamed_operation_outcomes() {
+        let fixture = crate::rpc::tests::Fixture::new().await;
+        let operations = fixture.operations().await;
+        let router = super::router(operations.clone(), "127.0.0.1:8787".parse().unwrap());
+        struct Case {
+            reason: crate::user_browser::protocol::FailureReason,
+            state: &'static str,
+            public_reason: &'static str,
+            message: &'static str,
+        }
+        for case in [
+            Case {
+                reason: crate::user_browser::protocol::FailureReason::AuthenticationRequired,
+                state: "blocked",
+                public_reason: "authentication-required",
+                message: "Authentication is required",
+            },
+            Case {
+                reason: crate::user_browser::protocol::FailureReason::Conflict,
+                state: "failed",
+                public_reason: "conflict",
+                message: "Credential already registered",
+            },
+        ] {
+            let failure = crate::user_browser::protocol::Failure {
+                reason: case.reason.into(),
+                message: case.message.into(),
+            };
+            let status = crate::rpc::Status {
+                code: tonic::Code::FailedPrecondition as i32,
+                message: failure.message.clone(),
+                details: vec![prost_types::Any {
+                    type_url: "type.googleapis.com/kupotato.userbrowser.v1.Failure".into(),
+                    value: prost::Message::encode_to_vec(&failure),
+                }],
+            };
+            *fixture.service.authentication_error.lock().unwrap() =
+                Some(tonic::Status::with_details(
+                    tonic::Code::FailedPrecondition,
+                    &failure.message,
+                    prost::Message::encode_to_vec(&status).into(),
+                ));
+            for path in ["/auth/login", "/auth/google/login", "/auth/webauthn"] {
+                let events = stream(&router, "POST", path, "{}").await;
+                assert_eq!(events[events.len() - 2].1["status"], case.state, "{path}");
+                assert_eq!(events.last().unwrap().0, "error");
+                assert_eq!(
+                    events.last().unwrap().1["error"]["reason"],
+                    case.public_reason
+                );
+            }
+        }
+        operations.shutdown().await;
+    }
+
+    #[test]
+    fn http_and_operation_error_schemas_have_separate_reason_sets() {
+        let http = validator(serde_json::json!({ "$ref": "#/components/schemas/ErrorBody" }));
+        let operation =
+            validator(serde_json::json!({ "$ref": "#/components/schemas/OperationErrorBody" }));
+        for reason in [
+            "cancelled",
+            "authentication-required",
+            "conflict",
+            "course-not-found",
+        ] {
+            let body = serde_json::json!({ "error": { "reason": reason, "message": "Outcome" } });
+            assert!(!http.is_valid(&body), "{reason}");
+            assert!(operation.is_valid(&body), "{reason}");
+        }
+        for reason in [
+            "invalid-input",
+            "payload-too-large",
+            "not-found",
+            "dependency-failed",
+            "dependency-unavailable",
+            "dependency-timeout",
+        ] {
+            let body =
+                serde_json::json!({ "error": { "reason": reason, "message": "Request failure" } });
+            assert!(http.is_valid(&body), "{reason}");
+            assert!(!operation.is_valid(&body), "{reason}");
+        }
+        let document = serde_json::to_value(super::openapi()).unwrap();
+        for item in document["paths"].as_object().unwrap().values() {
+            for operation in item.as_object().unwrap().values() {
+                assert!(operation["responses"].get("409").is_none());
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn generated_schemas_describe_every_feature_response() {
         let fixture = crate::rpc::tests::Fixture::new().await;
         let operations = fixture.operations().await;
@@ -1150,8 +1663,12 @@ mod tests {
         }
         let validator = validator(serde_json::json!({ "$ref": "#/components/schemas/Material" }));
         let mut material = serde_json::json!({
-            "lmsMaterialId": "REP1", "name": "Report", "type": "report",
-            "status": "unsubmitted", "publicationDeadlineKind": "unlisted", "materialLinkAvailable": true
+            "lmsMaterialId": "REP1",
+            "name": "Report",
+            "type": "report",
+            "status": "unsubmitted",
+            "publicationDeadlineKind": "unlisted",
+            "materialLinkAvailable": true
         });
         assert!(validator.is_valid(&material));
         material["status"] = serde_json::json!("viewed");
@@ -1179,6 +1696,14 @@ mod tests {
             for (status, response) in responses {
                 assert!(response.get("content").is_none(), "HEAD {path}: {status}");
             }
+            assert_eq!(
+                responses.keys().collect::<Vec<_>>(),
+                document["paths"][path]["get"]["responses"]
+                    .as_object()
+                    .unwrap()
+                    .keys()
+                    .collect::<Vec<_>>()
+            );
             for status in ["400", "403", "404", "500"] {
                 assert!(responses.contains_key(status));
                 assert_eq!(
@@ -1249,7 +1774,10 @@ mod tests {
             &[
                 ("Origin", "http://wails.localhost"),
                 ("Access-Control-Request-Method", "POST"),
-                ("Access-Control-Request-Headers", "content-type"),
+                (
+                    "Access-Control-Request-Headers",
+                    "content-type, range, if-range, if-none-match",
+                ),
             ],
             "",
         )
@@ -1259,6 +1787,12 @@ mod tests {
             response.headers()["access-control-allow-origin"],
             "http://wails.localhost"
         );
+        assert!(
+            response.headers()["access-control-allow-headers"]
+                .to_str()
+                .unwrap()
+                .contains("If-Range")
+        );
     }
 
     #[test]
@@ -1266,7 +1800,10 @@ mod tests {
         for raw in [None, Some(""), Some("other=ignored")] {
             assert!(matches!(
                 super::parse_assignment_query(raw).unwrap(),
-                crate::operation::Request::Assignments { courses, policy: crate::model::SyncPolicy::Auto } if courses.is_empty()
+                crate::operation::Request::Assignments {
+                    courses,
+                    policy: crate::model::SyncPolicy::Auto
+                } if courses.is_empty()
             ));
         }
         for expected in [
@@ -1340,18 +1877,25 @@ mod tests {
                 400
             );
         }
-        assert_eq!(
-            response(
+        for path in [
+            "/auth/login",
+            "/auth/google/login",
+            "/auth/webauthn",
+            "/google-drive/files/download",
+        ] {
+            let result = response(
                 &router,
                 "POST",
-                "/auth/login",
+                path,
                 &[("Content-Type", "application/json")],
-                &" ".repeat(65537)
+                &" ".repeat(65537),
             )
-            .await
-            .status(),
-            413
-        );
+            .await;
+            assert_eq!(result.status(), 413, "{path}");
+            let body: serde_json::Value = serde_json::from_slice(&bytes(result).await).unwrap();
+            assert_eq!(body["error"]["reason"], "payload-too-large");
+            validate_response("POST", path, 413, "application/json", &body);
+        }
         let events = stream(&router, "GET", "/courses?sync=false", "").await;
         assert_eq!(
             events.last().unwrap().1["error"]["reason"],
@@ -1457,6 +2001,13 @@ mod tests {
             assert_eq!(head.status(), 200);
             assert_eq!(head.headers()["content-length"], "5");
             assert!(bytes(head).await.is_empty());
+            let partial_head = response(&router, "HEAD", path, &[("Range", "bytes=1-3")], "").await;
+            assert_eq!(partial_head.status(), 206);
+            assert!(bytes(partial_head).await.is_empty());
+            let unsatisfiable_head =
+                response(&router, "HEAD", path, &[("Range", "bytes=99-")], "").await;
+            assert_eq!(unsatisfiable_head.status(), 416);
+            assert!(bytes(unsatisfiable_head).await.is_empty());
             let partial = response(&router, "GET", path, &[("Range", "bytes=1-3")], "").await;
             assert_eq!(partial.status(), 206);
             assert_eq!(partial.headers()["content-range"], "bytes 1-3/5");

@@ -4,7 +4,7 @@
 - **Path:** `/google-drive/files/download`
 - **Operation ID:** `downloadGoogleDriveFile`
 
-Returns SSE status events followed by exactly one result or error event, then closes. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.
+Valid requests return HTTP 200 with SSE status events followed by exactly one result or error event, then close. Operation outcomes do not change the HTTP status: authentication-required is blocked, cancelled is cancelled, and other errors are failed. HTTP errors describe request rejection before streaming. Disconnecting detaches observation; execution continues. Repeat the request to observe equivalent active work.
 
 ## Effective servers
 
@@ -36,15 +36,18 @@ schema: [GoogleDriveDownloadInput](schemas/GoogleDriveDownloadInput.md), no addi
 
 array of [StreamEvent\_GoogleDriveDownload](schemas/StreamEvent_GoogleDriveDownload.md)
 
-### 400, 403
+### 400, 403, 413
 
 - `400`
 - `403`
+- `413`
 
 **Content type:** `application/json`
 
 schema: [ErrorBody](schemas/ErrorBody.md)
 
-- **`error` (required)**: [Public](schemas/Public.md)
+- **`error` (required)**: [HttpError](schemas/HttpError.md)
+
+  A failure to handle an HTTP request, not the outcome of a streamed operation.
 
 [API index](README.md)
