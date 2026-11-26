@@ -63,6 +63,12 @@ pub struct ErrorBody {
 }
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
+#[schema(example = json!({
+    "error": {
+        "reason": "cancelled",
+        "message": "The browser operation was cancelled"
+    }
+}))]
 pub struct OperationErrorBody {
     pub error: crate::error::Public,
 }
@@ -1510,6 +1516,20 @@ mod tests {
             }
         }
         operations.shutdown().await;
+    }
+
+    #[test]
+    fn operation_error_example_satisfies_its_schema() {
+        let document = serde_json::to_value(super::openapi()).unwrap();
+        let example = &document["components"]["schemas"]["OperationErrorBody"]["example"];
+        assert_eq!(example["error"]["reason"], "cancelled");
+        assert_eq!(
+            example["error"]["message"],
+            "The browser operation was cancelled"
+        );
+        let schema =
+            validator(serde_json::json!({ "$ref": "#/components/schemas/OperationErrorBody" }));
+        assert!(schema.is_valid(example));
     }
 
     #[test]

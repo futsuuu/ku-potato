@@ -2420,6 +2420,12 @@
           "error": {
             "$ref": "#/components/schemas/OperationError"
           }
+        },
+        "example": {
+          "error": {
+            "message": "The browser operation was cancelled",
+            "reason": "cancelled"
+          }
         }
       },
       "OperationErrorReason": {
