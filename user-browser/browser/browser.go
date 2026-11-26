@@ -22,14 +22,19 @@ type Options struct {
 	SSOURL     string
 }
 type Browser struct {
-	opts         Options
-	authMu       sync.Mutex
-	root         context.Context
-	cancelRoot   context.CancelFunc
-	cancelAlloc  context.CancelFunc
-	closeProcess func()
-	interactive  bool
-	closed       bool
+	opts                Options
+	authMu              sync.Mutex
+	root                context.Context
+	page                context.Context
+	cancelPage          context.CancelFunc
+	cancelRoot          context.CancelFunc
+	cancelAlloc         context.CancelFunc
+	closeProcess        func()
+	cookiesReady        bool
+	defaultContext      cdp.BrowserContextID
+	defaultWindowOpened bool
+	interactive         bool
+	closed              bool
 }
 
 func New(opts Options) (*Browser, error) {
@@ -73,11 +78,14 @@ func sourceError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
-	if _, ok := errors.AsType[*Error](err); ok {
-		return err
-	}
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	if _, ok := errors.AsType[*Error](err); ok {
+		return err
 	}
 	// CDP diagnostics can include page contents or credential material.
 	return Fail("source", "ブラウザ操作に失敗しました。ページ構造、Chrome の起動設定、通信状態を確認してください。")

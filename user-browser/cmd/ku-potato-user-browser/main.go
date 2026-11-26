@@ -72,7 +72,7 @@ func run() (err error) {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = browser.Close() }()
+	defer func() { err = errors.Join(err, browser.Close()) }()
 	if err := ctx.Err(); err != nil {
 		return err
 	}

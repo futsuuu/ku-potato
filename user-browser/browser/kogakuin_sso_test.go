@@ -161,6 +161,11 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 		{Name: "lms", Value: "retained", Domain: "127.0.0.1", Path: "/"},
 		{Name: "gateway", Value: "retained", Domain: "gateway.localhost", Path: "/"},
 		{Name: "google", Value: "retained", Domain: ".google.com", Path: "/"},
+		{
+			Name: "google-partitioned", Value: "retained", Domain: ".google.com", Path: "/",
+			Secure: true, HTTPOnly: true, SameSite: network.CookieSameSiteNone,
+			PartitionKey: &network.CookiePartitionKey{TopLevelSite: "https://example.test"},
+		},
 	}).Do(exec); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +176,8 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	}
 	read := func() map[string]string {
 		t.Helper()
-		cookies, err := storage.GetCookies().Do(exec)
+		cookies, err := storage.GetCookies().
+			Do(cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -182,10 +188,11 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 		return values
 	}
 	want := map[string]string{
-		"sso":     "fresh",
-		"lms":     "retained",
-		"gateway": "retained",
-		"google":  "retained",
+		"sso":                "fresh",
+		"lms":                "retained",
+		"gateway":            "retained",
+		"google":             "retained",
+		"google-partitioned": "retained",
 	}
 	if got := read(); !reflect.DeepEqual(got, want) {
 		t.Fatal("renewal modified provider sessions or retained obsolete SSO cookies", got)
@@ -228,16 +235,26 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	if ok, err := auth.Status(ctx); err != nil || ok {
 		t.Fatal("LMS-only access was reported as transferable SSO authentication", ok, err)
 	}
+	if pages := authPageTargets(t, b.root); len(pages) != 0 {
+		t.Fatal("SSO retained an ordinary provider page", len(pages))
+	}
 	if got := read(); !reflect.DeepEqual(got, want) {
 		t.Fatal("failed renewal destroyed existing sessions", got)
 	}
-	contexts, _, err := target.GetBrowserContexts().Do(exec)
+	contexts, _, err := target.GetBrowserContexts().
+		Do(cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser))
 	if err != nil || len(contexts) != 0 {
 		t.Fatal("renewal leaked an isolated browser context", contexts, err)
 	}
-	// Simulate user completion in headless Chrome; interactive login must use
-	// the same SSO-only starting state and persist it before closing Chrome.
+	// Default to headless simulation, with opt-in headed coverage. Interactive
+	// login must use SSO-only state and persist it before closing Chrome.
 	interactiveLogin.Store(true)
+	if err := b.stopRuntime(); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.start(ctx, os.Getenv("KU_POTATO_TEST_HEADED") == "1"); err != nil {
+		t.Fatal(err)
+	}
 	b.interactive = true
 	if err := auth.Login(ctx, true); err != nil {
 		t.Fatal(err)
@@ -248,7 +265,6 @@ func TestSSORenewalCannotReuseUniversitySessions(t *testing.T) {
 	if err := b.start(ctx, false); err != nil {
 		t.Fatal(err)
 	}
-	exec = cdp.WithExecutor(b.root, cd.FromContext(b.root).Browser)
 	if ok, err := auth.Status(ctx); err != nil || !ok {
 		t.Fatal("valid SSO required an unnecessary saved credential", ok, err)
 	}

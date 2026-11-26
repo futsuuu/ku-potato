@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -99,9 +100,8 @@ func TestInteractiveLoginClosesBrowserAndRetainsSessionCookies(t *testing.T) {
 	t.Cleanup(func() { _ = b.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	// Exercise interactive completion with a headless runtime so the test does
-	// not open a window on the developer's desktop.
-	if err := b.start(ctx, false); err != nil {
+	// Default to a headless runtime; opt in to exercise real browser windows.
+	if err := b.start(ctx, os.Getenv("KU_POTATO_TEST_HEADED") == "1"); err != nil {
 		t.Fatal(err)
 	}
 	b.interactive = true

@@ -81,8 +81,8 @@ func (g *Google) Login(ctx context.Context, interactive bool) error {
 	return g.browser.withProviderAuth(
 		ctx,
 		interactive,
+		sharedAuthPage,
 		false,
-		true,
 		func(tab context.Context) error {
 			return g.verify(tab, interactive)
 		},
@@ -175,17 +175,24 @@ func (g *Google) prepareDriveSession(tab context.Context) error {
 // Read current cookies only after verifying the account and Drive service session.
 func (g *Google) sessionCookies(ctx context.Context) ([]*network.Cookie, error) {
 	var cookies []*network.Cookie
-	err := g.browser.withProviderAuth(ctx, false, false, true, func(tab context.Context) error {
-		if err := g.verify(tab, false); err != nil {
+	err := g.browser.withProviderAuth(
+		ctx,
+		false,
+		sharedAuthPage,
+		false,
+		func(tab context.Context) error {
+			if err := g.verify(tab, false); err != nil {
+				return err
+			}
+			if err := g.prepareDriveSession(tab); err != nil {
+				return err
+			}
+			var err error
+			cookies, err = storage.GetCookies().
+				Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
 			return err
-		}
-		if err := g.prepareDriveSession(tab); err != nil {
-			return err
-		}
-		var err error
-		cookies, err = storage.GetCookies().Do(cdp.WithExecutor(tab, cd.FromContext(tab).Browser))
-		return err
-	})
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
