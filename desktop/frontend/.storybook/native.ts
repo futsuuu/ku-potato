@@ -1,5 +1,8 @@
 import { action } from "storybook/actions";
 
+export const isDesktop = () => false;
+export const isWindowsDesktop = () => false;
+
 export async function openExternal(url: string): Promise<void> {
   action("openExternal")(url);
 }

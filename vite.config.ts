@@ -85,6 +85,10 @@ export default defineConfig({
         cwd: "desktop/frontend",
         cache: false,
       },
+      "desktop:frontend:storybook:build": {
+        command: "vp exec storybook build --output-dir dist/storybook",
+        cwd: "desktop/frontend",
+      },
       "desktop:frontend:test": {
         command: "vp test run",
         cwd: "desktop/frontend",

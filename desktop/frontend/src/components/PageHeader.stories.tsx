@@ -12,7 +12,7 @@ const meta = {
   },
   decorators: [
     createJSXDecorator((Story) => (
-      <main class="main-content" style={{ "margin-left": "0", height: "100dvh" }}>
+      <main class="main-content" style={{ "--app-sidebar-width": "0px", height: "100dvh" }}>
         <Story />
         <div class="page-content">
           <p class="muted-note">ページのコンテンツがここに表示されます。</p>

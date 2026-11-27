@@ -4,8 +4,7 @@ import CalendarClock from "@lucide/solid/icons/calendar-clock";
 import { useLocation } from "@solidjs/router";
 import type { JSX } from "@solidjs/web";
 import { useWorkspace } from "../workspace";
-import Progress from "./Progress";
-import PageHeader from "./PageHeader";
+import LoadingPage from "./LoadingPage";
 import Authentication from "./Authentication";
 
 function NavigationLink(props: {
@@ -69,17 +68,7 @@ export default function Layout(props: { children: JSX.Element }) {
         </div>
       </aside>
       <main id="main-content" class="main-content" tabindex="-1">
-        <Loading
-          on={location.pathname}
-          fallback={
-            <>
-              <PageHeader title="読み込み中" />
-              <div class="page-content">
-                <Progress pending={true} error="" />
-              </div>
-            </>
-          }
-        >
+        <Loading on={location.pathname} fallback={<LoadingPage />}>
           {props.children}
         </Loading>
       </main>

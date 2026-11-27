@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { render } from "@solidjs/web";
 import { createRouter, hashHistory } from "@solidjs/router";
 import { fileRoutes } from "@solidjs/router/fs";
@@ -37,6 +37,15 @@ const report: Schema["Report"] = {
   correctionMode: "unknown",
   promptHtml: "<p>講義の内容をまとめてください。</p>",
 };
+const assignment: Schema["Assignment"] = {
+  lmsCourseId: "C 1",
+  folderName: "第1回",
+  material: {
+    ...reportMaterial,
+    publicationDeadlineKind: "at",
+    publicationDeadlineAt: "2099-12-20T14:59:00Z",
+  },
+};
 const api = {
   ...createAPI("http://localhost"),
   auth: vi.fn(async () => ({ status: "unauthenticated" as const })),
@@ -46,9 +55,9 @@ const api = {
     auth: vi.fn(async () => ({ status: "authenticated" as const })),
     check: vi.fn(async () => ({ status: "unauthenticated" as const })),
   },
-  courses: vi.fn(async () => [course]),
-  assignments: vi.fn(async () => ({ assignments: [], failures: [] })),
-  materials: vi.fn(async () => ({
+  courses: vi.fn<API["courses"]>(async () => [course]),
+  assignments: vi.fn<API["assignments"]>(async () => ({ assignments: [], failures: [] })),
+  materials: vi.fn<API["materials"]>(async () => ({
     lmsCourseId: "C 1",
     folders: [
       {
@@ -66,12 +75,20 @@ const api = {
   ),
 };
 let dispose: (() => void) | undefined;
-vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Unexpected network request")));
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+});
 
 afterEach(() => {
   dispose?.();
+  dispose = undefined;
   document.body.replaceChildren();
-  vi.clearAllMocks();
+  expect(fetch).not.toHaveBeenCalled();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function mount(path: string, native = false) {
@@ -249,4 +266,175 @@ it("routes assignments and unknown URLs through filesystem routes", async () => 
   expect(document.querySelector(".page-content")?.textContent).not.toContain("へ戻る");
   click('nav[aria-label="パンくずリスト"] a[href="/"]');
   await title("講義一覧");
+});
+
+const pages = [
+  { path: "/", request: api.courses, loading: "講義を読み込んでいます。" },
+  { path: "/courses/C%201", request: api.materials, loading: "教材を読み込んでいます。" },
+  { path: "/assignments", request: api.assignments, loading: "課題を読み込んでいます。" },
+  {
+    path: "/courses/C%201/materials/M%201",
+    request: api.detail,
+    loading: "資料を読み込んでいます。",
+  },
+];
+
+it.each(pages)("displays loading state at $path", async ({ path, request, loading }) => {
+  request.mockReturnValueOnce(new Promise<never>(() => {}));
+  mount(path);
+  await vi.waitFor(() => expect(document.querySelector(".no-content")?.textContent).toBe(loading));
+  expect(document.querySelector('.page-content [role="status"]')).not.toBeNull();
+  expect(document.querySelector<HTMLButtonElement>(".page-header button")?.disabled).toBe(true);
+});
+
+it.each(pages)("displays request failures at $path", async ({ path, request }) => {
+  request.mockRejectedValueOnce(new Error("取得に失敗しました。"));
+  mount(path);
+  await vi.waitFor(() =>
+    expect(document.querySelector('.page-content [role="alert"]')?.textContent).toContain(
+      "取得に失敗しました。",
+    ),
+  );
+  expect(document.querySelector<HTMLButtonElement>(".page-header button")?.disabled).toBe(false);
+});
+
+it.each([
+  {
+    path: "/",
+    prepare: () => api.courses.mockResolvedValueOnce([]),
+    expected: "講義がありません。",
+  },
+  {
+    path: "/courses/C%201",
+    prepare: () => api.materials.mockResolvedValueOnce({ lmsCourseId: "C 1", folders: [] }),
+    expected: "教材がありません。",
+  },
+  {
+    path: "/assignments",
+    prepare: () => api.assignments.mockResolvedValueOnce({ assignments: [], failures: [] }),
+    expected: "期限前の課題はありません。",
+  },
+  {
+    path: "/courses/C%201/materials/M%201",
+    prepare: () => api.detail.mockResolvedValueOnce({ course, material, resources: [] }),
+    expected: "資料がありません。",
+  },
+])("displays empty state at $path", async ({ path, prepare, expected }) => {
+  prepare();
+  mount(path);
+  await vi.waitFor(() => expect(document.querySelector(".no-content")?.textContent).toBe(expected));
+  expect(document.querySelector('.page-content [role="status"]')).toBeNull();
+});
+
+it("distinguishes empty folders from missing materials", async () => {
+  api.materials.mockResolvedValueOnce({
+    lmsCourseId: "C 1",
+    folders: [{ name: "公開前の教材", materials: [] }],
+  });
+  mount("/courses/C%201");
+  await vi.waitFor(() =>
+    expect(document.querySelector(".folder-empty")?.textContent).toBe(
+      "このフォルダに教材はありません。",
+    ),
+  );
+  expect(document.querySelector("h3")?.textContent).toBe("公開前の教材");
+  expect(document.querySelector(".no-content")).toBeNull();
+});
+
+it("distinguishes unfetched archived resources from empty published materials", async () => {
+  api.detail.mockResolvedValueOnce({
+    course,
+    material: { ...material, archived: true },
+    resources: [],
+  });
+  mount("/courses/C%201/materials/M%201");
+  await vi.waitFor(() =>
+    expect(document.querySelector(".no-content")?.textContent).toBe(
+      "過去に取得した資料データがありません。",
+    ),
+  );
+});
+
+it.each([false, true])("explains missing report content with archived=%s", async (archived) => {
+  api.detail.mockResolvedValueOnce({
+    course,
+    material: { ...reportMaterial, archived },
+    resources: [],
+  });
+  mount("/courses/C%201/materials/R%201");
+  await title(reportMaterial.name);
+  expect(document.querySelector(".no-content")?.textContent).toBe(
+    archived
+      ? "過去に取得したレポートの内容はありません。"
+      : "レポートの内容が取得されていません。",
+  );
+});
+
+it.each([false, true])(
+  "shows course failures alongside assignments: %s",
+  async (hasAssignments) => {
+    api.assignments.mockResolvedValueOnce({
+      assignments: hasAssignments ? [assignment] : [],
+      failures: [
+        {
+          lmsCourseId: "C 1",
+          error: { reason: "authentication-required", message: "認証が必要です。" },
+        },
+      ],
+    });
+    mount("/assignments");
+    await vi.waitFor(() =>
+      expect(document.querySelector('.page-content [role="alert"]')?.textContent).toBe(
+        `${course.name}: 認証が必要です。`,
+      ),
+    );
+    if (hasAssignments) {
+      expect(document.querySelector("a.item-link")?.textContent).toContain(reportMaterial.name);
+      expect(document.querySelector(".no-content")).toBeNull();
+    } else {
+      expect(document.querySelector(".no-content")?.textContent).toBe("期限前の課題はありません。");
+    }
+  },
+);
+
+it("opens report details from upcoming assignments", async () => {
+  api.assignments.mockResolvedValueOnce({ assignments: [assignment], failures: [] });
+  mount("/assignments");
+  await vi.waitFor(() => expect(document.querySelector("a.item-link")).not.toBeNull());
+  click("a.item-link");
+  await title(reportMaterial.name);
+  expect(api.detail).toHaveBeenCalledWith("R 1", "auto", expect.anything());
+  expect(document.querySelector(".report-content")?.textContent).toBe(
+    "講義の内容をまとめてください。",
+  );
+});
+
+it.each([
+  ["pending", "講義を取得中"],
+  ["failed", "同期に失敗しました。"],
+] as const)("keeps saved courses visible when syncing is %s", async (outcome, expected) => {
+  api.courses.mockResolvedValueOnce([course]);
+  if (outcome === "pending") {
+    api.courses.mockImplementationOnce((_sync, observe) => {
+      observe?.onStatus?.({
+        attempt: 1,
+        status: "running",
+        progress: { stage: "fetching-courses", completed: 0, total: 1 },
+      });
+      return new Promise(() => {});
+    });
+  } else {
+    api.courses.mockRejectedValueOnce(new Error("同期に失敗しました。"));
+  }
+  mount("/");
+  await vi.waitFor(() => expect(document.querySelector(".course-link")).not.toBeNull());
+  const sync = document.querySelector<HTMLButtonElement>(".page-header button")!;
+  await vi.waitFor(() => expect(sync.disabled).toBe(false));
+  sync.click();
+  await vi.waitFor(() =>
+    expect(document.querySelector(".page-content")?.textContent).toContain(expected),
+  );
+  expect(document.querySelector(".course-link")?.textContent).toContain(course.name);
+  expect(api.courses).toHaveBeenLastCalledWith("true", expect.anything());
+  expect(sync.disabled).toBe(outcome === "pending");
 });

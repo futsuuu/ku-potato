@@ -1,15 +1,7 @@
 import { createSignal, onSettled, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { isWindowsDesktop } from "../native";
-
-// Microsoft's caption glyphs, provided by Windows (no bundled font or approximation).
-// https://learn.microsoft.com/en-us/windows/apps/design/style/segoe-fluent-icons-font
-const captionIcons = {
-  minimize: "\uE921",
-  maximize: "\uE922",
-  restore: "\uE923",
-  close: "\uE8BB",
-};
+import WindowControls from "./WindowControls";
 
 function WindowsWindowControls() {
   const [maximized, setMaximized] = createSignal(false);
@@ -61,47 +53,13 @@ function WindowsWindowControls() {
   });
 
   return (
-    <>
-      <Show when={error()}>
-        <span class="window-control-error" role="alert">
-          {error()}
-        </span>
-      </Show>
-      <div class="window-controls" role="group" aria-label="ウィンドウ操作">
-        <button
-          type="button"
-          class="window-control window-control-minimize"
-          aria-label="最小化"
-          title="最小化"
-          onClick={() => run((window) => window.Minimise())}
-        >
-          <span class="window-caption-icon" aria-hidden="true">
-            {captionIcons.minimize}
-          </span>
-        </button>
-        <button
-          type="button"
-          class="window-control window-control-maximize"
-          aria-label={maximized() ? "元のサイズに戻す" : "最大化"}
-          onClick={() => run((window) => window.ToggleMaximise())}
-        >
-          <span class="window-caption-icon" aria-hidden="true">
-            {maximized() ? captionIcons.restore : captionIcons.maximize}
-          </span>
-        </button>
-        <button
-          type="button"
-          class="window-control window-control-close"
-          aria-label="閉じる"
-          title="閉じる"
-          onClick={() => run((window) => window.Close())}
-        >
-          <span class="window-caption-icon" aria-hidden="true">
-            {captionIcons.close}
-          </span>
-        </button>
-      </div>
-    </>
+    <WindowControls
+      maximized={maximized()}
+      error={error()}
+      onMinimize={() => run((window) => window.Minimise())}
+      onToggleMaximize={() => run((window) => window.ToggleMaximise())}
+      onClose={() => run((window) => window.Close())}
+    />
   );
 }
 
