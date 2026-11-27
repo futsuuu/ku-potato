@@ -122,6 +122,17 @@ export const folders: Schema["Folder"][] = [
   { name: "次回の教材", materials: [] },
 ];
 
+function getCourseFolders(lmsCourseId: string): Schema["Folder"][] {
+  if (lmsCourseId === course.lmsCourseId) return folders;
+  return folders.map((folder) => ({
+    ...folder,
+    materials: folder.materials.map((material) => ({
+      ...material,
+      lmsMaterialId: `${lmsCourseId}-${material.lmsMaterialId}`,
+    })),
+  }));
+}
+
 export const savedFile = {
   contentHash: "a".repeat(64),
   originalFilename: "lecture-03.pdf",
@@ -183,7 +194,11 @@ export const report = {
 export const assignments: Result<"listAssignments"> = {
   assignments: [
     { lmsCourseId: course.lmsCourseId, folderName: folders[0].name, material: reportMaterial },
-    { lmsCourseId: "course-2", folderName: "第3回 演習", material: otherMaterials[0] },
+    {
+      lmsCourseId: "course-2",
+      folderName: folders[1].name,
+      material: getCourseFolders("course-2")[1].materials[0],
+    },
   ],
   failures: [],
 };
@@ -251,22 +266,27 @@ export function createStoryAPI(overrides: Partial<API> = {}): API {
     },
     materials: async (lmsCourseId, sync) => {
       action("materials")(lmsCourseId, sync);
-      return { lmsCourseId, folders };
+      return { lmsCourseId, folders: getCourseFolders(lmsCourseId) };
     },
     detail: async (id, sync) => {
       action("detail")(id, sync);
-      const selected: Schema["Material"] =
-        folders.flatMap((folder) => folder.materials).find((item) => item.lmsMaterialId === id) ??
-        material;
-      return selected.type === "report"
-        ? { course, material: selected, report, resources: [] }
-        : {
-            course,
-            material: selected,
-            resources: selected.archived
-              ? resources.map((resource) => ({ ...resource, archived: true }))
-              : resources,
-          };
+      for (const owner of courses) {
+        if (owner.availability !== "available") continue;
+        const selected = getCourseFolders(owner.lmsCourseId)
+          .flatMap((folder) => folder.materials)
+          .find((item) => item.lmsMaterialId === id);
+        if (!selected) continue;
+        return selected.type === "report"
+          ? { course: owner, material: selected, report, resources: [] }
+          : {
+              course: owner,
+              material: selected,
+              resources: selected.archived
+                ? resources.map((resource) => ({ ...resource, archived: true }))
+                : resources,
+            };
+      }
+      throw new Error(`Unknown story material: ${id}`);
     },
     assignments: async (sync) => {
       action("assignments")(sync);
