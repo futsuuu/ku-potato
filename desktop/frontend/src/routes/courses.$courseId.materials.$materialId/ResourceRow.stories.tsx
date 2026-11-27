@@ -1,6 +1,7 @@
 import { createJSXDecorator, type Meta, type StoryObj } from "storybook-solidjs-vite";
 import { action } from "storybook/actions";
-import { createAPI, type Schema } from "../../api";
+import type { Schema } from "../../api";
+import { createStoryAPI } from "../../../.storybook/fixtures";
 import ResourceRow from "./ResourceRow";
 
 const resource = {
@@ -31,7 +32,7 @@ const meta = {
     resource,
     reload: action("reload"),
     api: {
-      ...createAPI("https://storybook.invalid"),
+      ...createStoryAPI(),
       download: async () => ({
         type: "file" as const,
         downloadUrl: "#download",
@@ -95,6 +96,59 @@ export const NeverCompletes: Story = {
 };
 export const LongName: Story = {
   args: { resource: { ...resource, name: "非常に長いファイル名の講義資料".repeat(30) + ".pdf" } },
+};
+export const GoogleDriveFile: Story = {
+  args: {
+    resource: {
+      ...resource,
+      type: "external",
+      url: "https://drive.google.com/file/d/drive_file/view",
+      googleDriveFile: { id: "drive_file" },
+    },
+  },
+};
+export const GoogleDriveDownloadFailed: Story = {
+  parameters: {
+    docs: {
+      description: { story: "Click the resource to display a Google Drive download failure." },
+    },
+  },
+  args: {
+    ...GoogleDriveFile.args,
+    api: {
+      ...meta.args.api,
+      googleDrive: {
+        ...meta.args.api.googleDrive,
+        download: async () => {
+          throw new Error("Google Drive のダウンロードに失敗しました。");
+        },
+      },
+    },
+  },
+};
+export const OpenFailed: Story = {
+  parameters: {
+    docs: { description: { story: "Click the saved resource to display a file launch failure." } },
+  },
+  args: {
+    resource: { ...resource, savedFile: file },
+    api: {
+      ...meta.args.api,
+      openResource: async () => {
+        throw new Error("保存済みファイルを開けませんでした。");
+      },
+    },
+  },
+};
+export const ArchivedExternal: Story = {
+  args: {
+    resource: {
+      ...resource,
+      archived: true,
+      type: "external",
+      url: "https://example.com/reference",
+    },
+  },
 };
 export const ArchivedGoogleDriveFile: Story = {
   args: {

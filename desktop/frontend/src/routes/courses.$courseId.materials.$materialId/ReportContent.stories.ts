@@ -22,6 +22,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Unsubmitted: Story = {};
+export const Unviewed: Story = {
+  args: { report: { ...report, status: "unviewed" } },
+};
 export const Submitted: Story = {
   args: { report: { ...report, status: "submitted" } },
 };

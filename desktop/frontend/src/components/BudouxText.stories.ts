@@ -17,7 +17,7 @@ export const LongText: Story = {
   },
 };
 export const MixedText: Story = {
-  args: { text: "第3回 TypeScript と Solid のコンポーネント設計（2026年度）" },
+  args: { text: "第3回TypeScriptとSolidのコンポーネント設計（2026年度）" },
 };
 export const Empty: Story = { args: { text: "" } };
 export const UnbrokenText: Story = {

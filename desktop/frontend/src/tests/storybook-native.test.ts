@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vite-plus/test";
 import { createAPI } from "../api";
-import { openExternal } from "../native";
+import { isDesktop, isWindowsDesktop, openExternal } from "../native";
 
 const { record } = vi.hoisted(() => ({ record: vi.fn() }));
 vi.mock("storybook/actions", () => ({
@@ -12,6 +12,8 @@ vi.mock("storybook/actions", () => ({
 vi.mock("../native", () => import("../../.storybook/native"));
 
 it("routes resource launches through the Storybook native replacement", async () => {
+  expect(isDesktop()).toBe(false);
+  expect(isWindowsDesktop()).toBe(false);
   const baseUrl = "https://storybook.invalid";
   const api = createAPI(baseUrl);
   await api.googleDrive.openFile("drive_file-123");
