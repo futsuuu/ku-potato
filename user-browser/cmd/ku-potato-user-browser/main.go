@@ -11,10 +11,10 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/futsuuu/ku-potato/internal/appdirs"
 	"github.com/futsuuu/ku-potato/internal/telemetry"
 	"github.com/futsuuu/ku-potato/user-browser"
 	chromedp "github.com/futsuuu/ku-potato/user-browser/browser"
@@ -34,9 +34,17 @@ func main() {
 }
 
 func run() (err error) {
+	directories, err := appdirs.DefaultDirectories("user-browser")
+	if err != nil {
+		return err
+	}
 	listen := flag.String("listen", "127.0.0.1:0", "local user browser listener")
-	state := flag.String("state-dir", "", "persistent authentication state directory")
-	cache := flag.String("cache-dir", "", "disposable user browser cache directory")
+	state := flag.String(
+		"state-dir",
+		directories.State,
+		"persistent authentication state directory",
+	)
+	cache := flag.String("cache-dir", directories.Cache, "disposable user browser cache directory")
 	chrome := flag.String("chrome", "", "Chrome executable")
 	lmsURL := flag.String("lms-url", "https://study.ns.kogakuin.ac.jp", "LMS origin")
 	ssoURL := flag.String("sso-url", "https://slink.secioss.com", "SSO origin")
@@ -66,8 +74,7 @@ func run() (err error) {
 	defer stop()
 	go func() { _, _ = io.Copy(io.Discard, os.Stdin); stop() }()
 	browser, err := chromedp.New(chromedp.Options{
-		StateDir: *state, ProfileDir: filepath.Join(*state, "user-profile"),
-		CacheDir: *cache, Executable: *chrome, LMSURL: *lmsURL, SSOURL: *ssoURL,
+		StateDir: *state, CacheDir: *cache, Executable: *chrome, LMSURL: *lmsURL, SSOURL: *ssoURL,
 	})
 	if err != nil {
 		return err
