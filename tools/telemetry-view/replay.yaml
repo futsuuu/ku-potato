@@ -1,12 +1,9 @@
 receivers:
   filelog:
     include:
-      - /data/*/traces.jsonl
-      - /data/traces.jsonl
-      - /data/*/metrics.jsonl
-      - /data/metrics.jsonl
-      - /data/*/logs.jsonl
-      - /data/logs.jsonl
+      - /data/**/traces.jsonl
+      - /data/**/metrics.jsonl
+      - /data/**/logs.jsonl
     include_file_name: false
     start_at: beginning
     max_log_size: 16MiB

@@ -8,16 +8,16 @@ import (
 
 type Directories struct{ Data, State, Cache, Temp string }
 
-func DefaultDirectories() (Directories, error) {
+func DefaultDirectories(program string) (Directories, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return Directories{}, err
 	}
-	return directoriesFor(runtime.GOOS, home, os.TempDir(), os.Getenv), nil
+	return directoriesFor(program, runtime.GOOS, home, os.TempDir(), os.Getenv), nil
 }
 
-func directoriesFor(goos, home, temp string, getenv func(string) string) Directories {
-	app := func(base string) string { return filepath.Join(base, "ku-potato", "server") }
+func directoriesFor(program, goos, home, temp string, getenv func(string) string) Directories {
+	app := func(base string) string { return filepath.Join(base, "ku-potato", program) }
 	envDir := func(name, fallback string) string {
 		value := getenv(name)
 		if value == "" || !filepath.IsAbs(value) {

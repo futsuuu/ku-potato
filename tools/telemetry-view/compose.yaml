@@ -17,10 +17,6 @@ services:
       - lgtm
     volumes:
       - ./replay.yaml:/etc/otelcol/config.yaml:ro
-      - type: bind
-        source: ${TELEMETRY_DIRECTORY}
-        target: /data
-        read_only: true
     stop_grace_period: 30s
 
 volumes:

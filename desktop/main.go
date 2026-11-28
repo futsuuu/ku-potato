@@ -20,7 +20,7 @@ func (a *App) server(ctx context.Context) (resourceOpener, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	dirs, err := appdirs.DefaultDirectories()
+	dirs, err := appdirs.DefaultDirectories("desktop")
 	if err != nil {
 		return resourceOpener{}, err
 	}

@@ -28,7 +28,7 @@ import (
 
 func Init(ctx context.Context, service, directory string) (func(context.Context) error, error) {
 	if directory == "" {
-		directories, err := appdirs.DefaultDirectories()
+		directories, err := appdirs.DefaultDirectories(service)
 		if err != nil {
 			return nil, err
 		}
