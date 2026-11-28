@@ -55,14 +55,14 @@ func run() (err error) {
 		err = errors.Join(err, shutdown(ctx))
 	}()
 	token := os.Getenv("KU_POTATO_WORKER_TOKEN")
-	if token == "" || *directory == "" || *parallel < 1 || *parallel > 32 {
+	if token == "" || *parallel < 1 || *parallel > 32 {
 		return errors.New("missing or invalid worker configuration")
 	}
 	host, _, err := net.SplitHostPort(*listen)
 	if err != nil || host != "127.0.0.1" {
 		return errors.New("worker must listen on IPv4 loopback")
 	}
-	root, err := os.MkdirTemp(*directory, "browser-worker-")
+	root, err := os.MkdirTemp(*directory, "ku-potato-browser-worker-")
 	if err != nil {
 		return err
 	}

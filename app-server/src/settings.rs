@@ -10,8 +10,6 @@ pub struct Arguments {
     #[arg(long)]
     pub state_dir: Option<std::path::PathBuf>,
     #[arg(long)]
-    pub cache_dir: Option<std::path::PathBuf>,
-    #[arg(long)]
     pub temp_dir: Option<std::path::PathBuf>,
     #[arg(long, default_value = "4", value_parser = parse_concurrency)]
     pub concurrency: std::num::NonZeroU8,
@@ -79,7 +77,6 @@ fn parse_positive_duration(value: &str) -> Result<std::time::Duration, String> {
 pub struct Directories {
     pub data: std::path::PathBuf,
     pub state: std::path::PathBuf,
-    pub cache: std::path::PathBuf,
     pub temporary: std::path::PathBuf,
 }
 
@@ -117,7 +114,6 @@ impl Directories {
                 Self {
                     data: base.join("data"),
                     state: base.join("state"),
-                    cache: base.join("cache"),
                     temporary: temporary.to_path_buf(),
                 }
             }
@@ -126,14 +122,12 @@ impl Directories {
                 Self {
                     data: base.join("data"),
                     state: base.join("state"),
-                    cache: app(home.join("Library/Caches")),
                     temporary: temporary.to_path_buf(),
                 }
             }
             _ => Self {
                 data: app(directory("XDG_DATA_HOME", home.join(".local/share"))),
                 state: app(directory("XDG_STATE_HOME", home.join(".local/state"))),
-                cache: app(directory("XDG_CACHE_HOME", home.join(".cache"))),
                 temporary: temporary.to_path_buf(),
             },
         }
@@ -196,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn directories_match_desktop_defaults() {
+    fn directories_follow_os_conventions() {
         let home = std::path::Path::new("/home/user");
         let temporary = std::path::Path::new("/tmp");
         let directories = super::Directories::for_platform("linux", home, temporary, |_| None);
@@ -205,7 +199,6 @@ mod tests {
             directories.state,
             home.join(".local/state/ku-potato/server")
         );
-        assert_eq!(directories.cache, home.join(".cache/ku-potato/server"));
         let custom = tempfile::tempdir().unwrap();
         let directories = super::Directories::for_platform("linux", home, temporary, |name| {
             Some(if name == "XDG_DATA_HOME" {
@@ -225,10 +218,6 @@ mod tests {
             home.join("Library/Application Support/ku-potato/server/data")
         );
         assert_eq!(
-            directories.cache,
-            home.join("Library/Caches/ku-potato/server")
-        );
-        assert_eq!(
             directories.state,
             home.join("Library/Application Support/ku-potato/server/state")
         );
@@ -242,10 +231,6 @@ mod tests {
             directories.state,
             home.join("AppData/Local/ku-potato/server/state")
         );
-        assert_eq!(
-            directories.cache,
-            home.join("AppData/Local/ku-potato/server/cache")
-        );
         assert_eq!(directories.temporary, temporary);
         let directories = super::Directories::for_platform("windows", home, temporary, |_| {
             Some(custom.path().to_path_buf())
@@ -257,10 +242,6 @@ mod tests {
         assert_eq!(
             directories.state,
             custom.path().join("ku-potato/server/state")
-        );
-        assert_eq!(
-            directories.cache,
-            custom.path().join("ku-potato/server/cache")
         );
     }
 
