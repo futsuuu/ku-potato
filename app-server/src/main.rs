@@ -42,9 +42,8 @@ async fn run_server(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let data = arguments.data_dir.unwrap_or(defaults.data);
     let state = arguments.state_dir.unwrap_or(defaults.state);
-    let cache = arguments.cache_dir.unwrap_or(defaults.cache);
     let temporary = arguments.temp_dir.unwrap_or(defaults.temporary);
-    for directory in [&data, &state, &cache] {
+    for directory in [&data, &state] {
         ku_potato_server::settings::create_private_directory(directory)?;
     }
     std::fs::create_dir_all(&temporary)?;
@@ -64,26 +63,13 @@ async fn run_server(
     let mut user_browser = ku_potato_server::process::Child::start(
         ku_potato_server::process::Service::UserBrowser,
         arguments.user_browser.as_deref(),
-        &[
-            "-telemetry-dir".into(),
-            state.join("telemetry").to_string_lossy().into_owned(),
-            "-state-dir".into(),
-            state.to_string_lossy().into_owned(),
-            "-cache-dir".into(),
-            cache.join("user-browser").to_string_lossy().into_owned(),
-            "-chrome".into(),
-            chrome.clone(),
-        ],
+        &["-chrome".into(), chrome.clone()],
     )
     .await?;
     let browser_worker = ku_potato_server::process::Child::start(
         ku_potato_server::process::Service::BrowserWorker,
         arguments.browser_worker.as_deref(),
         &[
-            "-telemetry-dir".into(),
-            state.join("telemetry").to_string_lossy().into_owned(),
-            "-temp-dir".into(),
-            process_temporary.path().to_string_lossy().into_owned(),
             "-chrome".into(),
             chrome,
             "-concurrency".into(),
